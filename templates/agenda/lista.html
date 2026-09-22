@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Agenda | SGR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 fw-bold mb-0">Agenda de la delegación</h2>
+    <a href="{% url 'agenda:crear' %}" class="btn btn-custom-red">Nuevo compromiso</a>
+</div>
+
+{% if vencidos %}
+<div class="alert alert-danger">
+    <strong>Vencidos:</strong>
+    {% for c in vencidos %}{{ c.titulo }} ({{ c.fecha_hora }}){% if not forloop.last %}; {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+{% if proximos %}
+<div class="alert alert-warning">
+    <strong>Próximos a vencer (7 días):</strong>
+    {% for c in proximos %}{{ c.titulo }} ({{ c.fecha_hora }}){% if not forloop.last %}; {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Fecha y hora</th>
+                <th>Compromiso</th>
+                <th>Responsable</th>
+                <th>Delegación</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for compromiso in compromisos %}
+            <tr class="{% if compromiso.esta_vencido %}table-danger{% elif compromiso.proximo_a_vencer %}table-warning{% endif %}">
+                <td>{{ compromiso.fecha_hora }}</td>
+                <td>{{ compromiso.titulo }}</td>
+                <td>{{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }}</td>
+                <td>{{ compromiso.delegacion }}</td>
+                <td>{% if compromiso.esta_vencido %}Vencido{% else %}{{ compromiso.get_estado_display }}{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No hay compromisos en la agenda.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

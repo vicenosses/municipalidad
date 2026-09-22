@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Editar perfil | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Rol y delegación de {{ object.usuario.username }}</h2>
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% for field in form %}
+        <div class="mb-3">
+            {% if field.name == 'activo' %}
+            <div class="form-check">
+                {{ field }}
+                <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            </div>
+            {% else %}
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% endif %}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-custom-red">Actualizar</button>
+        <a href="{% url 'usuarios:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

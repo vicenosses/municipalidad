@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Auditoría | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Historial de operaciones</h2>
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body row g-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label" for="usuario">Usuario</label>
+            <select name="usuario" id="usuario" class="form-select">
+                <option value="">Todos</option>
+                {% for u in usuarios %}
+                <option value="{{ u.id }}" {% if filtros.usuario == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="fecha_desde">Desde</label>
+            <input type="date" name="fecha_desde" id="fecha_desde" class="form-control" value="{{ filtros.fecha_desde }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="fecha_hasta">Hasta</label>
+            <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control" value="{{ filtros.fecha_hasta }}">
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-custom-red w-100">Filtrar</button>
+        </div>
+    </div>
+</form>
+
+<div class="table-responsive shadow-sm">
+    <table class="table table-sm table-striped align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Fecha y hora</th>
+                <th>Usuario</th>
+                <th>Acción</th>
+                <th>Modelo</th>
+                <th>Descripción</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for registro in registros %}
+            <tr>
+                <td>{{ registro.timestamp }}</td>
+                <td>{{ registro.usuario|default:"sistema" }}</td>
+                <td>{{ registro.accion }}</td>
+                <td>{{ registro.modelo }}</td>
+                <td>{{ registro.descripcion }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No hay registros de auditoría.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if is_paginated %}
+<nav class="mt-3">
+    <ul class="pagination">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }}</span></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

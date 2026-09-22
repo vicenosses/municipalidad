@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Acceso denegado | SGR{% endblock %}
+{% block content %}
+<div class="alert alert-danger">
+    No tiene permisos para acceder a este módulo. Si necesita este acceso, solicítelo a un administrador.
+</div>
+<a href="{% url 'home' %}" class="btn btn-custom-red">Volver al inicio</a>
+{% endblock %}

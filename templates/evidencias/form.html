@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Subir evidencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Cargar evidencia (JPG/PNG)</h2>
+<form method="post" enctype="multipart/form-data" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+        {% endif %}
+        {% for field in form %}
+        <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <p class="small text-muted">Al guardar se genera un código único de respaldo.</p>
+        <button type="submit" class="btn btn-custom-red">Subir</button>
+        <a href="{% url 'evidencias:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

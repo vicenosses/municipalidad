@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Validar evidencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Validación de jefatura</h2>
+<div class="row g-4">
+    <div class="col-md-6">
+        {% if evidencia.archivo %}
+        <img src="{{ evidencia.archivo.url }}" alt="Evidencia" class="img-fluid rounded shadow-sm">
+        {% endif %}
+        <p class="mt-3 mb-1"><strong>Código:</strong> {{ evidencia.codigo_respaldo }}</p>
+        <p class="mb-1"><strong>Actividad:</strong> {{ evidencia.actividad }}</p>
+        <p class="mb-0"><strong>Estado actual:</strong> {{ evidencia.get_estado_display }}</p>
+    </div>
+    <div class="col-md-6">
+        <form method="post" class="card shadow-sm">
+            {% csrf_token %}
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label" for="{{ form.comentario.id_for_label }}">{{ form.comentario.label }}</label>
+                    {{ form.comentario }}
+                </div>
+                <button type="submit" name="accion" value="aprobar" class="btn btn-success">Aprobar</button>
+                <button type="submit" name="accion" value="rechazar" class="btn btn-custom-red">Rechazar</button>
+                <a href="{% url 'evidencias:lista' %}" class="btn btn-outline-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

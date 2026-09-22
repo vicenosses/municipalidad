@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Evidencias | SGR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 fw-bold mb-0">Evidencias fotográficas</h2>
+    <a href="{% url 'evidencias:crear' %}" class="btn btn-custom-red">Subir evidencia</a>
+</div>
+<div class="row g-3">
+    {% for evidencia in evidencias %}
+    <div class="col-md-4">
+        <div class="card card-evidencia shadow-sm h-100">
+            {% if evidencia.archivo %}
+            <img src="{{ evidencia.archivo.url }}" alt="Evidencia {{ evidencia.codigo_respaldo }}">
+            {% endif %}
+            <div class="card-body">
+                <p class="small text-muted mb-1">{{ evidencia.actividad.titulo }}</p>
+                <p class="fw-semibold mb-1">{{ evidencia.codigo_respaldo }}</p>
+                {% if evidencia.estado == 'aprobada' %}
+                <span class="badge bg-success">{{ evidencia.get_estado_display }}</span>
+                {% elif evidencia.estado == 'rechazada' %}
+                <span class="badge bg-danger">{{ evidencia.get_estado_display }}</span>
+                {% else %}
+                <span class="badge bg-warning text-dark">{{ evidencia.get_estado_display }}</span>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-white">
+                <a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-sm btn-custom-red">Validar</a>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <p class="text-muted">No hay evidencias cargadas.</p>
+    {% endfor %}
+</div>
+{% endblock %}

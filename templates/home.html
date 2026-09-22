@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Inicio | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Panel de control</h2>
+<div class="row g-3">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted small mb-1">Usuarios activos</p>
+                <p class="h3 text-institucional mb-0">{{ total_usuarios }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted small mb-1">Actividades</p>
+                <p class="h3 text-institucional mb-0">{{ total_actividades }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted small mb-1">Evidencias pendientes</p>
+                <p class="h3 text-institucional mb-0">{{ evidencias_pendientes }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <p class="text-muted small mb-1">Compromisos próximos</p>
+                <p class="h3 text-institucional mb-0">{{ compromisos_proximos }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

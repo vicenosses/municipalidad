@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SGR - Municipalidad de La Serena{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    <style>
+        body {
+            background-color: #ffffff;
+            color: #333333;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .navbar-custom { background-color: #c92a2a; }
+        .footer-custom {
+            background-color: #f8f9fa;
+            border-top: 3px solid #c92a2a;
+            margin-top: auto;
+        }
+        .btn-custom-red {
+            background-color: #c92a2a;
+            color: white;
+            border: none;
+        }
+        .btn-custom-red:hover {
+            background-color: #a61e1e;
+            color: white;
+        }
+        .text-institucional { color: #c92a2a; }
+        .badge-rol { background-color: #c92a2a; }
+        .card-evidencia img {
+            object-fit: cover;
+            height: 180px;
+            width: 100%;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="{% url 'home' %}">
+                <span class="text-white">SGR</span> <small class="text-light fs-6">La Serena</small>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'home' %}">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'actividades:lista' %}">Actividades</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">Agenda</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">Evidencias</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">Usuarios</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">Auditoría</a></li>
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item">
+                        <span class="navbar-text text-white me-3">{{ user.get_full_name|default:user.username }}</span>
+                    </li>
+                    <li class="nav-item">
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-light">Salir</button>
+                        </form>
+                    </li>
+                    {% else %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'login' %}">Ingresar</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <header class="bg-light py-3 border-bottom mb-4">
+        <div class="container">
+            <h1 class="h4 text-danger fw-bold mb-0">Sistema de Gestión de Resultados</h1>
+            <p class="text-muted small mb-0">Ilustre Municipalidad de La Serena</p>
+        </div>
+    </header>
+
+    <main class="container my-4">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer-custom py-4 text-center">
+        <div class="container">
+            <p class="text-muted mb-1">&copy; 2026 - Ilustre Municipalidad de La Serena | SGR</p>
+            <small class="text-secondary">Desarrollado bajo arquitectura modular en Django</small>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

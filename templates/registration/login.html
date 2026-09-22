@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Ingreso | SGR{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h4 text-institucional fw-bold mb-3">Ingreso al SGR</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    <div class="mb-3">
+                        <label class="form-label" for="id_username">Usuario</label>
+                        <input type="text" name="username" class="form-control" id="id_username" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="id_password">Contraseña</label>
+                        <input type="password" name="password" class="form-control" id="id_password" required>
+                    </div>
+                    <button type="submit" class="btn btn-custom-red w-100">Ingresar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
