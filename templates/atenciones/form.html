@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Ingreso de atención | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Ingreso de atención ciudadana</h2>
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label">Delegación activa</label>
+                <input type="text" class="form-control" value="{{ delegacion_activa|default:'Sin delegación activa' }}" readonly>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Usuario responsable</label>
+                <input type="text" class="form-control" value="{{ user.get_full_name|default:user.username }}" readonly>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Fecha de registro</label>
+                <input type="text" class="form-control" value="Se asigna al guardar" readonly>
+            </div>
+        </div>
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Registrar</button>
+        <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>
+    const mapa = {};
+    {% for sub in subatenciones %}
+    mapa[{{ sub.id }}] = {{ sub.tipo_id }};
+    {% endfor %}
+    const tipo = document.getElementById('id_tipo');
+    const sub = document.getElementById('id_subatencion');
+    function filtrar() {
+        const valor = tipo.value;
+        Array.from(sub.options).forEach(function (op) {
+            if (!op.value) { op.hidden = false; return; }
+            op.hidden = String(mapa[op.value]) !== String(valor);
+        });
+        if (sub.value && String(mapa[sub.value]) !== String(valor)) {
+            sub.value = '';
+        }
+    }
+    if (tipo && sub) {
+        tipo.addEventListener('change', filtrar);
+        filtrar();
+    }
+</script>
+{% endblock %}

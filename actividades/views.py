@@ -7,6 +7,7 @@ from actividades.forms import ActividadForm
 from actividades.models import Actividad
 from auditoria.utils import registrar_auditoria
 from usuarios.mixins import RolRequiredMixin, obtener_rol
+from usuarios.sesion import get_delegacion_activa
 
 
 class ActividadListView(LoginRequiredMixin, ListView):
@@ -17,11 +18,13 @@ class ActividadListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = Actividad.objects.select_related('funcionario', 'delegacion')
         rol = obtener_rol(self.request.user)
-        if rol in ('administrador', 'coordinador', 'verificador'):
+        if rol == 'administrador':
             return qs
-        perfil = getattr(self.request.user, 'perfil', None)
-        if perfil and perfil.delegacion_id:
-            return qs.filter(delegacion=perfil.delegacion)
+        delegacion = get_delegacion_activa(self.request)
+        if delegacion:
+            return qs.filter(delegacion=delegacion)
+        if rol in ('coordinador', 'verificador'):
+            return qs.none()
         return qs.filter(funcionario=self.request.user)
 
 
@@ -32,8 +35,7 @@ class ActividadCreateView(RolRequiredMixin, CreateView):
     roles_permitidos = ('administrador', 'coordinador', 'funcionario', 'delegado')
 
     def form_valid(self, form):
-        perfil = getattr(self.request.user, 'perfil', None)
-        delegacion = perfil.delegacion if perfil else None
+        delegacion = get_delegacion_activa(self.request)
         if delegacion is None:
             form.add_error(None, 'Su perfil no tiene una delegación asignada.')
             return self.form_invalid(form)

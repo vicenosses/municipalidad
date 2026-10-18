@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Ítem | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">{% if object %}Editar ítem{% else %}Nuevo ítem / meta{% endif %}</h2>
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Guardar</button>
+        <a href="{% url 'catalogos:item_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

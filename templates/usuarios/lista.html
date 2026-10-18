@@ -11,7 +11,7 @@
     <div class="col-md">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                <p class="text-muted small mb-1">{{ item.rol|title }}</p>
+                <p class="text-muted small mb-1">{{ item.rol__nombre|default:"Sin rol" }}</p>
                 <p class="h4 text-institucional mb-0">{{ item.total }}</p>
             </div>
         </div>
@@ -21,30 +21,7 @@
     {% endfor %}
 </div>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <h3 class="h6 fw-bold">Nueva delegación</h3>
-        <form method="post" action="{% url 'usuarios:delegacion_crear' %}" class="row g-2 align-items-end">
-            {% csrf_token %}
-            <div class="col-md-6">
-                <label class="form-label">{{ delegacion_form.nombre.label }}</label>
-                {{ delegacion_form.nombre }}
-            </div>
-            <div class="col-md-3">
-                <div class="form-check mt-4">
-                    {{ delegacion_form.activa }}
-                    <label class="form-check-label" for="{{ delegacion_form.activa.id_for_label }}">Activa</label>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-custom-red">Guardar delegación</button>
-            </div>
-        </form>
-        {% if delegaciones %}
-        <p class="small text-muted mt-3 mb-0">Delegaciones: {% for d in delegaciones %}{{ d.nombre }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
-        {% endif %}
-    </div>
-</div>
+{% include "includes/toolbar_listado.html" %}
 
 <div class="table-responsive shadow-sm">
     <table class="table table-hover align-middle mb-0">
@@ -52,8 +29,9 @@
             <tr>
                 <th>Usuario</th>
                 <th>Nombre</th>
+                <th>Correo</th>
                 <th>Rol</th>
-                <th>Delegación</th>
+                <th>Delegaciones autorizadas</th>
                 <th>Estado</th>
                 <th></th>
             </tr>
@@ -63,17 +41,24 @@
             <tr>
                 <td>{{ perfil.usuario.username }}</td>
                 <td>{{ perfil.usuario.get_full_name|default:"—" }}</td>
-                <td><span class="badge badge-rol">{{ perfil.get_rol_display }}</span></td>
-                <td>{{ perfil.delegacion|default:"—" }}</td>
-                <td>{% if perfil.activo %}Activo{% else %}Inactivo{% endif %}</td>
+                <td>{{ perfil.usuario.email|default:"—" }}</td>
+                <td><span class="badge badge-rol">{{ perfil.rol.nombre|default:"—" }}</span></td>
+                <td>{{ perfil.delegaciones_display|default:"—" }}</td>
+                <td>{{ perfil.estado_display }}</td>
                 <td class="text-end">
+                    <a href="{% url 'usuarios:detalle' perfil.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
+                    <form method="post" action="{% url 'usuarios:desactivar' perfil.pk %}" class="d-inline js-confirm" data-message="¿Desactivar este usuario?">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                    </form>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No hay usuarios.</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-4">No hay usuarios.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% include "includes/paginacion.html" %}
 {% endblock %}

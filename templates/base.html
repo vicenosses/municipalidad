@@ -55,8 +55,26 @@
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'actividades:lista' %}">Actividades</a></li>
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">Agenda</a></li>
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">Evidencias</a></li>
+                    {% if sesion_permisos.atenciones %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">Atención ciudadana</a></li>
+                    {% endif %}
+                    {% if sesion_permisos.usuarios %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">Usuarios</a></li>
+                    {% endif %}
+                    {% if sesion_permisos.delegaciones %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">Delegaciones</a></li>
+                    {% endif %}
+                    {% if sesion_permisos.roles %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">Roles</a></li>
+                    {% endif %}
+                    {% if sesion_permisos.catalogos %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:item_lista' %}">Ítems</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:tipo_lista' %}">Tipos</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:sub_lista' %}">Subatenciones</a></li>
+                    {% endif %}
+                    {% if sesion_permisos.auditoria %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">Auditoría</a></li>
+                    {% endif %}
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
@@ -82,11 +100,33 @@
         <div class="container">
             <h1 class="h4 text-danger fw-bold mb-0">Sistema de Gestión de Resultados</h1>
             <p class="text-muted small mb-0">Ilustre Municipalidad de La Serena</p>
+            {% if user.is_authenticated %}
+            <p class="small mb-0 mt-2">
+                Delegación activa: <strong>{{ sesion_delegacion|default:"—" }}</strong>
+                · Usuario: <strong>{{ sesion_nombre }}</strong>
+                · Rol: <strong>{{ sesion_rol }}</strong>
+            </p>
+            {% if sesion_delegaciones and sesion_delegaciones|length > 1 %}
+            <form method="post" action="{% url 'usuarios:delegacion_activa' %}" class="row g-2 align-items-center mt-2">
+                {% csrf_token %}
+                <div class="col-auto">
+                    <select name="delegacion_id" class="form-select form-select-sm">
+                        {% for d in sesion_delegaciones %}
+                        <option value="{{ d.pk }}" {% if sesion_delegacion and sesion_delegacion.pk == d.pk %}selected{% endif %}>{{ d.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-sm btn-custom-red">Cambiar delegación</button>
+                </div>
+            </form>
+            {% endif %}
+            {% endif %}
         </div>
     </header>
 
     <main class="container my-4">
-        {% if messages %}
+        {% if messages and not usar_swal_mensajes %}
             {% for message in messages %}
             <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
                 {{ message }}
@@ -105,6 +145,47 @@
     </footer>
 
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/sweetalert2.min.js' %}"></script>
+    <script>
+        document.querySelectorAll('form.js-confirm').forEach(function (form) {
+            form.addEventListener('submit', function (evento) {
+                evento.preventDefault();
+                var texto = form.getAttribute('data-message') || '¿Confirma esta acción?';
+                Swal.fire({
+                    title: 'Confirmar',
+                    text: texto,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#c92a2a',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'Sí, continuar',
+                    cancelButtonText: 'Cancelar'
+                }).then(function (resultado) {
+                    if (resultado.isConfirmed) {
+                        form.submit();
+                    }
+                });
+            });
+        });
+        {% if usar_swal_mensajes %}
+        (function () {
+            var msgs = [
+                {% for message in messages %}
+                {
+                    icon: '{% if message.tags == "error" or message.tags == "danger" %}error{% elif message.tags == "success" %}success{% elif message.tags == "warning" %}warning{% else %}info{% endif %}',
+                    title: '{{ message|escapejs }}'
+                }{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ];
+            if (!msgs.length) { return; }
+            Swal.fire({
+                icon: msgs[0].icon,
+                title: msgs.map(function (m) { return m.title; }).join('\n'),
+                confirmButtonColor: '#c92a2a'
+            });
+        })();
+        {% endif %}
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

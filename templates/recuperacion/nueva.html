@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Nueva contraseña | SGR{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="h4 fw-bold mb-3">Paso 3: nueva contraseña</h2>
+                <p class="text-muted small">Debe cumplir los requisitos de seguridad del sistema.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {% include "includes/form_campos.html" %}
+                    <button type="submit" class="btn btn-custom-red">Guardar contraseña</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

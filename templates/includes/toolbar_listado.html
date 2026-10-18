@@ -1,0 +1,11 @@
+<form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-md-6">
+        <label class="form-label" for="q">Búsqueda</label>
+        <input type="text" name="q" id="q" class="form-control" value="{{ q }}" placeholder="Coincidencia parcial">
+    </div>
+    <div class="col-md-6 d-flex gap-2">
+        <button type="submit" class="btn btn-custom-red">Buscar</button>
+        <a class="btn btn-outline-secondary" href="?{% if querystring %}{{ querystring }}&{% endif %}export=xlsx">Exportar a Excel</a>
+    </div>
+</form>
+<p class="text-muted small">Total de resultados: <strong>{{ total_resultados }}</strong></p>

@@ -10,6 +10,7 @@ from agenda.forms import CompromisoForm
 from agenda.models import Compromiso
 from auditoria.utils import registrar_auditoria
 from usuarios.mixins import RolRequiredMixin, obtener_rol
+from usuarios.sesion import get_delegacion_activa
 
 
 class CompromisoListView(LoginRequiredMixin, ListView):
@@ -20,11 +21,13 @@ class CompromisoListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = Compromiso.objects.select_related('responsable', 'delegacion')
         rol = obtener_rol(self.request.user)
-        if rol in ('administrador', 'coordinador'):
+        if rol == 'administrador':
             return qs
-        perfil = getattr(self.request.user, 'perfil', None)
-        if perfil and perfil.delegacion_id:
-            return qs.filter(delegacion=perfil.delegacion)
+        delegacion = get_delegacion_activa(self.request)
+        if delegacion:
+            return qs.filter(delegacion=delegacion)
+        if rol == 'coordinador':
+            return qs.none()
         return qs.filter(responsable=self.request.user)
 
     def get_context_data(self, **kwargs):
@@ -46,9 +49,13 @@ class CompromisoCreateView(RolRequiredMixin, CreateView):
     success_url = reverse_lazy('agenda:lista')
     roles_permitidos = ('administrador', 'coordinador', 'delegado')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['delegacion'] = get_delegacion_activa(self.request)
+        return kwargs
+
     def form_valid(self, form):
-        perfil = getattr(self.request.user, 'perfil', None)
-        delegacion = perfil.delegacion if perfil else None
+        delegacion = get_delegacion_activa(self.request)
         if delegacion is None:
             form.add_error(None, 'Su perfil no tiene una delegación asignada.')
             return self.form_invalid(form)

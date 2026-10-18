@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Detalle ítem | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">{{ object.nombre }}</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Código:</strong> {{ object.codigo }}</p>
+        <p><strong>Descripción:</strong> {{ object.descripcion|default:"—" }}</p>
+        <p class="mb-0"><strong>Estado:</strong> {{ object.estado_display }}</p>
+    </div>
+</div>
+<a href="{% url 'catalogos:item_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>
+<a href="{% url 'catalogos:item_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% endblock %}

@@ -23,9 +23,11 @@
                 <span class="badge bg-warning text-dark">{{ evidencia.get_estado_display }}</span>
                 {% endif %}
             </div>
+            {% if sesion_permisos.validar_evidencias and evidencia.estado == 'pendiente' %}
             <div class="card-footer bg-white">
                 <a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-sm btn-custom-red">Validar</a>
             </div>
+            {% endif %}
         </div>
     </div>
     {% empty %}

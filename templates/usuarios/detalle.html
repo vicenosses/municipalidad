@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Detalle usuario | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">{{ perfil.usuario.get_full_name|default:perfil.usuario.username }}</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Usuario:</strong> {{ perfil.usuario.username }}</p>
+        <p><strong>Correo:</strong> {{ perfil.usuario.email|default:"—" }}</p>
+        <p><strong>Rol:</strong> {{ perfil.rol.nombre|default:"—" }}</p>
+        <p><strong>Delegación por defecto:</strong> {{ perfil.delegacion|default:"—" }}</p>
+        <p><strong>Delegaciones autorizadas:</strong>
+            {% for d in perfil.delegaciones.all %}{{ d.nombre }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+        </p>
+        <p><strong>Cargo:</strong> {{ perfil.cargo|default:"—" }}</p>
+        <p class="mb-0"><strong>Estado:</strong> {{ perfil.estado_display }}</p>
+    </div>
+</div>
+<a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-custom-red mt-3">Editar</a>
+<a href="{% url 'usuarios:lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% endblock %}

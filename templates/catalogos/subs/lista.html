@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Subatenciones | SGR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 fw-bold mb-0">Subatenciones</h2>
+    <a href="{% url 'catalogos:sub_crear' %}" class="btn btn-custom-red">Nueva subatención</a>
+</div>
+{% include "includes/toolbar_listado.html" %}
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Tipo de atención</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sub in subs %}
+            <tr>
+                <td>{{ sub.codigo }}</td>
+                <td>{{ sub.nombre }}</td>
+                <td>{{ sub.tipo }}</td>
+                <td>{{ sub.estado_display }}</td>
+                <td class="text-end">
+                    <a href="{% url 'catalogos:sub_detalle' sub.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    <a href="{% url 'catalogos:sub_editar' sub.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
+                    <form method="post" action="{% url 'catalogos:sub_desactivar' sub.pk %}" class="d-inline js-confirm" data-message="¿Desactivar esta subatención?">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted py-4">No hay subatenciones.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include "includes/paginacion.html" %}
+{% endblock %}

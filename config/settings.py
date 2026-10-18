@@ -1,7 +1,8 @@
 from pathlib import Path
-
+import os
+from dotenv import load_dotenv
 from django.contrib.messages import constants as message_constants
-
+load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,6 +33,8 @@ INSTALLED_APPS = [
     'evidencias.apps.EvidenciasConfig',
     'agenda.apps.AgendaConfig',
     'auditoria.apps.AuditoriaConfig',
+    'catalogos.apps.CatalogosConfig',
+    'atenciones.apps.AtencionesConfig',
 ]
 
 MIDDLEWARE = [
@@ -56,6 +59,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'config.context_processors.sesion_sgr',
             ],
         },
     },
@@ -69,15 +73,8 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'municipalidad',
-        'USER': 'muni_user',
-        'PASSWORD': 'Pan.queso.123',
-        'HOST': 'localhost',
-        'PORT': '3306',
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
@@ -116,15 +113,36 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
+
+AUTHENTICATION_BACKENDS = [
+    'usuarios.backends.UsernameOrEmailBackend',
+]
+
+# Correo: EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
+# EMAIL_USE_TLS, DEFAULT_FROM_EMAIL. Sin SMTP se usa consola (DEBUG) para ver el código.
+_email_backend = os.getenv('EMAIL_BACKEND')
+_email_host = os.getenv('EMAIL_HOST', '')
+if _email_backend:
+    EMAIL_BACKEND = _email_backend
+elif _email_host:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = _email_host
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587') or 587)
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'SGR La Serena <no-reply@localhost>')
 
 MESSAGE_TAGS = {
     message_constants.ERROR: 'danger',

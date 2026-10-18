@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Atención ciudadana | SGR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 fw-bold mb-0">Atención ciudadana</h2>
+    <a href="{% url 'atenciones:crear' %}" class="btn btn-custom-red">Nueva atención</a>
+</div>
+{% include "includes/toolbar_listado.html" %}
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Fecha</th>
+                <th>Solicitante</th>
+                <th>Tipo</th>
+                <th>Subatención</th>
+                <th>Delegación</th>
+                <th>Responsable</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for atencion in atenciones %}
+            <tr>
+                <td>{{ atencion.fecha_registro }}</td>
+                <td>{{ atencion.solicitante }}</td>
+                <td>{{ atencion.tipo }}</td>
+                <td>{{ atencion.subatencion }}</td>
+                <td>{{ atencion.delegacion }}</td>
+                <td>{{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</td>
+                <td class="text-end">
+                    <a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No hay atenciones registradas.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include "includes/paginacion.html" %}
+{% endblock %}

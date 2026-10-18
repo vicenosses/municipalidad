@@ -10,6 +10,7 @@ from auditoria.utils import registrar_auditoria
 from evidencias.forms import EvidenciaForm, ValidacionEvidenciaForm
 from evidencias.models import Evidencia
 from usuarios.mixins import RolRequiredMixin, obtener_rol
+from usuarios.sesion import get_delegacion_activa
 
 
 class EvidenciaListView(LoginRequiredMixin, ListView):
@@ -20,8 +21,13 @@ class EvidenciaListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = Evidencia.objects.select_related('actividad', 'subido_por', 'validado_por')
         rol = obtener_rol(self.request.user)
-        if rol in ('administrador', 'coordinador', 'verificador'):
+        if rol == 'administrador':
             return qs
+        if rol in ('coordinador', 'verificador'):
+            delegacion = get_delegacion_activa(self.request)
+            if delegacion:
+                return qs.filter(actividad__delegacion=delegacion)
+            return qs.none()
         return qs.filter(subido_por=self.request.user)
 
 
@@ -55,13 +61,25 @@ class EvidenciaCreateView(RolRequiredMixin, CreateView):
 class EvidenciaValidarView(RolRequiredMixin, View):
     roles_permitidos = ('administrador', 'coordinador', 'verificador')
 
+    def get_evidencia(self, request, pk):
+        qs = Evidencia.objects.select_related('actividad', 'subido_por')
+        if obtener_rol(request.user) != 'administrador':
+            delegacion = get_delegacion_activa(request)
+            if delegacion is None:
+                return get_object_or_404(qs.none(), pk=pk)
+            qs = qs.filter(actividad__delegacion=delegacion)
+        return get_object_or_404(qs, pk=pk)
+
     def get(self, request, pk):
-        evidencia = get_object_or_404(Evidencia, pk=pk)
+        evidencia = self.get_evidencia(request, pk)
         form = ValidacionEvidenciaForm(initial={'comentario': evidencia.comentario_validacion})
         return render(request, 'evidencias/validar.html', {'evidencia': evidencia, 'form': form})
 
     def post(self, request, pk):
-        evidencia = get_object_or_404(Evidencia, pk=pk)
+        evidencia = self.get_evidencia(request, pk)
+        if evidencia.estado != Evidencia.Estado.PENDIENTE:
+            messages.error(request, 'Esta evidencia ya fue validada.')
+            return redirect('evidencias:lista')
         form = ValidacionEvidenciaForm(request.POST)
         if not form.is_valid():
             return render(request, 'evidencias/validar.html', {'evidencia': evidencia, 'form': form})

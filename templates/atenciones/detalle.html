@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Detalle atención | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Atención de {{ atencion.solicitante }}</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Fecha:</strong> {{ atencion.fecha_registro }}</p>
+        <p><strong>Tipo:</strong> {{ atencion.tipo }}</p>
+        <p><strong>Subatención:</strong> {{ atencion.subatencion }}</p>
+        <p><strong>Delegación:</strong> {{ atencion.delegacion }}</p>
+        <p><strong>Responsable:</strong> {{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</p>
+        <p class="mb-0"><strong>Descripción:</strong> {{ atencion.descripcion }}</p>
+    </div>
+</div>
+<a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% endblock %}
