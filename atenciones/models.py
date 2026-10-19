@@ -41,3 +41,32 @@ class AtencionCiudadana(models.Model):
 
     def __str__(self):
         return f'{self.solicitante} — {self.tipo}'
+
+    @property
+    def estado_evidencias(self):
+        estados = {e.estado for e in self.evidencias.all()}
+        if not estados:
+            return 'sin_evidencia'
+        if 'rechazada' in estados:
+            return 'rechazada'
+        if 'pendiente' in estados:
+            return 'pendiente'
+        return 'aprobada'
+
+    @property
+    def etiqueta_estado_evidencias(self):
+        return {
+            'pendiente': 'Pendiente',
+            'aprobada': 'Aprobada',
+            'rechazada': 'Rechazada',
+            'sin_evidencia': 'Sin evidencia',
+        }[self.estado_evidencias]
+
+    @property
+    def clase_estado_evidencias(self):
+        return {
+            'pendiente': 'bg-secondary text-white',
+            'aprobada': 'bg-success text-white',
+            'rechazada': 'bg-danger text-white',
+            'sin_evidencia': 'bg-light text-secondary border',
+        }[self.estado_evidencias]

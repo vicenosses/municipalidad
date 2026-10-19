@@ -4,11 +4,22 @@
 <h2 class="h4 fw-bold mb-4">Validación de jefatura</h2>
 <div class="row g-4">
     <div class="col-md-6">
-        {% if evidencia.archivo %}
-        <img src="{{ evidencia.archivo.url }}" alt="Evidencia" class="img-fluid rounded shadow-sm">
+        {% if evidencia.tipo_archivo == 'video' %}
+        <video class="img-fluid rounded shadow-sm" controls preload="metadata">
+            <source src="{% url 'evidencia_archivo' evidencia.pk %}" type="{{ evidencia.content_type }}">
+            Su navegador no admite la reproducción de este video.
+        </video>
+        {% else %}
+        <img src="{% url 'evidencia_archivo' evidencia.pk %}" alt="Evidencia" class="img-fluid rounded shadow-sm">
         {% endif %}
-        <p class="mt-3 mb-1"><strong>Código:</strong> {{ evidencia.codigo_respaldo }}</p>
+        <p class="mt-3 mb-1"><strong>Identificador:</strong> {{ evidencia.identificador }}</p>
+        <p class="mb-1"><strong>Tipo de archivo:</strong> {{ evidencia.get_tipo_archivo_display }}</p>
+        {% if evidencia.atencion_id %}
+        <p class="mb-1"><strong>Atención:</strong> {{ evidencia.atencion }}</p>
+        {% else %}
         <p class="mb-1"><strong>Actividad:</strong> {{ evidencia.actividad }}</p>
+        {% endif %}
+        <p class="mb-1"><strong>Subida por:</strong> {{ evidencia.subido_por.get_full_name|default:evidencia.subido_por.username }}</p>
         <p class="mb-0"><strong>Estado actual:</strong> {{ evidencia.get_estado_display }}</p>
     </div>
     <div class="col-md-6">

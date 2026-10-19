@@ -1,10 +1,10 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from config.views import HomeView
+from evidencias.views import EvidenciaArchivoView
 from usuarios.auth_views import (
     LoginSGRView,
     RecuperacionCodigoView,
@@ -25,11 +25,13 @@ urlpatterns = [
     path('evidencias/', include('evidencias.urls')),
     path('agenda/', include('agenda.urls')),
     path('auditoria/', include('auditoria.urls')),
+    path(
+        f'{settings.MEDIA_URL.lstrip("/").rstrip("/")}/evidencias/<int:pk>/',
+        EvidenciaArchivoView.as_view(),
+        name='evidencia_archivo',
+    ),
     path('catalogos/', include('catalogos.urls')),
     path('atenciones/', include('atenciones.urls')),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 handler403 = 'django.views.defaults.permission_denied'

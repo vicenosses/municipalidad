@@ -118,6 +118,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Límites por archivo para la carga de evidencias ciudadanas.
+EVIDENCIA_MAX_IMAGE_MB = int(os.getenv('EVIDENCIA_MAX_IMAGE_MB', '10'))
+EVIDENCIA_MAX_VIDEO_MB = int(os.getenv('EVIDENCIA_MAX_VIDEO_MB', '100'))
+EVIDENCIA_MAX_BATCH_MB = int(os.getenv('EVIDENCIA_MAX_BATCH_MB', '250'))
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'

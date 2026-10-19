@@ -12,5 +12,41 @@
         <p class="mb-0"><strong>Descripción:</strong> {{ atencion.descripcion }}</p>
     </div>
 </div>
+<section class="mt-4">
+    <h3 class="h5 fw-bold">Evidencias</h3>
+    {% if evidencias %}
+    <div class="row g-3">
+        {% for evidencia in evidencias %}
+        <div class="col-md-6 col-lg-4">
+            <article class="card h-100 shadow-sm">
+                {% if evidencia.tipo_archivo == 'video' %}
+                <video class="card-img-top" controls preload="metadata">
+                    <source src="{% url 'evidencia_archivo' evidencia.pk %}" type="{{ evidencia.content_type }}">
+                    Su navegador no admite la reproducción de este video.
+                </video>
+                {% else %}
+                <a href="{% url 'evidencia_archivo' evidencia.pk %}" target="_blank" rel="noopener">
+                    <img src="{% url 'evidencia_archivo' evidencia.pk %}" class="card-img-top" alt="Evidencia {{ evidencia.identificador }}">
+                </a>
+                {% endif %}
+                <div class="card-body">
+                    <p class="fw-semibold mb-1">{{ evidencia.identificador }}</p>
+                    <p class="small mb-1">{{ evidencia.get_tipo_archivo_display }} · {{ evidencia.fecha_subida }}</p>
+                    <p class="small mb-1">Subida por {{ evidencia.subido_por.get_full_name|default:evidencia.subido_por.username }}</p>
+                    <span class="badge {% if evidencia.estado == 'aprobada' %}bg-success{% elif evidencia.estado == 'rechazada' %}bg-danger{% else %}bg-secondary{% endif %}">
+                        {{ evidencia.get_estado_display }}
+                    </span>
+                    {% if evidencia.estado == 'rechazada' and evidencia.comentario_validacion %}
+                    <p class="small text-danger mt-2 mb-0">Motivo: {{ evidencia.comentario_validacion }}</p>
+                    {% endif %}
+                </div>
+            </article>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No hay evidencias disponibles para esta atención.</p>
+    {% endif %}
+</section>
 <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
 {% endblock %}

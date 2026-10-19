@@ -1,13 +1,26 @@
 import uuid
+from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
+from django.utils.text import slugify
 
 from actividades.models import Actividad
+from atenciones.models import AtencionCiudadana
+
+
+def ruta_evidencia(instance, filename):
+    """Guarda con nombre aleatorio y extensión permitida, sin usar el nombre del cliente."""
+    extension = Path(filename).suffix.lower()
+    if extension not in {'.jpg', '.jpeg', '.png', '.webp', '.mp4', '.webm'}:
+        extension = '.bin'
+    return f'evidencias/{timezone.now():%Y/%m}/{uuid.uuid4().hex}{extension}'
 
 
 class Evidencia(models.Model):
-    """Respaldo fotográfico asociado a una actividad operativa."""
+    """Archivo de respaldo vinculado a una actividad o atención ciudadana."""
 
     class Estado(models.TextChoices):
         PENDIENTE = 'pendiente', 'Pendiente'
@@ -19,13 +32,36 @@ class Evidencia(models.Model):
         on_delete=models.CASCADE,
         related_name='evidencias',
         verbose_name='Actividad',
+        null=True,
+        blank=True,
     )
-    archivo = models.ImageField('Archivo', upload_to='evidencias/%Y/%m/')
+    atencion = models.ForeignKey(
+        AtencionCiudadana,
+        on_delete=models.PROTECT,
+        related_name='evidencias',
+        verbose_name='Atención ciudadana',
+        null=True,
+        blank=True,
+    )
+    archivo = models.FileField('Archivo', upload_to=ruta_evidencia)
     codigo_respaldo = models.UUIDField(
         'Código de respaldo',
         default=uuid.uuid4,
         unique=True,
         editable=False,
+    )
+    identificador = models.CharField(
+        'Identificador',
+        max_length=160,
+        unique=True,
+        editable=False,
+        blank=True,
+    )
+    tipo_archivo = models.CharField(
+        'Tipo de archivo',
+        max_length=10,
+        choices=(('imagen', 'Imagen'), ('video', 'Video')),
+        default='imagen',
     )
     estado = models.CharField(
         'Estado',
@@ -55,6 +91,41 @@ class Evidencia(models.Model):
         verbose_name = 'Evidencia'
         verbose_name_plural = 'Evidencias'
         ordering = ['-fecha_subida']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(actividad__isnull=False, atencion__isnull=True)
+                    | models.Q(actividad__isnull=True, atencion__isnull=False)
+                ),
+                name='evidencia_actividad_o_atencion',
+            ),
+        ]
 
     def __str__(self):
-        return str(self.codigo_respaldo)
+        return self.identificador or str(self.codigo_respaldo)
+
+    @property
+    def content_type(self):
+        extension = Path(self.archivo.name).suffix.lower()
+        return {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+        }.get(extension, 'application/octet-stream')
+
+    def clean(self):
+        super().clean()
+        if bool(self.actividad_id) == bool(self.atencion_id):
+            raise ValidationError('La evidencia debe pertenecer a una actividad o a una atención.')
+
+    def save(self, *args, **kwargs):
+        if not self.identificador and self.subido_por_id:
+            extension = Path(self.archivo.name).suffix.lower()
+            self.tipo_archivo = 'video' if extension in {'.mp4', '.webm'} else 'imagen'
+            nombre = slugify(self.subido_por.get_username())[:32] or f'usuario-{self.subido_por_id}'
+            fecha = timezone.localtime(timezone.now()).strftime('%Y%m%d')
+            self.identificador = f'{fecha}_{nombre}_{self.tipo_archivo}_{uuid.uuid4().hex}'
+        super().save(*args, **kwargs)

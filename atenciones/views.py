@@ -8,7 +8,7 @@ from atenciones.models import AtencionCiudadana
 from auditoria.utils import registrar_auditoria
 from config.listado import FiltroExportMixin
 from usuarios.mixins import RolRequiredMixin, obtener_rol
-from usuarios.sesion import get_delegacion_activa
+from usuarios.sesion import delegaciones_autorizadas, get_delegacion_activa
 
 
 def queryset_atenciones(request):
@@ -17,6 +17,8 @@ def queryset_atenciones(request):
     )
     rol = obtener_rol(request.user)
     if rol in ('administrador', 'coordinador', 'verificador'):
+        if rol != 'administrador':
+            return qs.filter(delegacion__in=delegaciones_autorizadas(request.user))
         return qs
     delegacion = get_delegacion_activa(request)
     if delegacion:
@@ -48,7 +50,9 @@ class AtencionListView(FiltroExportMixin, LoginRequiredMixin, ListView):
     )
 
     def get_queryset(self):
-        return self.filtrar_queryset(queryset_atenciones(self.request))
+        return self.filtrar_queryset(
+            queryset_atenciones(self.request).prefetch_related('evidencias')
+        )
 
 
 class AtencionDetailView(LoginRequiredMixin, DetailView):
@@ -57,8 +61,23 @@ class AtencionDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'atencion'
 
     def get_queryset(self):
-        return queryset_atenciones(self.request)
+        return queryset_atenciones(self.request).prefetch_related('evidencias')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        atencion = self.object
+        if (
+            obtener_rol(self.request.user) == 'administrador'
+            or atencion.responsable_id == self.request.user.pk
+        ):
+            context['evidencias'] = atencion.evidencias.select_related(
+                'subido_por', 'validado_por'
+            ).all()
+        else:
+            context['evidencias'] = atencion.evidencias.filter(
+                estado='aprobada'
+            ).select_related('subido_por', 'validado_por')
+        return context
 
 class AtencionCreateView(RolRequiredMixin, CreateView):
     form_class = AtencionCiudadanaForm

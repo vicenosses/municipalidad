@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Agregar evidencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Agregar evidencia a la atención de {{ atencion.solicitante }}</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Tipo:</strong> {{ atencion.tipo }} · <strong>Subatención:</strong> {{ atencion.subatencion }}</p>
+        <p class="small text-muted">Imágenes: máximo {{ max_image_mb }} MB cada una. Videos: máximo {{ max_video_mb }} MB cada uno. Máximo {{ max_batch_mb }} MB y 10 archivos por envío.</p>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+            {% for field in form %}
+            <div class="mb-3">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+            {% endfor %}
+            <p class="small text-muted">Cada archivo quedará pendiente de revisión y se asociará automáticamente a esta atención.</p>
+            <button type="submit" class="btn btn-custom-red">Subir evidencia</button>
+            <a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
