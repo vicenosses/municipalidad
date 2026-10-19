@@ -20,7 +20,7 @@ def ruta_evidencia(instance, filename):
 
 
 class Evidencia(models.Model):
-    """Archivo de respaldo vinculado a una actividad o atención ciudadana."""
+    """Archivo de respaldo vinculado a un registro, atención o compromiso de agenda."""
 
     class Estado(models.TextChoices):
         PENDIENTE = 'pendiente', 'Pendiente'
@@ -43,6 +43,15 @@ class Evidencia(models.Model):
         null=True,
         blank=True,
     )
+    compromiso = models.ForeignKey(
+        'agenda.Compromiso',
+        on_delete=models.PROTECT,
+        related_name='evidencias',
+        verbose_name='Compromiso de agenda',
+        null=True,
+        blank=True,
+    )
+    descripcion = models.CharField('Descripción', max_length=240, blank=True)
     archivo = models.FileField('Archivo', upload_to=ruta_evidencia)
     codigo_respaldo = models.UUIDField(
         'Código de respaldo',
@@ -94,10 +103,20 @@ class Evidencia(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=(
-                    models.Q(actividad__isnull=False, atencion__isnull=True)
-                    | models.Q(actividad__isnull=True, atencion__isnull=False)
+                    models.Q(
+                        atencion__isnull=False,
+                        actividad__isnull=True,
+                        compromiso__isnull=True,
+                    )
+                    | models.Q(
+                        atencion__isnull=True,
+                    )
+                    & (
+                        models.Q(actividad__isnull=False)
+                        | models.Q(compromiso__isnull=False)
+                    )
                 ),
-                name='evidencia_actividad_o_atencion',
+                name='evidencia_origen_valido',
             ),
         ]
 
@@ -118,8 +137,18 @@ class Evidencia(models.Model):
 
     def clean(self):
         super().clean()
-        if bool(self.actividad_id) == bool(self.atencion_id):
-            raise ValidationError('La evidencia debe pertenecer a una actividad o a una atención.')
+        if self.atencion_id and (self.actividad_id or self.compromiso_id):
+            raise ValidationError('Una evidencia de atención no puede pertenecer también a agenda o actividad.')
+        if not (self.atencion_id or self.actividad_id or self.compromiso_id):
+            raise ValidationError('La evidencia debe pertenecer a un registro, atención o compromiso.')
+
+    @property
+    def origen(self):
+        if self.atencion_id:
+            return 'Atención ciudadana'
+        if self.compromiso_id:
+            return 'Agenda'
+        return 'Registro / actividad'
 
     def save(self, *args, **kwargs):
         if not self.identificador and self.subido_por_id:

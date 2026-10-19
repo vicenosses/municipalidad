@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ compromiso.titulo }} | Agenda | SGR{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div>
+        <h2 class="h4 fw-bold mb-1">{{ compromiso.titulo }}</h2>
+        <span class="badge {% if compromiso.esta_vencido %}bg-danger{% elif compromiso.estado == 'realizado' %}bg-success{% elif compromiso.proximo_a_vencer %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+            {% if compromiso.esta_vencido %}Vencido · {% endif %}{{ compromiso.get_estado_display }}
+        </span>
+        {% if compromiso.realizado_fuera_de_plazo %}<span class="badge bg-warning text-dark">Realizado fuera de plazo</span>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        {% if puede_editar %}<a href="{% url 'agenda:editar' compromiso.pk %}" class="btn btn-outline-secondary">Editar / actualizar estado</a>{% endif %}
+        {% if puede_subir_evidencia %}<a href="{% url 'evidencias:agenda_crear' compromiso.pk %}" class="btn btn-custom-red">Adjuntar evidencia</a>{% endif %}
+        <a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Volver</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <section class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Datos del compromiso</div>
+            <dl class="card-body row mb-0">
+                <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ compromiso.fecha_hora|date:"d/m/Y H:i" }}</dd>
+                <dt class="col-sm-4">Delegación</dt><dd class="col-sm-8">{{ compromiso.delegacion }}</dd>
+                <dt class="col-sm-4">Responsable</dt><dd class="col-sm-8">{{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }}</dd>
+                <dt class="col-sm-4">Solicitante</dt><dd class="col-sm-8">{{ compromiso.solicitante|default:"—" }}</dd>
+                <dt class="col-sm-4">Área de apoyo</dt><dd class="col-sm-8">{{ compromiso.area_apoyo|default:"—" }}</dd>
+                <dt class="col-sm-4">Descripción</dt><dd class="col-sm-8">{{ compromiso.descripcion|default:"—"|linebreaksbr }}</dd>
+                <dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ compromiso.observaciones|default:"—"|linebreaksbr }}</dd>
+                {% if compromiso.fecha_realizacion %}<dt class="col-sm-4">Realizado el</dt><dd class="col-sm-8">{{ compromiso.fecha_realizacion|date:"d/m/Y H:i" }}</dd>{% endif %}
+            </dl>
+        </section>
+
+        <section class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Actividades relacionadas</div>
+            <div class="list-group list-group-flush">
+                {% for actividad in compromiso.actividades.all %}
+                <div class="list-group-item">
+                    <div class="fw-semibold">{{ actividad.titulo }}</div>
+                    <div class="small text-muted">{{ actividad.fecha|date:"d/m/Y" }} · {{ actividad.get_estado_display }}</div>
+                    <p class="mb-0 mt-1">{{ actividad.descripcion }}</p>
+                </div>
+                {% empty %}<div class="list-group-item text-muted">No hay actividades relacionadas.</div>{% endfor %}
+            </div>
+        </section>
+    </div>
+
+    <div class="col-lg-5">
+        <section class="card shadow-sm mb-4">
+            <div class="card-header bg-white fw-semibold">Evidencias ({{ compromiso.evidencias.count }})</div>
+            <div class="list-group list-group-flush">
+                {% for evidencia in compromiso.evidencias.all %}
+                <a href="{% url 'evidencias:detalle' evidencia.pk %}" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="fw-semibold">{{ evidencia.identificador }}</span>
+                        <span class="badge {% if evidencia.estado == 'aprobada' %}bg-success{% elif evidencia.estado == 'rechazada' %}bg-danger{% else %}bg-warning text-dark{% endif %}">{{ evidencia.get_estado_display }}</span>
+                    </div>
+                    <span class="small text-muted">{{ evidencia.descripcion|default:evidencia.get_tipo_archivo_display }} · {{ evidencia.fecha_subida|date:"d/m/Y H:i" }}</span>
+                </a>
+                {% empty %}<div class="list-group-item text-muted">Aún no hay evidencias adjuntas.</div>{% endfor %}
+            </div>
+        </section>
+
+        <section class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Historial de cambios</div>
+            <div class="list-group list-group-flush">
+                {% for cambio in compromiso.historial.all %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between gap-2">
+                        <strong>{{ cambio.campo|capfirst }}</strong>
+                        <span class="small text-muted">{{ cambio.creado|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% if cambio.campo != 'creacion' %}<div class="small">{{ cambio.valor_anterior }} → {{ cambio.valor_nuevo }}</div>{% endif %}
+                    {% if cambio.motivo %}<div class="small text-muted">Motivo: {{ cambio.motivo }}</div>{% endif %}
+                    <div class="small text-muted">Por {% if cambio.realizado_por %}{{ cambio.realizado_por.get_full_name|default:cambio.realizado_por.username }}{% else %}usuario eliminado{% endif %}</div>
+                </div>
+                {% empty %}<div class="list-group-item text-muted">Sin cambios registrados.</div>{% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

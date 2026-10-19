@@ -3,22 +3,40 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="h4 fw-bold mb-0">Agenda de la delegación</h2>
-    <a href="{% url 'agenda:crear' %}" class="btn btn-custom-red">Nuevo compromiso</a>
+    {% if puede_crear %}<a href="{% url 'agenda:crear' %}" class="btn btn-custom-red">Nuevo compromiso</a>{% endif %}
 </div>
 
 {% if vencidos %}
 <div class="alert alert-danger">
     <strong>Vencidos:</strong>
-    {% for c in vencidos %}{{ c.titulo }} ({{ c.fecha_hora }}){% if not forloop.last %}; {% endif %}{% endfor %}
+    {% for c in vencidos %}<a href="{% url 'agenda:detalle' c.pk %}">{{ c.titulo }}</a> ({{ c.fecha_hora|date:"d/m/Y H:i" }}){% if not forloop.last %}; {% endif %}{% endfor %}
 </div>
 {% endif %}
 
 {% if proximos %}
 <div class="alert alert-warning">
     <strong>Próximos a vencer (7 días):</strong>
-    {% for c in proximos %}{{ c.titulo }} ({{ c.fecha_hora }}){% if not forloop.last %}; {% endif %}{% endfor %}
+    {% for c in proximos %}<a href="{% url 'agenda:detalle' c.pk %}">{{ c.titulo }}</a> ({{ c.fecha_hora|date:"d/m/Y H:i" }}){% if not forloop.last %}; {% endif %}{% endfor %}
 </div>
 {% endif %}
+
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            {% for field in filtro %}
+            <div class="col-md-4">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-3">
+            <button class="btn btn-custom-red" type="submit">Filtrar</button>
+            <a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Limpiar</a>
+        </div>
+    </div>
+</form>
 
 <div class="table-responsive shadow-sm">
     <table class="table table-hover align-middle mb-0">
@@ -29,21 +47,40 @@
                 <th>Responsable</th>
                 <th>Delegación</th>
                 <th>Estado</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
             {% for compromiso in compromisos %}
             <tr class="{% if compromiso.esta_vencido %}table-danger{% elif compromiso.proximo_a_vencer %}table-warning{% endif %}">
                 <td>{{ compromiso.fecha_hora }}</td>
-                <td>{{ compromiso.titulo }}</td>
+                <td><a href="{% url 'agenda:detalle' compromiso.pk %}">{{ compromiso.titulo }}</a>
+                    {% if compromiso.solicitante %}<div class="small text-muted">Solicita: {{ compromiso.solicitante }}</div>{% endif %}
+                </td>
                 <td>{{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }}</td>
                 <td>{{ compromiso.delegacion }}</td>
-                <td>{% if compromiso.esta_vencido %}Vencido{% else %}{{ compromiso.get_estado_display }}{% endif %}</td>
+                <td>
+                    {% if compromiso.esta_vencido %}<span class="badge bg-danger">Vencido · {{ compromiso.get_estado_display }}</span>
+                    {% elif compromiso.estado == 'realizado' and compromiso.realizado_fuera_de_plazo %}<span class="badge bg-warning text-dark">Realizado fuera de plazo</span>
+                    {% elif compromiso.estado == 'realizado' %}<span class="badge bg-success">{{ compromiso.get_estado_display }}</span>
+                    {% elif compromiso.proximo_a_vencer %}<span class="badge bg-warning text-dark">Por vencer · {{ compromiso.get_estado_display }}</span>
+                    {% else %}<span class="badge bg-secondary">{{ compromiso.get_estado_display }}</span>{% endif %}
+                </td>
+                <td><a class="btn btn-sm btn-outline-secondary" href="{% url 'agenda:detalle' compromiso.pk %}">Ver</a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No hay compromisos en la agenda.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay compromisos en la agenda.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% if is_paginated %}
+<nav class="mt-3" aria-label="Paginación de agenda">
+    <ul class="pagination">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}
+        <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ request.GET.urlencode }}&page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}
+    </ul>
+</nav>
+{% endif %}
 {% endblock %}

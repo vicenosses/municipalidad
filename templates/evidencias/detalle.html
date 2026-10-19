@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Detalle de evidencia | SGR{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="h4 fw-bold mb-0">Detalle de evidencia</h2>
+    <a href="{% url 'evidencias:lista' %}" class="btn btn-outline-secondary">Volver</a>
+</div>
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
+                {% if evidencia.tipo_archivo == 'video' %}
+                <video class="img-fluid rounded" controls preload="metadata">
+                    <source src="{% url 'evidencia_archivo' evidencia.pk %}" type="{{ evidencia.content_type }}">
+                    Su navegador no admite la reproducción de este video.
+                </video>
+                {% else %}
+                <img src="{% url 'evidencia_archivo' evidencia.pk %}" alt="Evidencia {{ evidencia.identificador }}" class="img-fluid rounded">
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <section class="card shadow-sm">
+            <div class="card-header bg-white fw-semibold">Registro</div>
+            <dl class="card-body row mb-0">
+                <dt class="col-sm-5">Origen</dt><dd class="col-sm-7">{{ evidencia.origen }}</dd>
+                {% if evidencia.atencion_id %}<dt class="col-sm-5">Atención</dt><dd class="col-sm-7">{{ evidencia.atencion }}</dd>{% endif %}
+                {% if evidencia.compromiso_id %}<dt class="col-sm-5">Agenda</dt><dd class="col-sm-7"><a href="{% url 'agenda:detalle' evidencia.compromiso_id %}">{{ evidencia.compromiso.titulo }}</a></dd>{% endif %}
+                {% if evidencia.actividad_id %}<dt class="col-sm-5">Registro</dt><dd class="col-sm-7">{{ evidencia.actividad.titulo }}</dd>{% endif %}
+                <dt class="col-sm-5">Identificador</dt><dd class="col-sm-7">{{ evidencia.identificador }}</dd>
+                <dt class="col-sm-5">Código de respaldo</dt><dd class="col-sm-7">{{ evidencia.codigo_respaldo }}</dd>
+                <dt class="col-sm-5">Descripción</dt><dd class="col-sm-7">{{ evidencia.descripcion|default:"—" }}</dd>
+                <dt class="col-sm-5">Tipo</dt><dd class="col-sm-7">{{ evidencia.get_tipo_archivo_display }}</dd>
+                <dt class="col-sm-5">Subida por</dt><dd class="col-sm-7">{{ evidencia.subido_por.get_full_name|default:evidencia.subido_por.username }}</dd>
+                <dt class="col-sm-5">Fecha</dt><dd class="col-sm-7">{{ evidencia.fecha_subida|date:"d/m/Y H:i" }}</dd>
+                <dt class="col-sm-5">Estado</dt><dd class="col-sm-7">
+                    {% if evidencia.estado == 'aprobada' %}<span class="badge bg-success">{{ evidencia.get_estado_display }}</span>
+                    {% elif evidencia.estado == 'rechazada' %}<span class="badge bg-danger">{{ evidencia.get_estado_display }}</span>
+                    {% else %}<span class="badge bg-warning text-dark">{{ evidencia.get_estado_display }}</span>{% endif %}
+                </dd>
+                {% if evidencia.validado_por %}<dt class="col-sm-5">Validado por</dt><dd class="col-sm-7">{{ evidencia.validado_por.get_full_name|default:evidencia.validado_por.username }}</dd>{% endif %}
+                {% if evidencia.comentario_validacion %}<dt class="col-sm-5">Comentario</dt><dd class="col-sm-7">{{ evidencia.comentario_validacion|linebreaksbr }}</dd>{% endif %}
+            </dl>
+            {% if evidencia.estado == 'pendiente' %}
+                {% if not evidencia.atencion_id and sesion_permisos.validar_evidencias or sesion_rol == 'Administrador' %}
+                <div class="card-footer bg-white"><a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-custom-red">Validar evidencia</a></div>
+                {% endif %}
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}

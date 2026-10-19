@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Agregar evidencia | SGR{% endblock %}
 {% block content %}
+{% if atencion %}
 <h2 class="h4 fw-bold mb-4">Agregar evidencia a la atención de {{ atencion.solicitante }}</h2>
+{% else %}
+<h2 class="h4 fw-bold mb-4">Agregar evidencia al compromiso {{ compromiso.titulo }}</h2>
+{% endif %}
 <div class="card shadow-sm">
     <div class="card-body">
-        <p><strong>Tipo:</strong> {{ atencion.tipo }} · <strong>Subatención:</strong> {{ atencion.subatencion }}</p>
+        {% if atencion %}<p><strong>Tipo:</strong> {{ atencion.tipo }} · <strong>Subatención:</strong> {{ atencion.subatencion }}</p>{% endif %}
         <p class="small text-muted">Imágenes: máximo {{ max_image_mb }} MB cada una. Videos: máximo {{ max_video_mb }} MB cada uno. Máximo {{ max_batch_mb }} MB y 10 archivos por envío.</p>
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
@@ -18,9 +22,10 @@
                 {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
             </div>
             {% endfor %}
-            <p class="small text-muted">Cada archivo quedará pendiente de revisión y se asociará automáticamente a esta atención.</p>
+            <p class="small text-muted">Cada archivo quedará pendiente de revisión y se asociará automáticamente al elemento indicado.</p>
             <button type="submit" class="btn btn-custom-red">Subir evidencia</button>
-            <a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+            {% if atencion %}<a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+            {% else %}<a href="{% url 'agenda:detalle' compromiso.pk %}" class="btn btn-outline-secondary">Cancelar</a>{% endif %}
         </form>
     </div>
 </div>

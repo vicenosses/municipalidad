@@ -16,6 +16,8 @@
         <p class="mb-1"><strong>Tipo de archivo:</strong> {{ evidencia.get_tipo_archivo_display }}</p>
         {% if evidencia.atencion_id %}
         <p class="mb-1"><strong>Atención:</strong> {{ evidencia.atencion }}</p>
+        {% elif evidencia.compromiso_id %}
+        <p class="mb-1"><strong>Agenda:</strong> {{ evidencia.compromiso }}</p>
         {% else %}
         <p class="mb-1"><strong>Actividad:</strong> {{ evidencia.actividad }}</p>
         {% endif %}

@@ -5,6 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
+from agenda.models import Compromiso
 from actividades.models import Actividad
 from evidencias.models import Evidencia
 from evidencias.forms import EvidenciaForm
@@ -123,3 +124,31 @@ class EvidenciaFormTests(TestCase):
         respuesta = self.client.get(reverse('evidencias:validar', args=[evidencia.pk]))
 
         self.assertEqual(respuesta.status_code, 404)
+
+    def test_filtro_por_origen_distingue_agenda_de_registro(self):
+        compromiso = Compromiso.objects.create(
+            titulo='Compromiso',
+            fecha_hora='2027-01-01T10:00:00Z',
+            responsable=self.usuario,
+            delegacion=self.delegacion,
+        )
+        agenda_evidencia = Evidencia.objects.create(
+            compromiso=compromiso,
+            archivo='evidencias/agenda.png',
+            subido_por=self.usuario,
+        )
+        registro_evidencia = Evidencia.objects.create(
+            actividad=self.actividad,
+            archivo='evidencias/registro.png',
+            subido_por=self.usuario,
+        )
+        self.client.force_login(self.usuario)
+
+        respuesta = self.client.get(reverse('evidencias:lista'), {'origen': 'agenda'})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, agenda_evidencia.identificador)
+        self.assertNotContains(respuesta, registro_evidencia.identificador)
+        detalle = self.client.get(reverse('evidencias:detalle', args=[agenda_evidencia.pk]))
+        self.assertEqual(detalle.status_code, 200)
+        self.assertContains(detalle, 'Agenda')

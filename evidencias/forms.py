@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
@@ -117,9 +118,10 @@ def validar_archivo_imagen(archivo):
 class EvidenciaForm(forms.ModelForm):
     class Meta:
         model = Evidencia
-        fields = ['actividad', 'archivo']
+        fields = ['actividad', 'descripcion', 'archivo']
         widgets = {
             'actividad': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.TextInput(attrs={'class': 'form-control'}),
             'archivo': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/jpeg,image/png'}),
         }
 
@@ -159,6 +161,12 @@ class MultipleFileField(forms.FileField):
 
 
 class EvidenciaAtencionForm(forms.Form):
+    descripcion = forms.CharField(
+        label='Descripción (opcional)',
+        required=False,
+        max_length=240,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
     archivos = MultipleFileField(
         label='Archivos (JPG, JPEG, PNG, WebP, MP4 o WebM)',
         widget=MultipleFileInput(
@@ -183,6 +191,62 @@ class EvidenciaAtencionForm(forms.Form):
         for archivo in archivos:
             validar_archivo(archivo)
         return archivos
+
+
+class EvidenciaFiltroForm(forms.Form):
+    ORIGENES = (
+        ('', 'Todos los orígenes'),
+        ('atencion', 'Atención ciudadana'),
+        ('registro', 'Registro / actividad'),
+        ('agenda', 'Agenda'),
+    )
+
+    q = forms.CharField(
+        label='Buscar',
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Descripción o identificador'}),
+    )
+    estado = forms.ChoiceField(
+        label='Estado',
+        required=False,
+        choices=[('', 'Todos los estados')] + list(Evidencia.Estado.choices),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    origen = forms.ChoiceField(
+        label='Origen',
+        required=False,
+        choices=ORIGENES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    subido_por = forms.ModelChoiceField(
+        label='Subido por',
+        required=False,
+        queryset=get_user_model().objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    desde = forms.DateField(
+        label='Desde',
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+    )
+    hasta = forms.DateField(
+        label='Hasta',
+        required=False,
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+    )
+
+    def __init__(self, *args, subidores=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if subidores is not None:
+            self.fields['subido_por'].queryset = subidores
+
+    def clean(self):
+        cleaned_data = super().clean()
+        desde = cleaned_data.get('desde')
+        hasta = cleaned_data.get('hasta')
+        if desde and hasta and desde > hasta:
+            self.add_error('hasta', 'La fecha final debe ser igual o posterior a la inicial.')
+        return cleaned_data
 
 
 class ValidacionEvidenciaForm(forms.Form):

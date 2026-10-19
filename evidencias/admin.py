@@ -24,13 +24,21 @@ class EvidenciaAdmin(admin.ModelAdmin):
         'identificador',
         'actividad',
         'atencion',
+        'compromiso',
         'tipo_archivo',
         'estado',
         'subido_por',
         'fecha_subida',
     )
     list_filter = ('estado', 'fecha_subida')
-    search_fields = ('identificador', 'codigo_respaldo', 'actividad__titulo', 'atencion__solicitante')
+    search_fields = (
+        'identificador',
+        'codigo_respaldo',
+        'actividad__titulo',
+        'atencion__solicitante',
+        'compromiso__titulo',
+        'descripcion',
+    )
     readonly_fields = (
         'codigo_respaldo',
         'identificador',
