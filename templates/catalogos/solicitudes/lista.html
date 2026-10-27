@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes generales | SGR{% endblock %}
+{% block content %}
+{% include "catalogos/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">
+    {% if es_administrador %}Solicitudes generales{% else %}Mis solicitudes generales{% endif %}
+</h2>
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th>Fecha</th>
+                {% if es_administrador %}<th>Solicitante</th><th>Delegación</th>{% endif %}
+                <th>Catálogo solicitado</th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Tipo de Atención</th>
+                <th>Estado</th>
+                <th>Decisión</th>
+                {% if es_administrador %}<th>Acciones</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for solicitud in solicitudes %}
+            <tr>
+                <td>{{ solicitud.creado|date:"d/m/Y H:i" }}</td>
+                {% if es_administrador %}
+                <td>{{ solicitud.solicitante.get_full_name|default:solicitud.solicitante.username }}</td>
+                <td>{{ solicitud.delegacion_solicitante.nombre }}</td>
+                {% endif %}
+                <td>{% if solicitud.tipo_solicitud == 'categoria' %}Tipo de Atención{% else %}Subcategoría{% endif %}</td>
+                <td>{% if solicitud.codigo %}{{ solicitud.codigo }}{% else %}Automático al aprobar{% endif %}</td>
+                <td>{{ solicitud.nombre }}</td>
+                <td>{{ solicitud.categoria_padre.nombre|default:"—" }}</td>
+                <td>{{ solicitud.get_estado_display }}</td>
+                <td>
+                    {% if solicitud.decidido_por %}
+                    {{ solicitud.decidido_por.get_full_name|default:solicitud.decidido_por.username }}
+                    <small class="d-block text-muted">{{ solicitud.fecha_decision|date:"d/m/Y H:i" }}</small>
+                    {% if solicitud.motivo_decision %}<small class="d-block">{{ solicitud.motivo_decision }}</small>{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                {% if es_administrador %}
+                <td>
+                    {% if solicitud.estado == 'pendiente' %}
+                    <form method="post" action="{% url 'catalogos:solicitud_decision' solicitud.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="aprobar">
+                        <button type="submit" class="btn btn-sm btn-success">Aprobar</button>
+                    </form>
+                    <form method="post" action="{% url 'catalogos:solicitud_decision' solicitud.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="rechazar">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Rechazar</button>
+                    </form>
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{% if es_administrador %}10{% else %}7{% endif %}" class="text-center text-muted py-4">No hay solicitudes.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

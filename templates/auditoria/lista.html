@@ -4,21 +4,13 @@
 <h2 class="h4 fw-bold mb-4">Historial de operaciones</h2>
 <form method="get" class="card shadow-sm mb-4">
     <div class="card-body row g-3 align-items-end">
+        {% for campo in form %}
         <div class="col-md-4">
-            <label class="form-label" for="{{ form.usuario.id_for_label }}">{{ form.usuario.label }}</label>
-            {{ form.usuario }}
-            {% if form.usuario.errors %}<div class="text-danger small">{{ form.usuario.errors }}</div>{% endif %}
+            <label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.errors %}<div class="text-danger small">{{ campo.errors }}</div>{% endif %}
         </div>
-        <div class="col-md-3">
-            <label class="form-label" for="{{ form.fecha_desde.id_for_label }}">{{ form.fecha_desde.label }}</label>
-            {{ form.fecha_desde }}
-            {% if form.fecha_desde.errors %}<div class="text-danger small">{{ form.fecha_desde.errors }}</div>{% endif %}
-        </div>
-        <div class="col-md-3">
-            <label class="form-label" for="{{ form.fecha_hasta.id_for_label }}">{{ form.fecha_hasta.label }}</label>
-            {{ form.fecha_hasta }}
-            {% if form.fecha_hasta.errors %}<div class="text-danger small">{{ form.fecha_hasta.errors }}</div>{% endif %}
-        </div>
+        {% endfor %}
         <div class="col-md-2">
             <button type="submit" class="btn btn-custom-red w-100">Filtrar</button>
         </div>
@@ -32,7 +24,7 @@
                 <th>Fecha y hora</th>
                 <th>Usuario</th>
                 <th>Acción</th>
-                <th>Modelo</th>
+                <th>Módulo</th>
                 <th>Descripción</th>
             </tr>
         </thead>
@@ -40,9 +32,9 @@
             {% for registro in registros %}
             <tr>
                 <td>{{ registro.timestamp }}</td>
-                <td>{{ registro.usuario|default:"sistema" }}</td>
-                <td>{{ registro.accion }}</td>
-                <td>{{ registro.modelo }}</td>
+                <td>{{ registro.usuario|default:"Sistema / usuario no disponible" }}</td>
+                <td>{{ registro.accion_legible }}</td>
+                <td>{{ registro.modulo_legible }}</td>
                 <td>{{ registro.descripcion }}</td>
             </tr>
             {% empty %}

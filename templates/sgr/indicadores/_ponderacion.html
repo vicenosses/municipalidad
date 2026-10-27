@@ -1,0 +1,16 @@
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Ponderación del Indicador</div>
+    <div class="card-body">
+        <p><strong>Ponderación:</strong> {{ ponderado.indicador.ponderacion_display }}</p>
+        {% if ponderado.resultado_ponderado != None %}
+        <p class="h5">Resultado ponderado: {{ ponderado.resultado_ponderado|floatformat:2 }}%</p>
+        <p class="small text-muted mb-0">Ponderación × cumplimiento del Indicador / 100. Se admite sobrecumplimiento.</p>
+        {% elif ponderado.estado == 'sin_ponderacion' %}
+        <p class="text-muted mb-0">Configure la ponderación para incluir este Indicador en la agregación de su Meta.</p>
+        {% elif ponderado.estado == 'inactivo' %}
+        <p class="text-muted mb-0">Indicador inactivo: conserva su ponderación e historial y se excluye de la configuración vigente.</p>
+        {% elif ponderado.estado == 'sin_limite' %}
+        <p class="text-muted mb-0">Cumplimiento sin límite por resultado cero: no existe un porcentaje numérico para ponderar. Se excluye de la cobertura calculable.</p>
+        {% else %}<p class="text-muted mb-0">Sin resultado ponderado calculable.</p>{% endif %}
+    </div>
+</section>

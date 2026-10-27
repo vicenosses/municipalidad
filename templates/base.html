@@ -29,6 +29,15 @@
             background-color: #a61e1e;
             color: white;
         }
+        .btn-custom-red[aria-current="page"] {
+            background-color: #8f1d1d;
+            color: white;
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+        }
+        .btn-custom-red[aria-current="page"]:hover {
+            background-color: #7f1919;
+            color: white;
+        }
         .text-institucional { color: #c92a2a; }
         .badge-rol { background-color: #c92a2a; }
         .card-evidencia img {
@@ -52,14 +61,16 @@
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'home' %}">Inicio</a></li>
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'actividades:lista' %}">Actividades</a></li>
+                    {% if sesion_permisos.atenciones %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">Actividades</a></li>
+                    {% endif %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">Agenda</a></li>
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">Evidencias</a></li>
-                    {% if sesion_permisos.atenciones %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">Atención ciudadana</a></li>
-                    {% endif %}
                     {% if sesion_permisos.usuarios %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">Usuarios</a></li>
+                    {% endif %}
+                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:transferencias' %}">Transferencias</a></li>
                     {% endif %}
                     {% if sesion_permisos.delegaciones %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">Delegaciones</a></li>
@@ -67,13 +78,23 @@
                     {% if sesion_permisos.roles %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">Roles</a></li>
                     {% endif %}
-                    {% if sesion_permisos.catalogos %}
+                    {% if sesion_catalogo_completo %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:item_lista' %}">Ítems</a></li>
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:tipo_lista' %}">Tipos</a></li>
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:sub_lista' %}">Subatenciones</a></li>
                     {% endif %}
-                    {% if sesion_permisos.auditoria %}
+                    {% if sesion_catalogos %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:inicio' %}">Tipos de Atención</a></li>
+                    {% endif %}
+                    {% if sesion_auditoria %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">Auditoría</a></li>
+                    {% endif %}
+                    {% if sesion_sgr_periodos %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:periodo_lista' %}">Prioridades y Metas</a></li>
+                    {% endif %}
+                    {% if sesion_informes_sgr %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:informe' %}">Informes SGR</a></li>
+                    {% endif %}
+                    {% if sesion_validar_aportes %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:aportes_pendientes' %}">Validar aportes</a></li>
                     {% endif %}
                     {% endif %}
                 </ul>
@@ -102,22 +123,26 @@
             <p class="text-muted small mb-0">Ilustre Municipalidad de La Serena</p>
             {% if user.is_authenticated %}
             <p class="small mb-0 mt-2">
-                Delegación activa: <strong>{{ sesion_delegacion|default:"—" }}</strong>
+                Contexto territorial: <strong>{{ sesion_contexto|default:"Sin delegación autorizada" }}</strong>
                 · Usuario: <strong>{{ sesion_nombre }}</strong>
                 · Rol: <strong>{{ sesion_rol }}</strong>
             </p>
-            {% if sesion_delegaciones and sesion_delegaciones|length > 1 %}
+            {% if sesion_contexto_recuperado %}<p class="small text-warning-emphasis mt-2" role="status">La delegación seleccionada ya no está disponible. Se restableció el contexto global.</p>{% endif %}
+            {% if sesion_selector_delegacion %}
             <form method="post" action="{% url 'usuarios:delegacion_activa' %}" class="row g-2 align-items-center mt-2">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <div class="col-auto">
-                    <select name="delegacion_id" class="form-select form-select-sm">
+                    <label for="selector-contexto-territorial" class="form-label small">Contexto de consulta</label>
+                    <select id="selector-contexto-territorial" name="delegacion_id" class="form-select form-select-sm">
+                        <option value="global" {% if not sesion_delegacion %}selected{% endif %}>Global: todas las delegaciones</option>
                         {% for d in sesion_delegaciones %}
                         <option value="{{ d.pk }}" {% if sesion_delegacion and sesion_delegacion.pk == d.pk %}selected{% endif %}>{{ d.nombre }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-sm btn-custom-red">Cambiar delegación</button>
+                    <button type="submit" class="btn btn-sm btn-custom-red">Aplicar contexto</button>
                 </div>
             </form>
             {% endif %}

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Ingreso de atención | SGR{% endblock %}
+{% block title %}Ingreso de actividad | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Ingreso de atención ciudadana</h2>
+<h2 class="h4 fw-bold mb-4">Registrar actividad</h2>
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">
@@ -27,19 +27,54 @@
 {% endblock %}
 {% block extra_js %}
 <script>
+    const fechaActividad = document.getElementById('id_fecha');
+    const indicadorActividad = document.getElementById('id_indicador');
+    let consultaIndicadores = 0;
+    if (fechaActividad && indicadorActividad) {
+        fechaActividad.addEventListener('change', async function () {
+            const consulta = ++consultaIndicadores;
+            const seleccionado = indicadorActividad.value;
+            const respuesta = await fetch('{% url "sgr:indicadores_actividad" %}?fecha=' + encodeURIComponent(fechaActividad.value));
+            if (!respuesta.ok || consulta !== consultaIndicadores) return;
+            const datos = await respuesta.json();
+            if (consulta !== consultaIndicadores) return;
+            indicadorActividad.replaceChildren(new Option('Sin Indicador asociado', ''));
+            datos.indicadores.forEach(function (item) {
+                indicadorActividad.add(new Option(item.nombre, item.id));
+            });
+            if (Array.from(indicadorActividad.options).some(op => op.value === seleccionado)) indicadorActividad.value = seleccionado;
+        });
+    }
     const mapa = {};
     {% for sub in subatenciones %}
-    mapa[{{ sub.id }}] = {{ sub.tipo_id }};
+    mapa[{{ sub.id }}] = {
+        tipo: {{ sub.tipo_id }},
+        tipoGeneral: {{ sub.tipo.es_general|yesno:"true,false" }},
+        tipoDelegacion: {{ sub.tipo.delegacion_id|default:"null" }},
+        general: {{ sub.es_general|yesno:"true,false" }},
+        delegacion: {{ sub.delegacion_id|default:"null" }}
+    };
     {% endfor %}
+    const delegacionActiva = {{ delegacion_activa.pk|default:"null" }};
     const tipo = document.getElementById('id_tipo');
     const sub = document.getElementById('id_subatencion');
     function filtrar() {
         const valor = tipo.value;
+        const categoria = Array.from(tipo.options).find(function (op) {
+            return op.value === valor;
+        });
         Array.from(sub.options).forEach(function (op) {
             if (!op.value) { op.hidden = false; return; }
-            op.hidden = String(mapa[op.value]) !== String(valor);
+            const datos = mapa[op.value];
+            const coincideTipo = datos && String(datos.tipo) === String(valor);
+            const coincideAlcance = datos && categoria && (
+                datos.tipoGeneral
+                    ? datos.general || datos.delegacion === delegacionActiva
+                    : !datos.general && datos.delegacion === datos.tipoDelegacion
+            );
+            op.hidden = !(coincideTipo && coincideAlcance);
         });
-        if (sub.value && String(mapa[sub.value]) !== String(valor)) {
+        if (sub.value && sub.options[sub.selectedIndex].hidden) {
             sub.value = '';
         }
     }

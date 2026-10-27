@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ indicador.nombre }} | SGR{% endblock %}
+{% block content %}
+{% include "sgr/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">{{ indicador.nombre }}</h2>
+<div class="card shadow-sm"><div class="card-body">
+    <p><strong>Descripción:</strong> {{ indicador.descripcion|default:"Sin descripción"|linebreaksbr }}</p>
+    <p><strong>Meta:</strong> <a href="{{ indicador.meta.get_absolute_url }}">{{ indicador.meta }}</a></p>
+    <p><strong>Período:</strong> {{ indicador.meta.periodo }}</p>
+    <p><strong>Delegación:</strong> {{ indicador.meta.delegacion }}</p>
+    <p><strong>Unidad:</strong> {{ indicador.unidad_display }}</p>
+    <p><strong>Objetivo:</strong> {{ indicador.objetivo_display }}</p>
+    <p><strong>Sentido:</strong> {{ indicador.get_sentido_display }}</p>
+    <p><strong>Estado:</strong> {% if indicador.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</p>
+    <p><strong>Creado por:</strong> {{ indicador.creado_por|default:"Sistema / usuario no disponible" }}</p>
+    <p><strong>Fecha creación:</strong> {{ indicador.creado_en|date:"d/m/Y H:i" }}</p>
+    <p><strong>Última actualización:</strong> {{ indicador.actualizado_en|date:"d/m/Y H:i" }}</p>
+    {% if indicador.meta.activo and indicador.meta.periodo.activo %}
+    <a href="{% url 'sgr:indicador_editar' indicador.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+    {% if puede_estado_indicador %}{% include "sgr/indicadores/_estado.html" %}{% endif %}
+    {% else %}<p class="text-muted mb-0">Meta o Período inactivo. Indicador disponible para consulta histórica.</p>{% endif %}
+</div></div>
+{% include "sgr/indicadores/_avance_actividades.html" with avance=avance_actividades %}
+{% include "sgr/indicadores/_resultado.html" with metrica=resultado_indicador %}
+{% include "sgr/indicadores/_ponderacion.html" with ponderado=ponderacion_indicador %}
+<a href="{% url 'sgr:indicador_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+<section class="card shadow-sm mt-4"><div class="card-header bg-white fw-semibold">Historial del objetivo</div>
+    <ul class="list-group list-group-flush">{% for cambio in historial_objetivo %}
+        <li class="list-group-item">{{ cambio.creado_en|date:"d/m/Y H:i" }} · {{ cambio.usuario|default:"Usuario no disponible" }} · {{ cambio.valor_anterior }} → {{ cambio.valor_nuevo }}. {{ cambio.motivo }}</li>
+        {% empty %}<li class="list-group-item text-muted">Sin cambios de objetivo con aportes vinculados.</li>{% endfor %}</ul>
+</section>
+<section class="card shadow-sm mt-4"><div class="card-header bg-white fw-semibold">Historial de ponderación</div>
+    <ul class="list-group list-group-flush">{% for cambio in historial_ponderacion %}
+        <li class="list-group-item">{{ cambio.creado_en|date:"d/m/Y H:i" }} · {{ cambio.usuario|default:"Usuario no disponible" }} · {% if cambio.valor_anterior != None %}{{ cambio.valor_anterior|floatformat:2 }}%{% else %}Sin configurar{% endif %} → {% if cambio.valor_nuevo != None %}{{ cambio.valor_nuevo|floatformat:2 }}%{% else %}Sin configurar{% endif %}. {{ cambio.motivo|default:"Sin motivo: Indicador sin utilización previa." }}</li>
+        {% empty %}<li class="list-group-item text-muted">Sin cambios de ponderación.</li>{% endfor %}</ul>
+</section>
+{% endblock %}

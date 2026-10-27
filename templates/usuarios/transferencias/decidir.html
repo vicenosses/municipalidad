@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Decidir transferencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">Revisar solicitud de transferencia</h2>
+<div class="card shadow-sm mb-4">
+    <dl class="card-body row mb-0">
+        <dt class="col-sm-4">Usuario</dt><dd class="col-sm-8">{{ solicitud.usuario.get_full_name|default:solicitud.usuario.username }}</dd>
+        <dt class="col-sm-4">Origen</dt><dd class="col-sm-8">{{ solicitud.delegacion_origen.nombre }}</dd>
+        <dt class="col-sm-4">Destino</dt><dd class="col-sm-8">{{ solicitud.delegacion_destino.nombre }}</dd>
+        <dt class="col-sm-4">Solicitante</dt><dd class="col-sm-8">{{ solicitud.solicitante.get_full_name|default:solicitud.solicitante.username }}</dd>
+        <dt class="col-sm-4">Motivo</dt><dd class="col-sm-8">{{ solicitud.motivo|default:"—" }}</dd>
+    </dl>
+</div>
+{% if compromisos_activos %}
+<div class="alert alert-warning">
+    El usuario tiene <strong>{{ compromisos_activos }}</strong> compromiso(s) activo(s).
+    Aprobar no reasignará esos compromisos. Confirme explícitamente para aprobar.
+</div>
+{% else %}
+<div class="alert alert-info">No se encontraron compromisos activos para este usuario.</div>
+{% endif %}
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Registrar decisión</button>
+        <a href="{% url 'usuarios:transferencias' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

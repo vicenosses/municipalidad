@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 from django.contrib.messages import constants as message_constants
+from django.core.exceptions import ImproperlyConfigured
 load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -11,7 +12,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-(@#-43ux8349da8#erc9gtug1j-!ld#f$)yy#*^(=s!_v6v0hp'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
+if (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5
+        or SECRET_KEY.startswith('django-insecure-')):
+    raise ImproperlyConfigured('Configure DJANGO_SECRET_KEY con una clave aleatoria segura en el entorno o .env local.')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -35,6 +39,7 @@ INSTALLED_APPS = [
     'auditoria.apps.AuditoriaConfig',
     'catalogos.apps.CatalogosConfig',
     'atenciones.apps.AtencionesConfig',
+    'sgr.apps.SgrConfig',
 ]
 
 MIDDLEWARE = [

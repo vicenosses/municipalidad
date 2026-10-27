@@ -1,0 +1,35 @@
+<div class="table-responsive">
+    <table class="table table-striped align-middle mb-0">
+        <thead class="table-light"><tr><th>Indicador</th><th>Ponderación</th><th>Resultado</th><th>Objetivo</th><th>Cumplimiento</th><th>Resultado ponderado (pp)</th><th>Estado</th>{% if not solo_lectura %}<th>Acciones</th>{% endif %}</tr></thead>
+        <tbody>{% for fila in resultado_meta.indicadores %}{% with indicador=fila.indicador metrica=fila.metrica %}
+            <tr>
+                <td>{% if not solo_lectura or puede_ver_detalle %}<a href="{{ indicador.get_absolute_url }}">{{ indicador.nombre }}</a>{% else %}{{ indicador.nombre }}{% endif %}</td>
+                <td>{{ indicador.ponderacion_display }}</td>
+                <td>{% if metrica.tiene_resultado %}{{ metrica.resultado|floatformat:"-2" }} {{ metrica.unidad_presentacion }}{% else %}Sin resultado calculable{% endif %}{% if solo_lectura %}{% for observacion in metrica.observaciones %}<small class="d-block text-muted">{{ observacion }}</small>{% endfor %}{% endif %}</td>
+                <td>{{ indicador.objetivo_display }}</td>
+                <td>{% if metrica.cumplimiento.porcentaje != None %}{{ metrica.cumplimiento.porcentaje|floatformat:2 }}%{% elif metrica.cumplimiento.estado == 'sin_limite' %}Superior al objetivo (resultado 0), sin porcentaje numérico{% else %}Sin cumplimiento calculable{% endif %}</td>
+                <td>{% if fila.resultado_ponderado != None %}{{ fila.resultado_ponderado|floatformat:2 }} pp{% elif not indicador.activo %}Excluido: inactivo{% else %}Sin resultado ponderado calculable{% endif %}</td>
+                <td>{% if indicador.activo %}Activo{% else %}Inactivo{% endif %}</td>
+                {% if not solo_lectura %}<td>{% if indicador.meta.activo and indicador.meta.periodo.activo %}
+                    <a href="{% url 'sgr:indicador_editar' indicador.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                    {% if puede_estado_indicador %}{% include "sgr/indicadores/_estado.html" %}{% endif %}
+                {% endif %}</td>{% endif %}
+            </tr>
+        {% endwith %}{% empty %}<tr><td colspan="{% if solo_lectura %}7{% else %}8{% endif %}" class="text-center text-muted py-4">No hay Indicadores para mostrar.</td></tr>{% endfor %}</tbody>
+    </table>
+</div>
+<div class="card-body border-top">
+    <h3 class="h5">Cumplimiento de la Meta</h3>
+    <p>Ponderación asignada: <strong>{{ resultado_meta.ponderacion_asignada|floatformat:2 }}%</strong> · Ponderación pendiente: <strong>{{ resultado_meta.ponderacion_pendiente|floatformat:2 }}%</strong></p>
+    {% if resultado_meta.configuracion_completa %}<p>Ponderación completa</p>
+    {% else %}<p class="text-warning-emphasis">Configuración incompleta: la ponderación de la Meta todavía no está completamente configurada. Indicadores sin ponderación: {{ resultado_meta.sin_ponderacion }} · Con peso cero: {{ resultado_meta.pesos_cero }}.</p>{% endif %}
+    <p>Cobertura calculable: <strong>{{ resultado_meta.cobertura_calculable|floatformat:2 }}%</strong></p>
+    {% if resultado_meta.cumplimiento_normalizado != None %}
+    <p>Resultado ponderado bruto: <strong>{{ resultado_meta.resultado_ponderado_bruto|floatformat:2 }} puntos porcentuales</strong></p>
+    <p class="h5">Cumplimiento actual sobre cobertura disponible: {{ resultado_meta.cumplimiento_normalizado|floatformat:2 }}%</p>
+    <p class="small text-muted">Calculado únicamente sobre el {{ resultado_meta.cobertura_calculable|floatformat:2 }}% de ponderación con resultado numérico disponible.{% if not resultado_meta.configuracion_completa %} Resultado provisional por configuración incompleta.{% endif %}</p>
+    {% else %}<p class="text-muted">Sin resultado calculable</p>{% endif %}
+    <p class="small mb-0">Indicadores activos sin cumplimiento numérico calculable: {{ resultado_meta.sin_resultado }}.</p>
+    {% if resultado_meta.sin_limite %}<p class="small text-muted">{{ resultado_meta.sin_limite }} Indicadores con cumplimiento sin límite por resultado cero, excluidos de la cobertura calculable.</p>{% endif %}
+    <p class="small text-muted mb-0">Los Indicadores inactivos conservan su historial y sus pesos; no participan en la agregación vigente ni se redistribuyen sus ponderaciones.</p>
+</div>

@@ -1,0 +1,35 @@
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white fw-semibold">Aporte al Indicador SGR</div>
+    <div class="card-body">
+        {% if aporte_sgr %}
+        <p><strong>Período:</strong> {{ aporte_sgr.indicador.meta.periodo }} · <strong>Meta:</strong> {{ aporte_sgr.indicador.meta }}</p>
+        <p><strong>Indicador:</strong> {{ aporte_sgr.indicador }} · {{ aporte_sgr.indicador.unidad_display }}</p>
+        <p><strong>Validación:</strong> {{ aporte_sgr.get_estado_display }}</p>
+        <p><strong>Aporte declarado:</strong> {{ aporte_sgr.valor_declarado|default_if_none:"No corresponde" }} · <strong>Validado:</strong> {{ aporte_sgr.valor_validado|default_if_none:"Sin decisión vigente" }}</p>
+        <p><strong>Revisado por:</strong> {{ aporte_sgr.validado_por|default:"Sin revisión vigente" }} · {{ aporte_sgr.validado_en|date:"d/m/Y H:i" }}</p>
+        {% if aporte_sgr.comentario %}<p><strong>Comentario:</strong> {{ aporte_sgr.comentario }}</p>{% endif %}
+        {% if aporte_sgr.espera_cierre %}<p class="text-muted">La Actividad fue reabierta. Debe cerrarse y validarse nuevamente.</p>{% endif %}
+        <p class="small text-muted">La decisión del aporte estratégico es independiente de la realización de la Actividad municipal.</p>
+        {% else %}<p>Sin Indicador asociado</p>{% endif %}
+        {% if puede_proponer_aporte %}
+        <a class="btn btn-outline-primary" href="{% url 'sgr:aporte_proponer' atencion.pk %}">{% if aporte_sgr %}Corregir / modificar aporte{% else %}Asociar Indicador{% endif %}</a>
+        {% endif %}
+        {% if puede_validar_aporte %}<a class="btn btn-outline-success" href="{% url 'sgr:aporte_validar' aporte_sgr.pk %}">Revisar aporte</a>{% endif %}
+        <p class="small text-muted mt-2 mb-0">Plazo de asociación: {{ limite_aporte|date:"d/m/Y" }}. Una corrección solicitada permite corregir los campos autorizados fuera del plazo.</p>
+    </div>
+    {% if aporte_sgr %}
+    <details class="card-footer bg-white">
+        <summary>Historial del aporte</summary>
+        <div class="table-responsive"><table class="table table-sm mt-2">
+            <thead><tr><th>Fecha / Usuario</th><th>Acción</th><th>Indicador anterior → nuevo</th><th>Estado</th><th>Declarado / Validado</th><th>Comentario</th></tr></thead>
+            <tbody>{% for evento in historial_aporte %}<tr>
+                <td>{{ evento.creado_en|date:"d/m/Y H:i" }} · {{ evento.usuario|default:"Sistema / usuario no disponible" }}</td>
+                <td>{{ evento.accion_display }}</td><td>{{ evento.indicador_anterior|default:"Sin asociación" }} → {{ evento.indicador_nuevo }}</td>
+                <td>{{ evento.estado_anterior_display }} → {{ evento.get_estado_nuevo_display }}</td>
+                <td>{{ evento.declarado_anterior|default_if_none:"—" }} → {{ evento.declarado_nuevo|default_if_none:"—" }} / {{ evento.validado_anterior|default_if_none:"—" }} → {{ evento.validado_nuevo|default_if_none:"—" }}</td>
+                <td>{{ evento.comentario }}</td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+    </details>
+    {% endif %}
+</section>

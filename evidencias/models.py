@@ -7,7 +7,6 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
-from actividades.models import Actividad
 from atenciones.models import AtencionCiudadana
 
 
@@ -27,14 +26,6 @@ class Evidencia(models.Model):
         APROBADA = 'aprobada', 'Aprobada'
         RECHAZADA = 'rechazada', 'Rechazada'
 
-    actividad = models.ForeignKey(
-        Actividad,
-        on_delete=models.CASCADE,
-        related_name='evidencias',
-        verbose_name='Actividad',
-        null=True,
-        blank=True,
-    )
     atencion = models.ForeignKey(
         AtencionCiudadana,
         on_delete=models.PROTECT,
@@ -105,15 +96,11 @@ class Evidencia(models.Model):
                 condition=(
                     models.Q(
                         atencion__isnull=False,
-                        actividad__isnull=True,
                         compromiso__isnull=True,
                     )
                     | models.Q(
                         atencion__isnull=True,
-                    )
-                    & (
-                        models.Q(actividad__isnull=False)
-                        | models.Q(compromiso__isnull=False)
+                        compromiso__isnull=False,
                     )
                 ),
                 name='evidencia_origen_valido',
@@ -137,18 +124,16 @@ class Evidencia(models.Model):
 
     def clean(self):
         super().clean()
-        if self.atencion_id and (self.actividad_id or self.compromiso_id):
-            raise ValidationError('Una evidencia de atención no puede pertenecer también a agenda o actividad.')
-        if not (self.atencion_id or self.actividad_id or self.compromiso_id):
-            raise ValidationError('La evidencia debe pertenecer a un registro, atención o compromiso.')
+        if bool(self.atencion_id) == bool(self.compromiso_id):
+            raise ValidationError('La evidencia debe pertenecer a una actividad o a un compromiso, pero no a ambos.')
 
     @property
     def origen(self):
         if self.atencion_id:
-            return 'Atención ciudadana'
+            return 'Actividad'
         if self.compromiso_id:
             return 'Agenda'
-        return 'Registro / actividad'
+        return ''
 
     def save(self, *args, **kwargs):
         if not self.identificador and self.subido_por_id:

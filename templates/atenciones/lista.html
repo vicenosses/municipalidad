@@ -1,50 +1,135 @@
 {% extends "base.html" %}
-{% block title %}Atención ciudadana | SGR{% endblock %}
+{% block title %}Actividades | SGR{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Atención ciudadana</h2>
-    <a href="{% url 'atenciones:crear' %}" class="btn btn-custom-red">Nueva atención</a>
+    <h2 class="h4 fw-bold mb-0">Actividades</h2>
+    <a href="{% url 'atenciones:crear' %}" class="btn btn-custom-red">Registrar actividad</a>
 </div>
 {% include "includes/toolbar_listado.html" %}
+<form method="get" class="row g-2 align-items-end mb-3">
+    {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+    <div class="col-auto">
+        <label class="form-label small mb-1" for="{{ filtro_va_al_tubo.va_al_tubo.id_for_label }}">Clasificación</label>
+        {{ filtro_va_al_tubo.va_al_tubo }}
+    </div>
+    <div class="col-auto">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button>
+        <a href="{% url 'atenciones:lista' %}{% if q %}?q={{ q|urlencode }}{% endif %}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+    </div>
+</form>
 <div class="table-responsive shadow-sm">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
                 <th>Fecha</th>
+                <th>Actividad</th>
                 <th>Solicitante</th>
-                <th>Tipo</th>
-                <th>Subatención</th>
+                <th>Tipo / Subatención</th>
                 <th>Delegación</th>
                 <th>Responsable</th>
+                <th>Estado</th>
                 <th>Evidencia</th>
-                <th></th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
             {% for atencion in atenciones %}
             <tr>
-                <td>{{ atencion.fecha_registro }}</td>
-                <td>{{ atencion.solicitante }}</td>
-                <td>{{ atencion.tipo }}</td>
-                <td>{{ atencion.subatencion }}</td>
-                <td>{{ atencion.delegacion }}</td>
-                <td>{{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</td>
+                <td>{{ atencion.fecha|date:"d/m/Y" }}</td>
                 <td>
-                    <span class="d-inline-flex align-items-center rounded p-2 {{ atencion.clase_estado_evidencias }}">
+                    <div class="fw-semibold">{{ atencion.titulo }}</div>
+                    <div class="small text-muted">
+                        Creada por: {{ atencion.creador_historico_display }}
+                    </div>
+                    {% if atencion.va_al_tubo %}
+                    <span class="badge bg-success">Va al tubo</span>
+                    {% else %}
+                    <span class="badge bg-secondary">No va al tubo</span>
+                    {% endif %}
+                    {% if not atencion.activo %}
+                    <span class="badge bg-dark">Deshabilitada</span>
+                    {% endif %}
+                </td>
+                <td>{{ atencion.solicitante }}</td>
+                <td>
+                    <div class="fw-semibold">{{ atencion.tipo.nombre }}</div>
+                    <div class="small text-muted">{{ atencion.subatencion.nombre }}</div>
+                </td>
+                <td>
+                    <div>{{ atencion.delegacion.nombre }}</div>
+                    <div class="small text-muted">{{ atencion.delegacion.codigo }}</div>
+                </td>
+                <td>{{ atencion.responsable.get_full_name|default:atencion.responsable.username|default:"Sin asignar" }}</td>
+                <td>
+                    {% if atencion.estado == 'registrada' %}
+                    <span class="badge bg-secondary">{{ atencion.get_estado_display }}</span>
+                    {% elif atencion.estado == 'en_proceso' %}
+                    <span class="badge bg-warning text-dark">{{ atencion.get_estado_display }}</span>
+                    {% else %}
+                    <span class="badge bg-success">{{ atencion.get_estado_display }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge {{ atencion.clase_estado_evidencias }}">
                         {{ atencion.etiqueta_estado_evidencias }}
                     </span>
                 </td>
                 <td class="text-end">
-                    <div class="d-flex flex-wrap justify-content-end gap-1">
+                    <div class="d-flex justify-content-end align-items-center gap-2">
                         <a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
-                        {% if atencion.responsable_id == user.pk %}
-                        <a href="{% url 'evidencias:atencion_crear' atencion.pk %}" class="btn btn-sm btn-custom-red">Agregar evidencia</a>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-custom-red dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Acciones
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                        {% if atencion.pk in atenciones_con_permiso_disponibilidad %}
+                        <li>
+                            <form method="post" action="{% url 'atenciones:cambiar_disponibilidad' atencion.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="activo" value="{% if atencion.activo %}false{% else %}true{% endif %}">
+                                <button type="submit" class="dropdown-item">
+                                    {% if atencion.activo %}Deshabilitar{% else %}Habilitar{% endif %}
+                                </button>
+                            </form>
+                        </li>
                         {% endif %}
+                        {% if atencion.pk in atenciones_con_permiso_va_al_tubo %}
+                        <li>
+                            <form method="post" action="{% url 'atenciones:cambiar_va_al_tubo' atencion.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="va_al_tubo" value="{% if atencion.va_al_tubo %}false{% else %}true{% endif %}">
+                                <button type="submit" class="dropdown-item">
+                                    {% if atencion.va_al_tubo %}Marcar No va al tubo{% else %}Marcar Va al tubo{% endif %}
+                                </button>
+                            </form>
+                        </li>
+                        {% endif %}
+                        {% for estado, etiqueta in atencion.estados_disponibles %}
+                        <li>
+                            <form method="post" action="{% url 'atenciones:cambiar_estado' atencion.pk %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="estado" value="{{ estado }}">
+                                <button type="submit" class="dropdown-item">
+                                    {% if estado == 'cerrada' %}Cerrar actividad{% elif atencion.estado == 'cerrada' %}Reabrir actividad{% else %}Cambiar a {{ etiqueta }}{% endif %}
+                                </button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                        {% if atencion.pk in atenciones_con_permiso_evidencia %}
+                        <li>
+                            <a class="dropdown-item" href="{% url 'evidencias:atencion_crear' atencion.pk %}">Agregar evidencia</a>
+                        </li>
+                        {% endif %}
+                        {% if atencion.pk not in atenciones_con_permiso_disponibilidad and atencion.pk not in atenciones_con_permiso_va_al_tubo and atencion.pk not in atenciones_con_permiso_evidencia and not atencion.estados_disponibles %}
+                        <li><span class="dropdown-item-text text-muted">Sin acciones disponibles</span></li>
+                        {% endif %}
+                            </ul>
+                        </div>
                     </div>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="8" class="text-center text-muted py-4">No hay atenciones registradas.</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">No hay actividades registradas.</td></tr>
             {% endfor %}
         </tbody>
     </table>

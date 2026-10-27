@@ -1,0 +1,24 @@
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Avance de actividades</div>
+    <div class="card-body">
+        <p class="text-muted">Avance operacional binario: Actividades completas / Actividades consideradas × 100. Solo una Actividad cerrada con evidencia aprobada aporta 1; cualquier otra aporta 0. Incluye aportes Pendientes de forma provisional; no representa aprobación estratégica ni cumplimiento del objetivo del Indicador.</p>
+        <dl class="row mb-0">
+            <dt class="col-sm-8">Actividades vinculadas</dt><dd class="col-sm-4">{{ avance.total_vinculaciones }}</dd>
+            <dt class="col-sm-8">Consideradas</dt><dd class="col-sm-4">{{ avance.cantidad_consideradas }}</dd>
+            <dt class="col-sm-8">Completas con evidencia aprobada (1)</dt><dd class="col-sm-4">{{ avance.completas }}</dd>
+            <dt class="col-sm-8">No completas (0)</dt><dd class="col-sm-4">{{ avance.no_completas }}</dd>
+            <dt class="col-sm-8">En proceso, incluidas en No completas (0)</dt><dd class="col-sm-4">{{ avance.en_proceso }}</dd>
+            <dt class="col-sm-8">Excluidas por No cumple</dt><dd class="col-sm-4">{{ avance.excluidas_no_cumple }}</dd>
+            <dt class="col-sm-8">Excluidas temporalmente por Requiere corrección</dt><dd class="col-sm-4">{{ avance.excluidas_correccion }}</dd>
+            <dt class="col-sm-8">Aportes Pendientes considerados</dt><dd class="col-sm-4">{{ avance.cantidad_pendientes }}</dd>
+            <dt class="col-sm-8">Aportes Cumple considerados</dt><dd class="col-sm-4">{{ avance.cantidad_cumple }}</dd>
+        </dl>
+        {% if avance.hay_base_calculable %}
+        <p class="mb-1"><strong>Completas / consideradas:</strong> {{ avance.completas }} / {{ avance.cantidad_consideradas }}</p>
+        <p class="h5 mb-0">Avance: {{ avance.porcentaje_avance|floatformat:2 }}%</p>
+        {% else %}<p class="text-muted mb-0">Sin actividades consideradas</p>{% endif %}
+        {% if avance.deshabilitadas %}
+        <p class="small text-muted mt-3 mb-0">Hay {{ avance.deshabilitadas }} Actividades vinculadas deshabilitadas ({{ avance.consideradas_deshabilitadas }} consideradas). Se conserva su historial y se aplica la misma regla de estado del aporte, estado operativo y evidencia.</p>
+        {% endif %}
+    </div>
+</section>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ periodo.nombre }} | SGR{% endblock %}
+{% block content %}
+{% include "sgr/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">{{ periodo.nombre }}</h2>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Fecha inicio:</strong> {{ periodo.fecha_inicio|date:"d/m/Y" }}</p>
+        <p><strong>Fecha fin:</strong> {{ periodo.fecha_fin|date:"d/m/Y" }}</p>
+        <p><strong>Estado:</strong> {% if periodo.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</p>
+        <p><strong>Creado por:</strong> {{ periodo.creado_por|default:"Sistema / usuario no disponible" }}</p>
+        <p><strong>Fecha creación:</strong> {{ periodo.creado_en|date:"d/m/Y H:i" }}</p>
+        <p><strong>Última actualización:</strong> {{ periodo.actualizado_en|date:"d/m/Y H:i" }}</p>
+        {% if puede_administrar %}
+        <a href="{% url 'sgr:periodo_editar' periodo.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+        {% include "sgr/periodos/_estado.html" %}
+        {% endif %}
+    </div>
+</div>
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between gap-2 align-items-center">
+        <span class="fw-semibold">Metas</span>
+        {% if puede_crear_meta %}<a href="{% url 'sgr:meta_desde_periodo' periodo.pk %}" class="btn btn-sm btn-custom-red">Nueva Meta</a>{% endif %}
+    </div>
+    {% include "sgr/metas/_tabla.html" %}
+</section>
+<a href="{% url 'sgr:periodo_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% endblock %}

@@ -1,17 +1,118 @@
 {% extends "base.html" %}
-{% block title %}Detalle atención | SGR{% endblock %}
+{% block title %}Detalle actividad | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Atención de {{ atencion.solicitante }}</h2>
+<h2 class="h4 fw-bold mb-4">Actividad de {{ atencion.solicitante }}</h2>
+{% include "sgr/aportes/_actividad.html" %}
 <div class="card shadow-sm">
     <div class="card-body">
-        <p><strong>Fecha:</strong> {{ atencion.fecha_registro }}</p>
+        <p><strong>Título:</strong> {{ atencion.titulo }}</p>
+        <p><strong>Fecha de actividad:</strong> {{ atencion.fecha|date:"d/m/Y" }}</p>
+        <p><strong>Estado:</strong> {{ atencion.get_estado_display }}</p>
+        <p><strong>Disponibilidad:</strong>
+            {% if atencion.activo %}
+            <span class="badge bg-success">Habilitada</span>
+            {% else %}
+            <span class="badge bg-secondary">Deshabilitada</span>
+            {% endif %}
+        </p>
+        <p><strong>Fecha de registro:</strong> {{ atencion.fecha_registro }}</p>
         <p><strong>Tipo:</strong> {{ atencion.tipo }}</p>
         <p><strong>Subatención:</strong> {{ atencion.subatencion }}</p>
+        <p><strong>Va al tubo:</strong>
+            {% if atencion.va_al_tubo %}<span class="badge bg-success">Sí</span>
+            {% else %}<span class="badge bg-secondary">No</span>{% endif %}
+        </p>
         <p><strong>Delegación:</strong> {{ atencion.delegacion }}</p>
+        <p><strong>Creada por:</strong> {{ atencion.creador_historico_display }}</p>
         <p><strong>Responsable:</strong> {{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</p>
         <p class="mb-0"><strong>Descripción:</strong> {{ atencion.descripcion }}</p>
     </div>
+    {% if puede_agregar_a_agenda %}
+    <div class="card-footer bg-white">
+        <a href="{% url 'atenciones:agregar_a_agenda' atencion.pk %}" class="btn btn-custom-red">Agregar a Agenda</a>
+    </div>
+    {% endif %}
+    {% if estados_disponibles %}
+    <div class="card-footer bg-white d-flex flex-wrap gap-2">
+        {% for estado, etiqueta in estados_disponibles %}
+        <form method="post" action="{% url 'atenciones:cambiar_estado' atencion.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="estado" value="{{ estado }}">
+            <button type="submit" class="btn btn-outline-primary">Pasar a {{ etiqueta }}</button>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if puede_cambiar_disponibilidad %}
+    <div class="card-footer bg-white">
+        <form method="post" action="{% url 'atenciones:cambiar_disponibilidad' atencion.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="activo" value="{% if atencion.activo %}false{% else %}true{% endif %}">
+            <button type="submit" class="btn btn-outline-warning">
+                {% if atencion.activo %}Deshabilitar{% else %}Habilitar{% endif %}
+            </button>
+        </form>
+    </div>
+    {% endif %}
+    {% if puede_cambiar_va_al_tubo %}
+    <div class="card-footer bg-white">
+        <form method="post" action="{% url 'atenciones:cambiar_va_al_tubo' atencion.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-auto">
+                <label class="form-label" for="{{ form_va_al_tubo.va_al_tubo.id_for_label }}">¿Va al tubo?</label>
+                {{ form_va_al_tubo.va_al_tubo }}
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-success">Actualizar clasificación</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
 </div>
+{% include "atenciones/_historial_estados.html" %}
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Agenda / Compromisos relacionados</div>
+    <div class="list-group list-group-flush">
+        {% for compromiso in compromisos_relacionados %}
+        <div class="list-group-item">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold">{{ compromiso.titulo }}</div>
+                    <div class="small text-muted">
+                        {{ compromiso.fecha_hora|date:"d/m/Y H:i" }} ·
+                        {{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }} ·
+                        {{ compromiso.get_estado_display }} ·
+                        {{ compromiso.delegacion }}
+                    </div>
+                </div>
+                <a href="{% url 'agenda:detalle' compromiso.pk %}" class="btn btn-sm btn-outline-secondary">Ver compromiso</a>
+            </div>
+        </div>
+        {% empty %}
+        <div class="list-group-item text-muted">Esta actividad no tiene compromisos relacionados.</div>
+        {% endfor %}
+    </div>
+</section>
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Historial</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+            <tbody>
+                {% for registro in historial %}
+                <tr>
+                    <td class="text-nowrap">{{ registro.timestamp|date:"d/m/Y H:i" }}</td>
+                    <td>{{ registro.usuario|default:"Sistema / usuario no disponible" }}</td>
+                    <td>{{ registro.accion_legible }}</td>
+                    <td>{{ registro.descripcion }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center text-muted py-4">No hay eventos registrados en el historial de esta actividad.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
 <section class="mt-4">
     <h3 class="h5 fw-bold">Evidencias</h3>
     {% if evidencias %}
@@ -45,7 +146,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-muted">No hay evidencias disponibles para esta atención.</p>
+    <p class="text-muted">No hay evidencias disponibles para esta actividad.</p>
     {% endif %}
 </section>
 <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>

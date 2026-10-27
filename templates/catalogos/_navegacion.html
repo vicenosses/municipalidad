@@ -1,0 +1,20 @@
+<a href="{% url 'catalogos:inicio' %}" class="btn btn-outline-secondary mb-3">← Volver</a>
+<nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Navegación de Tipos de Atención">
+    <a
+        class="btn btn-custom-red"
+        href="{% url 'catalogos:tipo_lista' %}"
+        {% if request.resolver_match.url_name == 'tipo_lista' or request.resolver_match.url_name == 'tipo_crear' or request.resolver_match.url_name == 'tipo_detalle' or request.resolver_match.url_name == 'tipo_editar' %}aria-current="page"{% endif %}
+    >Tipos de Atención</a>
+    <a
+        class="btn btn-custom-red"
+        href="{% url 'catalogos:sub_lista' %}"
+        {% if request.resolver_match.url_name == 'sub_lista' or request.resolver_match.url_name == 'sub_crear' or request.resolver_match.url_name == 'sub_detalle' or request.resolver_match.url_name == 'sub_editar' %}aria-current="page"{% endif %}
+    >Subcategorías</a>
+    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'coordinador' or sesion_rol_codigo == 'delegado' %}
+    <a
+        class="btn btn-custom-red"
+        href="{% url 'catalogos:solicitud_lista' %}"
+        {% if request.resolver_match.url_name == 'solicitud_lista' or request.resolver_match.url_name == 'solicitud_categoria' or request.resolver_match.url_name == 'solicitud_subcategoria' %}aria-current="page"{% endif %}
+    >Solicitudes generales</a>
+    {% endif %}
+</nav>

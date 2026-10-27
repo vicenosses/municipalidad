@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Períodos SGR | SGR{% endblock %}
+{% block content %}
+{% include "sgr/_navegacion.html" %}
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-4">
+    <h2 class="h4 fw-bold mb-0">Períodos SGR</h2>
+    {% if puede_administrar %}<a href="{% url 'sgr:periodo_crear' %}" class="btn btn-custom-red">Nuevo período</a>{% endif %}
+</div>
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body row g-3 align-items-end">
+        {% for campo in form %}
+        <div class="col-md-3">
+            <label for="{{ campo.id_for_label }}" class="form-label">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.errors %}<div class="text-danger small">{{ campo.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="col-md-3"><button class="btn btn-custom-red" type="submit">Filtrar</button> <a href="{% url 'sgr:periodo_lista' %}" class="btn btn-outline-secondary">Limpiar</a></div>
+    </div>
+</form>
+<div class="table-responsive shadow-sm">
+    <table class="table table-striped align-middle mb-0">
+        <thead class="table-light"><tr><th>Período</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Creado por</th><th>Acciones</th></tr></thead>
+        <tbody>
+            {% for periodo in periodos %}
+            <tr>
+                <td>{{ periodo.nombre }}</td>
+                <td class="text-nowrap">{{ periodo.fecha_inicio|date:"d/m/Y" }}</td>
+                <td class="text-nowrap">{{ periodo.fecha_fin|date:"d/m/Y" }}</td>
+                <td>{% if periodo.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+                <td>{{ periodo.creado_por|default:"Sistema / usuario no disponible" }}</td>
+                <td>
+                    <a href="{{ periodo.get_absolute_url }}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    {% if puede_administrar %}
+                    <a href="{% url 'sgr:periodo_editar' periodo.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                    {% include "sgr/periodos/_estado.html" %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No hay períodos para los filtros seleccionados.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if is_paginated %}
+<nav class="mt-3" aria-label="Páginas de períodos"><ul class="pagination">
+    {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?{{ query_params }}&amp;page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }}</span></li>
+    {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?{{ query_params }}&amp;page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}
+</ul></nav>
+{% endif %}
+{% endblock %}

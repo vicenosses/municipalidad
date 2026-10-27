@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Validar aporte | SGR{% endblock %}
+{% block content %}
+<h2 class="h4">Validar aporte de {{ aporte.actividad.titulo }}</h2>
+<p>Indicador: {{ aporte.indicador }} · Declarado: {{ aporte.valor_declarado|default_if_none:"No corresponde" }}</p>
+<p>Se requiere al menos una evidencia aprobada. Si la Actividad se reabrió tras una validación, debe cerrarse nuevamente. No cumple se refiere al aporte al Indicador, no a la calidad de la Actividad municipal.</p>
+<a href="{% url 'atenciones:detalle' aporte.actividad_id %}" class="btn btn-outline-secondary mb-3">Ver Actividad y evidencias</a>
+<form method="post" class="card card-body shadow-sm">
+    {% csrf_token %}
+    {% include "includes/form_campos.html" %}
+    <p class="small text-muted">Justifique No cumple, Requiere corrección y cualquier valor diferente del declarado. Para Requiere corrección marque los campos que autoriza corregir.</p>
+    <div><button class="btn btn-custom-red" type="submit">Registrar decisión</button></div>
+</form>
+{% endblock %}

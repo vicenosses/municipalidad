@@ -29,6 +29,14 @@ class Compromiso(models.Model):
         related_name='compromisos',
         verbose_name='Responsable',
     )
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='compromisos_creados',
+        verbose_name='Creado por',
+    )
     delegacion = models.ForeignKey(
         Delegacion,
         on_delete=models.PROTECT,
@@ -36,7 +44,7 @@ class Compromiso(models.Model):
         verbose_name='Delegación',
     )
     actividades = models.ManyToManyField(
-        'actividades.Actividad',
+        'atenciones.AtencionCiudadana',
         blank=True,
         related_name='compromisos',
         verbose_name='Actividades relacionadas',

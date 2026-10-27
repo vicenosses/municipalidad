@@ -2,11 +2,12 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 
-from actividades.models import Actividad
+from atenciones.models import AtencionCiudadana
 from agenda.models import Compromiso
 from usuarios.mixins import obtener_rol
 
 User = get_user_model()
+ROLES_GESTORES = ('administrador', 'delegado', 'coordinador')
 
 
 class CompromisoForm(forms.ModelForm):
@@ -58,16 +59,15 @@ class CompromisoForm(forms.ModelForm):
         delegaciones=None,
         user=None,
         es_creacion=False,
+        actividad_origen=None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.user = user
+        self.actividad_origen = actividad_origen
         self.fields['fecha_hora'].input_formats = ['%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S']
-        self.fields['actividades'].queryset = Actividad.objects.none()
-        manager = user is None or user.is_superuser or obtener_rol(user) in (
-            'administrador',
-            'coordinador',
-        )
+        self.fields['actividades'].queryset = AtencionCiudadana.objects.none()
+        manager = user is None or user.is_superuser or obtener_rol(user) in ROLES_GESTORES
         if delegaciones is None and delegacion is not None:
             delegaciones = [delegacion]
         if delegaciones is None:
@@ -85,18 +85,51 @@ class CompromisoForm(forms.ModelForm):
                 )
             else:
                 self.fields['responsable'].queryset = User.objects.none()
-            self.fields['actividades'].queryset = Actividad.objects.filter(
-                delegacion__in=delegaciones
+            self.fields['actividades'].queryset = AtencionCiudadana.objects.filter(
+                delegacion__in=delegaciones,
+                activo=True,
             ).order_by('-fecha', 'titulo')
+            if actividad_origen is not None:
+                self.fields['actividades'].queryset = (
+                    self.fields['actividades'].queryset.exclude(
+                        estado=AtencionCiudadana.Estado.CERRADA
+                    )
+                )
+                self.fields['actividades'].label = 'Actividades relacionadas'
+                self.fields['actividades'].help_text = (
+                    'La actividad de origen se asociará automáticamente. '
+                    'Puede agregar otras actividades de la misma delegación.'
+                )
+            if self.instance.pk:
+                self.fields['actividades'].queryset = (
+                    self.fields['actividades'].queryset
+                    | self.instance.actividades.filter(activo=False, delegacion_id=self.instance.delegacion_id)
+                )
         if es_creacion:
             self.fields.pop('estado')
         elif not manager:
-            for field in ('titulo', 'descripcion', 'solicitante', 'area_apoyo', 'fecha_hora', 'responsable'):
-                self.fields.pop(field)
-            self.fields.pop('motivo_cambio')
+            for field in tuple(self.fields):
+                if field != 'estado':
+                    self.fields.pop(field)
 
     def clean(self):
         cleaned_data = super().clean()
+        if self.actividad_origen is not None and 'actividades' in cleaned_data:
+            actividades = cleaned_data['actividades']
+            origen = AtencionCiudadana.objects.filter(
+                pk=self.actividad_origen.pk,
+                delegacion_id=self.actividad_origen.delegacion_id,
+                activo=True,
+            ).exclude(
+                estado=AtencionCiudadana.Estado.CERRADA
+            )
+            cleaned_data['actividades'] = (actividades | origen).distinct()
+        if self.instance.pk and 'actividades' in cleaned_data:
+            actividades = cleaned_data['actividades']
+            historicas = self.instance.actividades.filter(activo=False, delegacion_id=self.instance.delegacion_id)
+            cleaned_data['actividades'] = (
+                actividades | historicas
+            ).distinct()
         if self.instance.pk and 'estado' in cleaned_data:
             anterior = self.instance.estado
             nuevo = cleaned_data['estado']

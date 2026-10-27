@@ -36,9 +36,8 @@
             {% endif %}
             <div class="card-body">
                 <span class="badge bg-primary mb-2">{{ evidencia.origen }}</span>
-                {% if evidencia.atencion_id %}<p class="small text-muted mb-1">Atención: {{ evidencia.atencion }}</p>{% endif %}
+                {% if evidencia.atencion_id %}<p class="small text-muted mb-1">Actividad: {{ evidencia.atencion.titulo }}</p>{% endif %}
                 {% if evidencia.compromiso_id %}<p class="small text-muted mb-1">Agenda: {{ evidencia.compromiso.titulo }}</p>{% endif %}
-                {% if evidencia.actividad_id %}<p class="small text-muted mb-1">Registro: {{ evidencia.actividad.titulo }}</p>{% endif %}
                 {% if evidencia.descripcion %}<p class="mb-1">{{ evidencia.descripcion }}</p>{% endif %}
                 <p class="fw-semibold mb-1">{{ evidencia.identificador }}</p>
                 <p class="small mb-1">{{ evidencia.get_tipo_archivo_display }} · {{ evidencia.fecha_subida }}</p>
@@ -55,7 +54,7 @@
                 <a href="{% url 'evidencias:detalle' evidencia.pk %}" class="btn btn-sm btn-outline-secondary">Ver detalle</a>
             </div>
             {% if evidencia.estado == 'pendiente' %}
-            {% if not evidencia.atencion_id and sesion_permisos.validar_evidencias or sesion_rol == 'Administrador' %}
+            {% if evidencia.pk in evidencias_validables %}
             <div class="card-footer bg-white">
                 <a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-sm btn-custom-red">Validar</a>
             </div>

@@ -5,6 +5,7 @@
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">
+        <p class="small text-muted">El código de la delegación se genera automáticamente y no cambia al editarla.</p>
         {% include "includes/form_campos.html" %}
         <button type="submit" class="btn btn-custom-red">Guardar</button>
         <a href="{% url 'usuarios:delegacion_lista' %}" class="btn btn-outline-secondary">Cancelar</a>

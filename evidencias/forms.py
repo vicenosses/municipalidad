@@ -6,9 +6,10 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from PIL import Image, UnidentifiedImageError
 
+from atenciones.models import AtencionCiudadana
+from agenda.models import Compromiso
 from evidencias.models import Evidencia
-from usuarios.mixins import obtener_rol
-from usuarios.sesion import delegaciones_autorizadas
+from evidencias.permisos import puede_agregar_evidencia, registros_cargables
 
 
 TIPOS_ARCHIVO = {
@@ -118,25 +119,38 @@ def validar_archivo_imagen(archivo):
 class EvidenciaForm(forms.ModelForm):
     class Meta:
         model = Evidencia
-        fields = ['actividad', 'descripcion', 'archivo']
+        fields = ['atencion', 'compromiso', 'descripcion', 'archivo']
         widgets = {
-            'actividad': forms.Select(attrs={'class': 'form-select'}),
+            'atencion': forms.Select(attrs={'class': 'form-select'}),
+            'compromiso': forms.Select(attrs={'class': 'form-select'}),
             'descripcion': forms.TextInput(attrs={'class': 'form-control'}),
             'archivo': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/jpeg,image/png'}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, request=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if user is None or user.is_superuser or obtener_rol(user) == 'administrador':
-            return
-        if obtener_rol(user) == 'coordinador':
-            self.fields['actividad'].queryset = self.fields['actividad'].queryset.filter(
-                delegacion__in=delegaciones_autorizadas(user)
-            )
-        else:
-            self.fields['actividad'].queryset = self.fields['actividad'].queryset.filter(
-                funcionario=user
-            )
+        self.request = request
+        self.fields['atencion'].queryset = (
+            registros_cargables(request, AtencionCiudadana)
+            if request is not None
+            else AtencionCiudadana.objects.none()
+        )
+        self.fields['compromiso'].queryset = (
+            registros_cargables(request, Compromiso)
+            if request is not None
+            else Compromiso.objects.none()
+        )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        atencion = cleaned_data.get('atencion')
+        compromiso = cleaned_data.get('compromiso')
+        if bool(atencion) == bool(compromiso):
+            raise ValidationError('Seleccione una actividad o un compromiso.')
+        registro = atencion or compromiso
+        if self.request is None or not puede_agregar_evidencia(self.request, registro):
+            raise ValidationError('No tiene permiso para agregar evidencia a este registro.')
+        return cleaned_data
 
     def clean_archivo(self):
         archivo = self.cleaned_data.get('archivo')
@@ -196,8 +210,7 @@ class EvidenciaAtencionForm(forms.Form):
 class EvidenciaFiltroForm(forms.Form):
     ORIGENES = (
         ('', 'Todos los orígenes'),
-        ('atencion', 'Atención ciudadana'),
-        ('registro', 'Registro / actividad'),
+        ('atencion', 'Actividad'),
         ('agenda', 'Agenda'),
     )
 

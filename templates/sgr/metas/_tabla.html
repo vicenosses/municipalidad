@@ -1,0 +1,21 @@
+<div class="table-responsive">
+    <table class="table table-striped align-middle mb-0">
+        <thead class="table-light"><tr><th>Meta</th><th>Período</th><th>Delegación</th><th>Estado</th><th>Creado por</th><th>Acciones</th></tr></thead>
+        <tbody>
+            {% for meta in metas %}
+            <tr>
+                <td>{{ meta.nombre }}</td><td>{{ meta.periodo }}</td><td>{{ meta.delegacion }}</td>
+                <td>{% if meta.activo %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-secondary">Inactiva</span>{% endif %}</td>
+                <td>{{ meta.creado_por|default:"Sistema / usuario no disponible" }}</td>
+                <td>
+                    <a href="{{ meta.get_absolute_url }}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    {% if meta.periodo.activo %}
+                    <a href="{% url 'sgr:meta_editar' meta.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
+                    {% if puede_estado_meta %}{% include "sgr/metas/_estado.html" %}{% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No hay Metas para mostrar.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>

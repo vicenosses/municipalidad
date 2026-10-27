@@ -1,9 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Tipos de atención | SGR{% endblock %}
+{% block title %}Tipos de Atención | SGR{% endblock %}
 {% block content %}
+{% include "catalogos/_navegacion.html" %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Tipos de atención</h2>
-    <a href="{% url 'catalogos:tipo_crear' %}" class="btn btn-custom-red">Nuevo tipo</a>
+    <h2 class="h4 fw-bold mb-0">Tipos de Atención</h2>
+    <div class="d-flex gap-2">
+        {% if sesion_rol_codigo == 'administrador' %}
+        <a href="{% url 'catalogos:tipo_crear' %}" class="btn btn-custom-red">Nuevo Tipo de Atención</a>
+        {% else %}
+        <a href="{% url 'catalogos:tipo_crear' %}" class="btn btn-custom-red">Nuevo Tipo de Atención para la delegación</a>
+        <a href="{% url 'catalogos:solicitud_categoria' %}" class="btn btn-outline-danger">Solicitar Tipo de Atención general</a>
+        {% endif %}
+    </div>
 </div>
 {% include "includes/toolbar_listado.html" %}
 <div class="table-responsive shadow-sm">
@@ -13,6 +21,7 @@
                 <th>Código</th>
                 <th>Nombre</th>
                 <th>Descripción</th>
+                <th>Alcance</th>
                 <th>Estado</th>
                 <th></th>
             </tr>
@@ -23,18 +32,21 @@
                 <td>{{ tipo.codigo }}</td>
                 <td>{{ tipo.nombre }}</td>
                 <td>{{ tipo.descripcion|default:"—" }}</td>
+                <td>{% if tipo.es_general %}General{% else %}{{ tipo.delegacion.nombre }}{% endif %}</td>
                 <td>{{ tipo.estado_display }}</td>
                 <td class="text-end">
                     <a href="{% url 'catalogos:tipo_detalle' tipo.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    {% if tipo.pk in catalogos_editables %}
                     <a href="{% url 'catalogos:tipo_editar' tipo.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'catalogos:tipo_desactivar' tipo.pk %}" class="d-inline js-confirm" data-message="¿Desactivar este tipo?">
+                    <form method="post" action="{% url 'catalogos:tipo_desactivar' tipo.pk %}" class="d-inline js-confirm" data-message="¿Desactivar este Tipo de Atención?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No hay tipos de atención.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay Tipos de Atención.</td></tr>
             {% endfor %}
         </tbody>
     </table>

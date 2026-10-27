@@ -2,6 +2,13 @@
 {% block title %}{% if es_edicion %}Editar compromiso{% else %}Nuevo compromiso{% endif %} | SGR{% endblock %}
 {% block content %}
 <h2 class="h4 fw-bold mb-4">{% if es_edicion %}Actualizar compromiso{% else %}Registrar compromiso{% endif %}</h2>
+{% if actividad_origen %}
+<div class="alert alert-info">
+    Creando compromiso desde la actividad: <strong>{{ actividad_origen.titulo }}</strong>
+    <span class="d-block small">Delegación: {{ actividad_origen.delegacion }}</span>
+    <span class="d-block small">La relación con esta actividad se asignará automáticamente.</span>
+</div>
+{% endif %}
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">
@@ -16,8 +23,12 @@
             {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
         </div>
         {% endfor %}
-        <button type="submit" class="btn btn-custom-red">Guardar cambios</button>
+        <button type="submit" class="btn btn-custom-red">{% if actividad_origen %}Crear compromiso{% else %}Guardar cambios{% endif %}</button>
+        {% if actividad_origen %}
+        <a href="{% url 'atenciones:detalle' actividad_origen.pk %}" class="btn btn-outline-secondary">Cancelar</a>
+        {% else %}
         <a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+        {% endif %}
     </div>
 </form>
 {% endblock %}

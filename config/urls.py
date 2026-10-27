@@ -21,10 +21,10 @@ urlpatterns = [
     path('recuperacion/nueva/', RecuperacionNuevaView.as_view(), name='recuperacion_nueva'),
     path('', HomeView.as_view(), name='home'),
     path('usuarios/', include('usuarios.urls')),
-    path('actividades/', include('actividades.urls')),
     path('evidencias/', include('evidencias.urls')),
     path('agenda/', include('agenda.urls')),
     path('auditoria/', include('auditoria.urls')),
+    path('sgr/', include('sgr.urls')),
     path(
         f'{settings.MEDIA_URL.lstrip("/").rstrip("/")}/evidencias/<int:pk>/',
         EvidenciaArchivoView.as_view(),

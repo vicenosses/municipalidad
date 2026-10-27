@@ -22,7 +22,6 @@ class EvidenciaAdmin(admin.ModelAdmin):
     form = EvidenciaAdminForm
     list_display = (
         'identificador',
-        'actividad',
         'atencion',
         'compromiso',
         'tipo_archivo',
@@ -34,7 +33,7 @@ class EvidenciaAdmin(admin.ModelAdmin):
     search_fields = (
         'identificador',
         'codigo_respaldo',
-        'actividad__titulo',
+        'atencion__titulo',
         'atencion__solicitante',
         'compromiso__titulo',
         'descripcion',

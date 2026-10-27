@@ -1,7 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Inicio | SGR{% endblock %}
+{% block title %}Dashboard SGR | Inicio{% endblock %}
+{% block extra_css %}
+<style>
+    .semaforo { display: inline-block; border-radius: .4rem; padding: .35rem .6rem; font-weight: 600; }
+    .semaforo-verde { background: #d1e7dd; color: #0a3622; }
+    .semaforo-naranjo { background: #ffe5d0; color: #773300; }
+    .semaforo-rojo { background: #f8d7da; color: #58151c; }
+    .semaforo-sin_datos { background: #e9ecef; color: #343a40; }
+</style>
+{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Panel de control</h2>
+<h2 class="h4 fw-bold mb-3">Dashboard SGR</h2>
+{% if sesion_informes_sgr %}<p><a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Consultar informe SGR</a></p>{% endif %}
+<p class="mb-1">Contexto territorial: <strong>{{ dashboard.contexto_territorial|default:"Sin delegación autorizada" }}</strong></p>
+<p class="text-muted small">Fecha de corte: {{ dashboard.fecha_corte|date:"d/m/Y" }}</p>
 <div class="row g-3">
     <div class="col-md-3">
         <div class="card border-0 shadow-sm">
@@ -36,4 +48,64 @@
         </div>
     </div>
 </div>
+<section class="mt-4" aria-labelledby="titulo-metas">
+    <h3 id="titulo-metas" class="h5 fw-bold">Seguimiento de metas</h3>
+    {% if dashboard.mensaje %}
+    <div class="alert alert-info" role="status">{{ dashboard.mensaje }}</div>
+    {% else %}
+    <p class="mb-1">Período: <strong>{{ dashboard.periodo.nombre }}</strong>
+        · {{ dashboard.periodo.fecha_inicio|date:"d/m/Y" }} al {{ dashboard.periodo.fecha_fin|date:"d/m/Y" }}</p>
+    <p>Avance esperado: <strong>{{ dashboard.esperado|floatformat:2 }}%</strong></p>
+    <div class="row g-3 mb-3">
+        <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <p class="text-muted small mb-1">Metas activas del período</p><p class="h3 mb-0">{{ dashboard.total_metas }}</p>
+        </div></div></div>
+        <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <p class="text-muted small mb-1">Metas con cumplimiento calculable</p><p class="h3 mb-0">{{ dashboard.metas_calculables }}</p>
+        </div></div></div>
+        <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
+            <p class="text-muted small mb-1">Metas con ponderaciones incompletas</p><p class="h3 mb-0">{{ dashboard.metas_incompletas }}</p>
+        </div></div></div>
+    </div>
+    {% if dashboard.filas %}
+    <p class="small">
+        Verde: {{ dashboard.conteos.verde }} · Naranjo: {{ dashboard.conteos.naranjo }} ·
+        Rojo: {{ dashboard.conteos.rojo }} · Sin datos calculables: {{ dashboard.conteos.sin_datos }}
+    </p>
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <caption>Semáforo de metas del período vigente y contexto territorial indicado.</caption>
+            <thead><tr>
+                <th scope="col">Meta</th><th scope="col">Delegación</th>
+                <th scope="col">Cumplimiento real</th><th scope="col">Cobertura calculable</th>
+                <th scope="col">Ponderaciones</th><th scope="col">Avance esperado</th><th scope="col">Semáforo</th>
+            </tr></thead>
+            <tbody>{% for fila in dashboard.filas %}
+                <tr>
+                    <th scope="row">{% if dashboard.puede_ver_detalle %}<a href="{{ fila.meta.get_absolute_url }}">{{ fila.meta.nombre }}</a>{% else %}{{ fila.meta.nombre }}{% endif %}</th>
+                    <td>{{ fila.meta.delegacion }}</td>
+                    <td>{% if fila.resultado.cumplimiento_normalizado != None %}{{ fila.resultado.cumplimiento_normalizado|floatformat:2 }}%{% else %}Sin datos calculables{% endif %}
+                        {% if fila.resultado.sin_limite %}<small class="d-block text-muted">Indicadores sin límite numérico: {{ fila.resultado.sin_limite }}</small>{% endif %}</td>
+                    <td>{{ fila.resultado.cobertura_calculable|floatformat:2 }}% de 100%
+                        {% if fila.resultado.cobertura_calculable < 100 %}<small class="d-block text-muted">Cobertura parcial</small>{% endif %}</td>
+                    <td>{% if fila.resultado.configuracion_completa %}Completas{% else %}Incompletas{% endif %}
+                        <small class="d-block text-muted">Asignadas: {{ fila.resultado.ponderacion_asignada|floatformat:2 }}% · Sin configurar: {{ fila.resultado.sin_ponderacion }}</small></td>
+                    <td>{{ dashboard.esperado|floatformat:2 }}%</td>
+                    <td><span class="semaforo semaforo-{{ fila.semaforo.estado }}">{{ fila.semaforo.texto }}</span></td>
+                </tr>
+            {% endfor %}</tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info" role="status">No hay metas activas para este período y contexto territorial.</div>
+    {% endif %}
+    {% endif %}
+    <p class="small text-muted mt-3">
+        El avance esperado usa días calendario e incluye el día de corte y ambos extremos del período.
+        No descuenta vacaciones, licencias, emergencias, tiempos compensatorios ni feriados.
+        Verde: real mayor o igual al esperado; naranjo: desde el 60% del esperado; rojo: inferior al 60%.
+        El cumplimiento real se normaliza sobre la cobertura calculable y puede superar el 100%.
+        Con cobertura parcial, el semáforo solo representa la parte calculable de la meta.
+    </p>
+</section>
 {% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Confirmar transferencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-2">Transferir usuario</h2>
+<p>Usuario: <strong>{{ usuario_transferido.get_full_name|default:usuario_transferido.username }}</strong></p>
+<p>Delegación de origen: <strong>{{ delegacion_origen.nombre }}</strong></p>
+{% if compromisos_activos %}
+<div class="alert alert-warning">
+    El usuario tiene <strong>{{ compromisos_activos }}</strong> compromiso(s) activo(s).
+    La transferencia no reasignará esos compromisos. Para continuar, confirme explícitamente en el formulario.
+</div>
+{% else %}
+<div class="alert alert-info">No se encontraron compromisos activos para este usuario.</div>
+{% endif %}
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Confirmar transferencia</button>
+        <a href="{% url 'usuarios:transferencias' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

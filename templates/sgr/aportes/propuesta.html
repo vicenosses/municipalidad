@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Proponer aporte | SGR{% endblock %}
+{% block content %}
+<h2 class="h4">Aporte de {{ actividad.titulo }}</h2>
+<p>Fecha: {{ actividad.fecha|date:"d/m/Y" }} · Delegación: {{ actividad.delegacion }}</p>
+<p class="text-muted">Solo se ofrecen Indicadores activos del período que contiene esta fecha y de la misma Delegación. Si no hay opciones válidas, la Actividad puede continuar normalmente sin Indicador.</p>
+{% if aporte.comentario %}<div class="alert alert-info">Corrección solicitada: {{ aporte.comentario }}</div>{% endif %}
+<form method="post" class="card card-body shadow-sm">
+    {% csrf_token %}
+    {% include "includes/form_campos.html" %}
+    <div><button class="btn btn-custom-red" type="submit">Enviar aporte</button> <a class="btn btn-outline-secondary" href="{% url 'atenciones:detalle' actividad.pk %}">Volver</a></div>
+</form>
+{% endblock %}

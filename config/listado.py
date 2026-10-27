@@ -79,6 +79,9 @@ class FiltroExportMixin:
         hoja.append(list(self.export_headers))
         for obj in qs:
             hoja.append([valor_attr(obj, campo) for campo in self.export_fields])
+            for celda in hoja[hoja.max_row]:
+                if isinstance(celda.value, str):
+                    celda.data_type = 's'
         buffer = BytesIO()
         libro.save(buffer)
         buffer.seek(0)

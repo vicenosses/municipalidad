@@ -25,9 +25,8 @@
             <div class="card-header bg-white fw-semibold">Registro</div>
             <dl class="card-body row mb-0">
                 <dt class="col-sm-5">Origen</dt><dd class="col-sm-7">{{ evidencia.origen }}</dd>
-                {% if evidencia.atencion_id %}<dt class="col-sm-5">Atención</dt><dd class="col-sm-7">{{ evidencia.atencion }}</dd>{% endif %}
+                {% if evidencia.atencion_id %}<dt class="col-sm-5">Actividad</dt><dd class="col-sm-7">{{ evidencia.atencion.titulo }}</dd>{% endif %}
                 {% if evidencia.compromiso_id %}<dt class="col-sm-5">Agenda</dt><dd class="col-sm-7"><a href="{% url 'agenda:detalle' evidencia.compromiso_id %}">{{ evidencia.compromiso.titulo }}</a></dd>{% endif %}
-                {% if evidencia.actividad_id %}<dt class="col-sm-5">Registro</dt><dd class="col-sm-7">{{ evidencia.actividad.titulo }}</dd>{% endif %}
                 <dt class="col-sm-5">Identificador</dt><dd class="col-sm-7">{{ evidencia.identificador }}</dd>
                 <dt class="col-sm-5">Código de respaldo</dt><dd class="col-sm-7">{{ evidencia.codigo_respaldo }}</dd>
                 <dt class="col-sm-5">Descripción</dt><dd class="col-sm-7">{{ evidencia.descripcion|default:"—" }}</dd>
@@ -42,10 +41,8 @@
                 {% if evidencia.validado_por %}<dt class="col-sm-5">Validado por</dt><dd class="col-sm-7">{{ evidencia.validado_por.get_full_name|default:evidencia.validado_por.username }}</dd>{% endif %}
                 {% if evidencia.comentario_validacion %}<dt class="col-sm-5">Comentario</dt><dd class="col-sm-7">{{ evidencia.comentario_validacion|linebreaksbr }}</dd>{% endif %}
             </dl>
-            {% if evidencia.estado == 'pendiente' %}
-                {% if not evidencia.atencion_id and sesion_permisos.validar_evidencias or sesion_rol == 'Administrador' %}
-                <div class="card-footer bg-white"><a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-custom-red">Validar evidencia</a></div>
-                {% endif %}
+            {% if puede_validar %}
+            <div class="card-footer bg-white"><a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-custom-red">Validar evidencia</a></div>
             {% endif %}
         </section>
     </div>

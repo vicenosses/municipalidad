@@ -1,0 +1,21 @@
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Historial de estados</div>
+    {% if historial_estados_incompleto %}
+    <p class="small text-muted px-3 pt-3 mb-0">No se dispone del evento inicial de esta Actividad. Se muestran únicamente las transiciones registradas, sin reconstruir fechas anteriores.</p>
+    {% endif %}
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead><tr><th>Estado anterior → nuevo</th><th>Fecha y hora</th><th>Usuario</th><th>Motivo</th></tr></thead>
+            <tbody>
+                {% for evento in historial_estados %}
+                <tr>
+                    <td>{% if evento.estado_anterior %}{{ evento.get_estado_anterior_display }}{% else %}Creación{% endif %} → {{ evento.get_estado_nuevo_display }}</td>
+                    <td class="text-nowrap">{{ evento.fecha_hora|date:"d/m/Y H:i:s" }}</td>
+                    <td>{{ evento.actor|default:"Sistema / usuario no disponible" }}</td>
+                    <td>{{ evento.motivo|default:"—" }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="4" class="text-muted text-center py-4">No hay eventos de estado registrados.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>

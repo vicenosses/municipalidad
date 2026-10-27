@@ -1,18 +1,44 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
-from django.db.models import Count
-from django.shortcuts import get_object_or_404, redirect
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
+from django.db.models import Count, F
+from django.shortcuts import get_object_or_404, redirect, render
+from django.http import HttpResponseBadRequest
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from auditoria.utils import registrar_auditoria
 from config.listado import FiltroExportMixin
-from usuarios.forms import DelegacionForm, RolForm, UsuarioEditarForm, UsuarioMunicipalForm
-from usuarios.mixins import RolRequiredMixin
-from usuarios.models import Delegacion, Perfil, Rol
-from usuarios.sesion import DELEGACION_SESION, delegaciones_autorizadas
+from usuarios.forms import (
+    DecisionTransferenciaForm,
+    DelegacionForm,
+    RolForm,
+    SolicitudTransferenciaForm,
+    TransferenciaDirectaForm,
+    UsuarioEditarForm,
+    UsuarioMunicipalForm,
+)
+from usuarios.mixins import RolRequiredMixin, obtener_rol
+from usuarios.models import Delegacion, Perfil, Rol, SolicitudTransferencia
+from usuarios.sesion import CONTEXTO_GLOBAL, DELEGACION_SESION, delegaciones_autorizadas
+from usuarios.sesion import get_delegacion_activa, usuario_tiene_alcance_delegacion
+from usuarios.sesion import en_contexto_delegacion, filtrar_contexto_territorial
+from usuarios.transferencias import (
+    CompromisosPendientesError,
+    aplicar_transferencia,
+    contar_compromisos_activos,
+)
+
+
+def perfiles_en_contexto(request):
+    return filtrar_contexto_territorial(Perfil.objects.select_related(
+        'usuario', 'rol', 'delegacion').prefetch_related('delegaciones'), request,
+        campo='delegaciones').distinct()
 
 
 class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
@@ -41,13 +67,13 @@ class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
     )
 
     def get_queryset(self):
-        qs = Perfil.objects.select_related('usuario', 'rol', 'delegacion').prefetch_related('delegaciones')
+        qs = perfiles_en_contexto(self.request)
         return self.filtrar_queryset(qs).distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['resumen_roles'] = (
-            Perfil.objects.values('rol__nombre').annotate(total=Count('id')).order_by('rol__nombre')
+            perfiles_en_contexto(self.request).values('rol__nombre').annotate(total=Count('id')).order_by('rol__nombre')
         )
         return context
 
@@ -57,6 +83,14 @@ class UsuarioCreateView(RolRequiredMixin, CreateView):
     template_name = 'usuarios/form.html'
     success_url = reverse_lazy('usuarios:lista')
     roles_permitidos = ('administrador',)
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        delegacion = get_delegacion_activa(self.request)
+        if delegacion is not None:
+            form.fields['delegaciones'].queryset = Delegacion.objects.filter(pk=delegacion.pk)
+            form.fields['delegaciones'].initial = [delegacion.pk]
+        return form
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -76,6 +110,9 @@ class UsuarioDetailView(RolRequiredMixin, DetailView):
     context_object_name = 'perfil'
     roles_permitidos = ('administrador',)
 
+    def get_queryset(self):
+        return perfiles_en_contexto(self.request)
+
 
 class UsuarioUpdateView(RolRequiredMixin, UpdateView):
     model = User
@@ -85,7 +122,7 @@ class UsuarioUpdateView(RolRequiredMixin, UpdateView):
     roles_permitidos = ('administrador',)
 
     def get_object(self, queryset=None):
-        perfil = get_object_or_404(Perfil, pk=self.kwargs['pk'])
+        perfil = get_object_or_404(perfiles_en_contexto(self.request), pk=self.kwargs['pk'])
         return perfil.usuario
 
     def form_valid(self, form):
@@ -104,7 +141,7 @@ class UsuarioDesactivarView(RolRequiredMixin, View):
     roles_permitidos = ('administrador',)
 
     def post(self, request, pk):
-        perfil = get_object_or_404(Perfil, pk=pk)
+        perfil = get_object_or_404(perfiles_en_contexto(request), pk=pk)
         perfil.activo = False
         perfil.save(update_fields=['activo'])
         perfil.usuario.is_active = False
@@ -114,14 +151,325 @@ class UsuarioDesactivarView(RolRequiredMixin, View):
         return redirect('usuarios:lista')
 
 
+class TransferenciasView(RolRequiredMixin, ListView):
+    model = SolicitudTransferencia
+    template_name = 'usuarios/transferencias/lista.html'
+    context_object_name = 'solicitudes'
+    roles_permitidos = ('administrador', 'delegado', 'coordinador')
+
+    def get_queryset(self):
+        queryset = SolicitudTransferencia.objects.select_related(
+            'usuario',
+            'delegacion_origen',
+            'delegacion_destino',
+            'solicitante',
+            'decidido_por',
+        )
+        rol = obtener_rol(self.request.user)
+        if rol == 'administrador':
+            return filtrar_contexto_territorial(queryset, self.request, 'delegacion_origen')
+        if rol == 'coordinador':
+            return filtrar_contexto_territorial(queryset, self.request, 'delegacion_origen').filter(
+                solicitante=self.request.user)
+        delegacion = get_delegacion_activa(self.request)
+        if delegacion is None:
+            return queryset.none()
+        return queryset.filter(delegacion_origen=delegacion)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        rol = obtener_rol(self.request.user)
+        delegacion = get_delegacion_activa(self.request)
+        context['rol_transferencia'] = rol
+        context['delegacion_activa'] = delegacion
+        perfiles = Perfil.objects.select_related('usuario', 'delegacion', 'rol')
+        if rol == 'delegado':
+            perfiles = perfiles.filter(
+                delegacion=delegacion,
+                delegaciones=delegacion,
+            ) if delegacion is not None else perfiles.none()
+        elif rol == 'administrador':
+            perfiles = filtrar_contexto_territorial(perfiles, self.request).exclude(delegacion__isnull=True).filter(
+                delegaciones=F('delegacion'),
+            )
+        else:
+            perfiles = Perfil.objects.none()
+        context['perfiles_transferibles'] = perfiles.order_by(
+            'usuario__last_name',
+            'usuario__first_name',
+            'usuario__username',
+        )
+        return context
+
+
+class SolicitudTransferenciaCreateView(RolRequiredMixin, View):
+    template_name = 'usuarios/transferencias/solicitar.html'
+    roles_permitidos = ('coordinador',)
+
+    def delegacion_origen(self):
+        return get_delegacion_activa(self.request)
+
+    def get(self, request):
+        origen = self.delegacion_origen()
+        if origen is None:
+            raise PermissionDenied('Debe tener una delegación activa para solicitar una transferencia.')
+        return self.render_form(SolicitudTransferenciaForm(delegacion_origen=origen), origen)
+
+    @transaction.atomic
+    def post(self, request):
+        origen = self.delegacion_origen()
+        if origen is None:
+            raise PermissionDenied('Debe tener una delegación activa para solicitar una transferencia.')
+        form = SolicitudTransferenciaForm(
+            request.POST,
+            delegacion_origen=origen,
+        )
+        if not form.is_valid():
+            return self.render_form(form, origen)
+
+        usuario = form.cleaned_data['usuario']
+        solicitud = SolicitudTransferencia(
+            usuario=usuario,
+            delegacion_origen=origen,
+            delegacion_destino=form.cleaned_data['delegacion_destino'],
+            solicitante=request.user,
+            motivo=form.cleaned_data['motivo'],
+        )
+        try:
+            solicitud.full_clean()
+            solicitud.save()
+        except ValidationError as error:
+            form.add_error(None, error)
+            return self.render_form(form, origen)
+
+        registrar_auditoria(
+            request,
+            'solicitar_transferencia',
+            solicitud,
+            (
+                f'Solicitud de transferencia de {usuario.get_full_name() or usuario.username}: '
+                f'{origen.nombre} → {solicitud.delegacion_destino.nombre}'
+            ),
+        )
+        messages.success(request, 'Solicitud de transferencia enviada.')
+        return redirect('usuarios:transferencias')
+
+    def render_form(self, form, origen):
+        return render(
+            self.request,
+            self.template_name,
+            {'form': form, 'delegacion_origen': origen},
+        )
+
+
+class TransferenciaDirectaView(RolRequiredMixin, View):
+    template_name = 'usuarios/transferencias/transferir.html'
+    roles_permitidos = ('administrador', 'delegado')
+
+    def get_usuario_origen(self, request, pk):
+        perfil = get_object_or_404(
+            Perfil.objects.select_related('usuario', 'delegacion'),
+            usuario_id=pk,
+        )
+        rol = obtener_rol(request.user)
+        if perfil.delegacion_id is None:
+            raise PermissionDenied('El usuario no tiene una delegación de origen definida.')
+        if not en_contexto_delegacion(request, perfil.delegacion):
+            raise PermissionDenied('El usuario no pertenece al contexto territorial activo.')
+        if rol == 'delegado':
+            activa = get_delegacion_activa(request)
+            if (
+                activa is None
+                or activa.pk != perfil.delegacion_id
+                or not usuario_tiene_alcance_delegacion(request.user, activa)
+            ):
+                raise PermissionDenied('Solo puede transferir usuarios de su delegación activa.')
+        if not perfil.delegaciones.filter(pk=perfil.delegacion_id).exists():
+            raise PermissionDenied('El usuario no está autorizado en su delegación de origen.')
+        return perfil.usuario, perfil.delegacion
+
+    def get(self, request, pk):
+        usuario, origen = self.get_usuario_origen(request, pk)
+        form = TransferenciaDirectaForm(delegacion_origen=origen)
+        return self.render_form(request, usuario, origen, form)
+
+    @transaction.atomic
+    def post(self, request, pk):
+        usuario, origen = self.get_usuario_origen(request, pk)
+        form = TransferenciaDirectaForm(
+            request.POST,
+            delegacion_origen=origen,
+        )
+        if not form.is_valid():
+            return self.render_form(request, usuario, origen, form)
+        destino = form.cleaned_data['delegacion_destino']
+        try:
+            cantidad = aplicar_transferencia(
+                usuario,
+                origen,
+                destino,
+                form.cleaned_data['confirmar_compromisos'],
+            )
+        except CompromisosPendientesError as error:
+            form.add_error('confirmar_compromisos', error)
+            return self.render_form(request, usuario, origen, form)
+        except ValidationError as error:
+            form.add_error(None, error)
+            return self.render_form(request, usuario, origen, form)
+
+        registrar_auditoria(
+            request,
+            'transferencia_directa',
+            usuario,
+            (
+                f'Transferencia de {usuario.get_full_name() or usuario.username}: '
+                f'{origen.nombre} → {destino.nombre}. '
+                f'Compromisos activos al transferir: {cantidad}. '
+                f'Observación: {form.cleaned_data["motivo"] or "—"}'
+            ),
+        )
+        messages.success(request, 'Transferencia realizada. Los compromisos no fueron reasignados.')
+        return redirect('usuarios:transferencias')
+
+    def render_form(self, request, usuario, origen, form):
+        return render(
+            request,
+            self.template_name,
+            {
+                'form': form,
+                'usuario_transferido': usuario,
+                'delegacion_origen': origen,
+                'compromisos_activos': contar_compromisos_activos(usuario),
+            },
+        )
+
+
+class TransferenciaDecisionView(RolRequiredMixin, View):
+    template_name = 'usuarios/transferencias/decidir.html'
+    roles_permitidos = ('administrador', 'delegado')
+
+    def get_solicitud(self, request, pk, lock=False):
+        queryset = SolicitudTransferencia.objects.select_related(
+            'usuario',
+            'delegacion_origen',
+            'delegacion_destino',
+            'solicitante',
+        )
+        queryset = filtrar_contexto_territorial(queryset, request, 'delegacion_origen')
+        if obtener_rol(request.user) == 'delegado':
+            origen = get_delegacion_activa(request)
+            if origen is None:
+                raise PermissionDenied('Debe tener una delegación activa.')
+            queryset = queryset.filter(delegacion_origen=origen)
+        if lock:
+            queryset = queryset.select_for_update()
+        return get_object_or_404(queryset, pk=pk)
+
+    def get(self, request, pk):
+        solicitud = self.get_solicitud(request, pk)
+        return self.render_form(
+            request,
+            solicitud,
+            DecisionTransferenciaForm(),
+        )
+
+    @transaction.atomic
+    def post(self, request, pk):
+        solicitud = self.get_solicitud(request, pk, lock=True)
+        form = DecisionTransferenciaForm(request.POST)
+        if not form.is_valid():
+            return self.render_form(request, solicitud, form)
+        if solicitud.estado != SolicitudTransferencia.Estado.PENDIENTE:
+            form.add_error(None, 'La solicitud ya fue resuelta.')
+            return self.render_form(request, solicitud, form)
+        if solicitud.solicitante_id == request.user.pk:
+            form.add_error(None, 'No puede decidir una solicitud propia.')
+            return self.render_form(request, solicitud, form)
+
+        accion = form.cleaned_data['accion']
+        if accion == 'aprobar':
+            try:
+                cantidad = aplicar_transferencia(
+                    solicitud.usuario,
+                    solicitud.delegacion_origen,
+                    solicitud.delegacion_destino,
+                    form.cleaned_data['confirmar_compromisos'],
+                )
+            except CompromisosPendientesError as error:
+                form.add_error('confirmar_compromisos', error)
+                return self.render_form(request, solicitud, form)
+            except (ValidationError, Perfil.DoesNotExist) as error:
+                form.add_error(None, error)
+                return self.render_form(request, solicitud, form)
+            solicitud.estado = SolicitudTransferencia.Estado.APROBADA
+            accion_auditoria = 'aprobar_transferencia'
+            texto = (
+                f'Transferencia aprobada para {solicitud.usuario.get_full_name() or solicitud.usuario.username}: '
+                f'{solicitud.delegacion_origen.nombre} → {solicitud.delegacion_destino.nombre}. '
+                f'Compromisos activos al aprobar: {cantidad}.'
+            )
+        else:
+            solicitud.estado = SolicitudTransferencia.Estado.RECHAZADA
+            accion_auditoria = 'rechazar_transferencia'
+            texto = (
+                f'Transferencia rechazada para {solicitud.usuario.get_full_name() or solicitud.usuario.username}: '
+                f'{solicitud.delegacion_origen.nombre} → {solicitud.delegacion_destino.nombre}.'
+            )
+        solicitud.decidido_por = request.user
+        solicitud.fecha_decision = timezone.now()
+        solicitud.observacion_decision = form.cleaned_data['observacion_decision']
+        solicitud.save(
+            update_fields=[
+                'estado',
+                'decidido_por',
+                'fecha_decision',
+                'observacion_decision',
+            ]
+        )
+        registrar_auditoria(request, accion_auditoria, solicitud, texto)
+        messages.success(
+            request,
+            'Solicitud aprobada.' if accion == 'aprobar' else 'Solicitud rechazada.',
+        )
+        return redirect('usuarios:transferencias')
+
+    def render_form(self, request, solicitud, form):
+        return render(
+            request,
+            self.template_name,
+            {
+                'form': form,
+                'solicitud': solicitud,
+                'compromisos_activos': contar_compromisos_activos(solicitud.usuario),
+            },
+        )
+
+
 class DelegacionActivaView(LoginRequiredMixin, View):
     def post(self, request):
-        pk = request.POST.get('delegacion_id')
-        autorizadas = delegaciones_autorizadas(request.user)
-        if autorizadas.filter(pk=pk).exists():
-            request.session[DELEGACION_SESION] = int(pk)
-            messages.success(request, 'Delegación activa actualizada.')
-        return redirect(request.META.get('HTTP_REFERER') or 'home')
+        if obtener_rol(request.user) != 'administrador':
+            raise PermissionDenied('Solo el Administrador puede cambiar el contexto territorial.')
+        valor = request.POST.get('delegacion_id')
+        if valor == CONTEXTO_GLOBAL:
+            request.session[DELEGACION_SESION] = CONTEXTO_GLOBAL
+            etiqueta = 'Global: todas las delegaciones'
+        else:
+            try:
+                pk = int(valor)
+            except (TypeError, ValueError):
+                return HttpResponseBadRequest('Seleccione una delegación válida o el contexto global.')
+            delegacion = delegaciones_autorizadas(request.user).filter(pk=pk).first()
+            if delegacion is None:
+                return HttpResponseBadRequest('La delegación no existe o está inactiva.')
+            request.session[DELEGACION_SESION] = delegacion.pk
+            etiqueta = str(delegacion)
+        messages.success(request, f'Contexto territorial actualizado: {etiqueta}.')
+        destino = request.POST.get('next') or request.META.get('HTTP_REFERER')
+        if not destino or not url_has_allowed_host_and_scheme(
+            destino, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+        ):
+            destino = 'home'
+        return redirect(destino)
 
 
 class DelegacionListView(FiltroExportMixin, RolRequiredMixin, ListView):

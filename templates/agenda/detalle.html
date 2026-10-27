@@ -35,10 +35,17 @@
         <section class="card shadow-sm">
             <div class="card-header bg-white fw-semibold">Actividades relacionadas</div>
             <div class="list-group list-group-flush">
-                {% for actividad in compromiso.actividades.all %}
+                {% for actividad in actividades_relacionadas %}
                 <div class="list-group-item">
-                    <div class="fw-semibold">{{ actividad.titulo }}</div>
-                    <div class="small text-muted">{{ actividad.fecha|date:"d/m/Y" }} · {{ actividad.get_estado_display }}</div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                        <div class="fw-semibold">{{ actividad.titulo }}</div>
+                        <a href="{% url 'atenciones:detalle' actividad.pk %}" class="btn btn-sm btn-outline-secondary">Ver actividad</a>
+                    </div>
+                    <div class="small text-muted">
+                        {{ actividad.fecha|date:"d/m/Y" }} · {{ actividad.get_estado_display }} ·
+                        Va al tubo: {% if actividad.va_al_tubo %}Sí{% else %}No{% endif %} ·
+                        {% if actividad.activo %}Habilitada{% else %}Deshabilitada{% endif %}
+                    </div>
                     <p class="mb-0 mt-1">{{ actividad.descripcion }}</p>
                 </div>
                 {% empty %}<div class="list-group-item text-muted">No hay actividades relacionadas.</div>{% endfor %}

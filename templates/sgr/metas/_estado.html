@@ -1,0 +1,5 @@
+<form method="post" action="{% url 'sgr:meta_estado' meta.pk %}" class="d-inline">
+    {% csrf_token %}
+    <input type="hidden" name="activo" value="{% if meta.activo %}false{% else %}true{% endif %}">
+    <button type="submit" class="btn btn-sm btn-outline-warning">{% if meta.activo %}Desactivar{% else %}Activar{% endif %}</button>
+</form>

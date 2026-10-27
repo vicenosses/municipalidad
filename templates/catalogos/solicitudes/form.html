@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Solicitar catálogo general | SGR{% endblock %}
+{% block content %}
+{% include "catalogos/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">
+    {% if view.tipo_solicitud == 'categoria' %}Solicitar Tipo de Atención general{% else %}Solicitar subcategoría general{% endif %}
+</h2>
+<div class="alert alert-info">
+    La solicitud quedará pendiente y no estará disponible para registrar Actividades hasta que un Administrador la apruebe.
+    {% if view.tipo_solicitud == 'subcategoria' %}El código se generará automáticamente si se aprueba.{% endif %}
+</div>
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Enviar solicitud</button>
+        <a href="{% url 'catalogos:solicitud_lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

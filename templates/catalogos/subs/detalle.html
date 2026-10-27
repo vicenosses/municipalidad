@@ -1,14 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Detalle subatención | SGR{% endblock %}
+{% block title %}Detalle subcategoría | SGR{% endblock %}
 {% block content %}
+{% include "catalogos/_navegacion.html" %}
 <h2 class="h4 fw-bold mb-4">{{ object.nombre }}</h2>
 <div class="card shadow-sm">
     <div class="card-body">
         <p><strong>Código:</strong> {{ object.codigo }}</p>
-        <p><strong>Tipo:</strong> {{ object.tipo }}</p>
+        <p><strong>Tipo de Atención:</strong> {{ object.tipo }}</p>
+        <p><strong>Alcance:</strong> {% if object.es_general %}General{% else %}{{ object.delegacion.nombre }}{% endif %}</p>
         <p class="mb-0"><strong>Estado:</strong> {{ object.estado_display }}</p>
     </div>
 </div>
-<a href="{% url 'catalogos:sub_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>
-<a href="{% url 'catalogos:sub_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% if puede_editar %}<a href="{% url 'catalogos:sub_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>{% endif %}
+<a href="{% url 'catalogos:sub_lista' %}" class="btn btn-outline-secondary mt-3">Volver a subcategorías</a>
 {% endblock %}

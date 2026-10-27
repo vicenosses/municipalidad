@@ -48,14 +48,94 @@ class NuevaContrasenaForm(SetPasswordForm):
 class DelegacionForm(forms.ModelForm):
     class Meta:
         model = Delegacion
-        fields = ['codigo', 'nombre', 'direccion', 'comuna', 'activa']
+        fields = ['nombre', 'direccion', 'comuna', 'activa']
         widgets = {
-            'codigo': forms.TextInput(attrs={'class': 'form-control'}),
             'nombre': forms.TextInput(attrs={'class': 'form-control'}),
             'direccion': forms.TextInput(attrs={'class': 'form-control'}),
             'comuna': forms.TextInput(attrs={'class': 'form-control'}),
             'activa': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['nombre'].help_text = 'El código se generará automáticamente al guardar.'
+
+
+class SolicitudTransferenciaForm(forms.Form):
+    usuario = forms.ModelChoiceField(
+        label='Usuario',
+        queryset=User.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    delegacion_destino = forms.ModelChoiceField(
+        label='Delegación de destino',
+        queryset=Delegacion.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    motivo = forms.CharField(
+        label='Motivo',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+    )
+
+    def __init__(self, *args, delegacion_origen, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.delegacion_origen = delegacion_origen
+        self.fields['usuario'].queryset = User.objects.filter(
+            is_active=True,
+            perfil__activo=True,
+            perfil__delegacion=delegacion_origen,
+            perfil__delegaciones=delegacion_origen,
+        ).select_related('perfil').distinct().order_by('last_name', 'first_name', 'username')
+        self.fields['delegacion_destino'].queryset = (
+            Delegacion.objects.filter(activa=True)
+            .exclude(pk=delegacion_origen.pk)
+            .order_by('nombre')
+        )
+
+
+class TransferenciaDirectaForm(forms.Form):
+    delegacion_destino = forms.ModelChoiceField(
+        label='Delegación de destino',
+        queryset=Delegacion.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    motivo = forms.CharField(
+        label='Observación',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+    )
+    confirmar_compromisos = forms.BooleanField(
+        label='Confirmo continuar sin reasignar los compromisos pendientes.',
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
+    def __init__(self, *args, delegacion_origen, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['delegacion_destino'].queryset = (
+            Delegacion.objects.filter(activa=True)
+            .exclude(pk=delegacion_origen.pk)
+            .order_by('nombre')
+        )
+
+
+class DecisionTransferenciaForm(forms.Form):
+    accion = forms.ChoiceField(
+        label='Decisión',
+        choices=(('aprobar', 'Aprobar'), ('rechazar', 'Rechazar')),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    observacion_decision = forms.CharField(
+        label='Observación',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+    )
+    confirmar_compromisos = forms.BooleanField(
+        label='Confirmo continuar sin reasignar los compromisos pendientes.',
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
 
 
 PERMISOS_FLAGS = (
@@ -66,7 +146,6 @@ PERMISOS_FLAGS = (
     ('atenciones', 'Atención ciudadana'),
     ('auditoria', 'Auditoría'),
     ('validar_evidencias', 'Validar evidencias'),
-    ('actividades', 'Actividades'),
     ('evidencias', 'Evidencias'),
     ('agenda', 'Agenda'),
 )

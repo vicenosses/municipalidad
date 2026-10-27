@@ -7,6 +7,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.core.mail import send_mail
+from django.db import transaction
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views import View
@@ -127,12 +128,23 @@ class RecuperacionCodigoView(View):
 
 
 class RecuperacionNuevaView(View):
+    def rechazar_recuperacion(self, request):
+        for clave in ('recuperacion_id', 'recuperacion_ok', 'recuperacion_pendiente'):
+            request.session.pop(clave, None)
+        return redirect('recuperacion_solicitar')
+
+    def codigo_vigente(self, registro):
+        return (
+            registro is not None and not registro.usado and registro.expira > timezone.now()
+            and _usuario_puede_recuperar(registro.usuario)
+        )
+
     def dispatch(self, request, *args, **kwargs):
-        registro = CodigoRecuperacion.objects.filter(
+        registro = CodigoRecuperacion.objects.select_related('usuario').filter(
             pk=request.session.get('recuperacion_id')
         ).first()
-        if not registro or not request.session.get('recuperacion_ok'):
-            return redirect('recuperacion_solicitar')
+        if not request.session.get('recuperacion_ok') or not self.codigo_vigente(registro):
+            return self.rechazar_recuperacion(request)
         self.registro = registro
         return super().dispatch(request, *args, **kwargs)
 
@@ -140,13 +152,21 @@ class RecuperacionNuevaView(View):
         form = NuevaContrasenaForm(user=self.registro.usuario)
         return render(request, 'recuperacion/nueva.html', _ctx({'form': form}))
 
+    @transaction.atomic
     def post(self, request):
-        form = NuevaContrasenaForm(user=self.registro.usuario, data=request.POST)
+        # Se vuelve a leer después del bloqueo: otra sesión pudo consumirlo.
+        registro = CodigoRecuperacion.objects.select_for_update().select_related('usuario').filter(
+            pk=self.registro.pk).first()
+        if not self.codigo_vigente(registro):
+            return self.rechazar_recuperacion(request)
+        form = NuevaContrasenaForm(user=registro.usuario, data=request.POST)
         if not form.is_valid():
             return render(request, 'recuperacion/nueva.html', _ctx({'form': form}))
+        consumidos = CodigoRecuperacion.objects.filter(
+            pk=registro.pk, usado=False, expira__gt=timezone.now()).update(usado=True)
+        if consumidos != 1:
+            return self.rechazar_recuperacion(request)
         form.save()
-        self.registro.usado = True
-        self.registro.save(update_fields=['usado'])
         request.session.pop('recuperacion_id', None)
         request.session.pop('recuperacion_ok', None)
         request.session.pop('recuperacion_pendiente', None)

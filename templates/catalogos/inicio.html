@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Tipos de Atención | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-2">Tipos de Atención</h2>
+<p class="text-muted mb-4">Desde aquí se administran los Tipos de Atención, las subcategorías y las solicitudes generales utilizadas para clasificar las Actividades.</p>
+<div class="row g-3">
+    <div class="col-md-6">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h3 class="h5 fw-bold">Tipos de Atención</h3>
+                <p class="text-muted">Administre los tipos principales de atención.</p>
+                <a href="{% url 'catalogos:tipo_lista' %}" class="btn btn-custom-red">Administrar Tipos de Atención</a>
+            </div>
+        </section>
+    </div>
+    <div class="col-md-6">
+        <section class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h3 class="h5 fw-bold">Subcategorías</h3>
+                <p class="text-muted">Administre las subcategorías asociadas a cada Tipo de Atención.</p>
+                <a href="{% url 'catalogos:sub_lista' %}" class="btn btn-custom-red">Administrar subcategorías</a>
+            </div>
+        </section>
+    </div>
+    <div class="col-12">
+        <section class="card shadow-sm">
+            <div class="card-body">
+                <h3 class="h5 fw-bold">Solicitudes generales</h3>
+                {% if sesion_rol_codigo == 'administrador' %}
+                <p class="text-muted">Revise las solicitudes de Tipos de Atención y subcategorías generales.</p>
+                <a href="{% url 'catalogos:solicitud_lista' %}" class="btn btn-outline-danger">Revisar solicitudes generales</a>
+                {% else %}
+                <p class="text-muted">Solicite nuevos catálogos generales y consulte sus solicitudes.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'catalogos:solicitud_categoria' %}" class="btn btn-outline-danger">Solicitar Tipo de Atención general</a>
+                    <a href="{% url 'catalogos:solicitud_subcategoria' %}" class="btn btn-outline-danger">Solicitar subcategoría general</a>
+                    <a href="{% url 'catalogos:solicitud_lista' %}" class="btn btn-outline-secondary">Mis solicitudes</a>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,6 @@
+<nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Gestión de Resultados">
+    <a href="{% url 'sgr:periodo_lista' %}" class="btn btn-outline-secondary">Períodos</a>
+    <a href="{% url 'sgr:meta_lista' %}" class="btn btn-outline-secondary">Metas</a>
+    <a href="{% url 'sgr:indicador_lista' %}" class="btn btn-outline-secondary">Indicadores</a>
+    {% if sesion_informes_sgr %}<a href="{% url 'sgr:informe' %}" class="btn btn-outline-secondary">Informes SGR</a>{% endif %}
+</nav>

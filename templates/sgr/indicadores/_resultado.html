@@ -1,0 +1,28 @@
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Resultado del Indicador</div>
+    <div class="card-body">
+        <p class="text-muted">Resultado métrico oficial de los aportes con decisión estratégica vigente. Es independiente del avance operacional de las Actividades.</p>
+        {% if metrica.tiene_resultado %}
+        <p class="h5">{% if metrica.es_temporal %}Resultado promedio{% else %}Resultado{% endif %}: {{ metrica.resultado|floatformat:"-2" }} {{ metrica.unidad_presentacion }}</p>
+        {% else %}<p class="h5 text-muted">Sin resultado calculable</p>{% endif %}
+        <p><strong>Objetivo vigente:</strong> {{ metrica.objetivo|floatformat:"-2" }} {{ metrica.unidad_presentacion }}</p>
+        <p><strong>Sentido:</strong> {{ metrica.sentido }}</p>
+        {% if not metrica.objetivo_valido %}
+        <div class="alert alert-warning">Objetivo no calculable: debe ser mayor que cero. El dato histórico se conserva; configure un objetivo válido para calcular cumplimiento.</div>
+        {% elif metrica.cumplimiento.estado == 'sin_limite' %}
+        <p class="h5">Cumplimiento superior al objetivo (resultado 0)</p>
+        {% elif metrica.cumplimiento.estado == 'calculado' %}
+        <p class="h5">Cumplimiento del objetivo: {{ metrica.cumplimiento.porcentaje|floatformat:2 }}%</p>
+        {% elif metrica.cumplimiento.estado == 'datos_invalidos' %}
+        <p class="text-muted">Cumplimiento no calculable: revise los datos del Indicador.</p>
+        {% endif %}
+        {% if metrica.unidad == 'porcentaje' %}
+        <p class="small mb-1">Base: {{ metrica.cantidad_cumple }} Cumple / {{ metrica.base_utilizada }} evaluados (Cumple + No cumple).</p>
+        {% elif metrica.es_temporal %}
+        <p class="small mb-1">Base: {{ metrica.base_utilizada }} Actividades Cumple con duración calculable; {{ metrica.sin_duracion_calculable }} sin duración calculable.</p>
+        <p class="small text-muted">Se suman los ciclos completos de cada Actividad y luego se promedian sus duraciones. {% if metrica.unidad == 'dias' %}Un día equivale a 24 horas dentro de lunes a viernes. Se excluyen sábados y domingos; los feriados todavía no se descuentan.{% else %}Se cuentan todas las horas transcurridas de ejecución.{% endif %}</p>
+        {% else %}<p class="small mb-1">Base: {{ metrica.base_utilizada }} aportes Cumple incluidos.</p>{% endif %}
+        <p class="small text-muted mb-0">Pendientes: {{ metrica.cantidad_pendiente }} · Requiere corrección: {{ metrica.cantidad_correccion }} · No cumple: {{ metrica.cantidad_no_cumple }}.</p>
+        {% for observacion in metrica.observaciones %}<p class="small text-warning-emphasis mt-2 mb-0">{{ observacion }}</p>{% endfor %}
+    </div>
+</section>

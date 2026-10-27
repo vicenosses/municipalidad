@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Tipo de atención | SGR{% endblock %}
+{% block title %}Tipo de Atención | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">{% if object %}Editar tipo{% else %}Nuevo tipo de atención{% endif %}</h2>
+{% include "catalogos/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">{% if object %}Editar Tipo de Atención{% else %}Nuevo Tipo de Atención{% endif %}</h2>
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">

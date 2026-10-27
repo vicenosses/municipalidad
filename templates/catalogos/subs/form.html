@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Subatención | SGR{% endblock %}
+{% block title %}Subcategoría | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">{% if object %}Editar subatención{% else %}Nueva subatención{% endif %}</h2>
+{% include "catalogos/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">{% if object %}Editar subcategoría{% else %}Nueva subcategoría{% endif %}</h2>
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">
+        <p class="small text-muted">El código de la subcategoría se genera automáticamente y no cambia al editarla.</p>
         {% include "includes/form_campos.html" %}
         <button type="submit" class="btn btn-custom-red">Guardar</button>
         <a href="{% url 'catalogos:sub_lista' %}" class="btn btn-outline-secondary">Cancelar</a>

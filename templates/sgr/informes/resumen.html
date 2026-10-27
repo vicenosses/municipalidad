@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Informe SGR | SGR{% endblock %}
+{% block content %}
+{% if sesion_sgr_periodos %}{% include "sgr/_navegacion.html" %}{% endif %}
+<h2 class="h4 fw-bold mb-3">Informe SGR de metas e indicadores</h2>
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body row g-3 align-items-end">
+        <div class="col-md-8">
+            <label for="{{ form.periodo.id_for_label }}" class="form-label">{{ form.periodo.label }}</label>
+            {{ form.periodo }}
+            {% if form.periodo.errors %}<div class="text-danger">{{ form.periodo.errors }}</div>{% endif %}
+        </div>
+        <div class="col-md-4">
+            <button class="btn btn-custom-red" type="submit">Consultar</button>
+            <a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Período vigente</a>
+        </div>
+    </div>
+</form>
+{% if not informe %}
+<div class="alert alert-warning" role="alert">Seleccione un período válido. No se muestran resultados para filtros inválidos.</div>
+{% elif informe.mensaje %}
+<p>Contexto territorial: <strong>{{ informe.contexto_territorial }}</strong></p>
+<div class="alert alert-info" role="status">{{ informe.mensaje }}</div>
+{% else %}
+<section class="card shadow-sm mb-4" aria-labelledby="datos-informe">
+    <div class="card-body">
+        <h3 id="datos-informe" class="h5">{{ informe.periodo.nombre }}</h3>
+        <p>Fechas: {{ informe.periodo.fecha_inicio|date:"d/m/Y" }} al {{ informe.periodo.fecha_fin|date:"d/m/Y" }}
+            · Período {% if informe.periodo.activo %}activo{% else %}inactivo{% endif %}</p>
+        <p>Contexto territorial: <strong>{{ informe.contexto_territorial }}</strong>
+            · Fecha de consulta: <strong>{{ informe.fecha_corte|date:"d/m/Y" }}</strong></p>
+        <p>Avance esperado: <strong>{{ informe.esperado|floatformat:2 }}%</strong></p>
+        <p>Metas activas: <strong>{{ informe.total_metas }}</strong> · Indicadores: <strong>{{ informe.total_indicadores }}</strong>
+            (activos: {{ informe.indicadores_activos }}) · Metas calculables: <strong>{{ informe.metas_calculables }}</strong>
+            · Con ponderaciones incompletas: <strong>{{ informe.metas_incompletas }}</strong></p>
+        <a class="btn btn-outline-secondary" href="?{{ export_query }}">Exportar informe a Excel</a>
+    </div>
+</section>
+{% for fila in informe.filas %}
+<section class="card shadow-sm mb-4" aria-labelledby="meta-{{ fila.meta.pk }}">
+    <div class="card-header bg-white">
+        <h3 id="meta-{{ fila.meta.pk }}" class="h5 mb-1">{% if informe.puede_ver_detalle %}<a href="{{ fila.meta.get_absolute_url }}">{{ fila.meta.nombre }}</a>{% else %}{{ fila.meta.nombre }}{% endif %}</h3>
+        <p class="mb-2">Delegación: {{ fila.meta.delegacion }}</p>
+        <span class="badge text-wrap {% if fila.semaforo.estado == 'verde' %}bg-success{% elif fila.semaforo.estado == 'rojo' %}bg-danger{% elif fila.semaforo.estado == 'naranjo' %}text-dark{% else %}bg-secondary{% endif %}"{% if fila.semaforo.estado == 'naranjo' %} style="background-color: #ffe5d0"{% endif %}>{{ fila.semaforo.texto }}</span>
+        {% if fila.resultado.cobertura_calculable < 100 %}<small class="d-block text-muted mt-2">Cobertura parcial: el semáforo representa solo la parte calculable de esta meta.</small>{% endif %}
+    </div>
+    {% include "sgr/metas/_resultados.html" with resultado_meta=fila.resultado solo_lectura=True puede_ver_detalle=informe.puede_ver_detalle %}
+</section>
+{% empty %}
+<div class="alert alert-info" role="status">No hay metas activas para el período y contexto territorial consultados.</div>
+{% endfor %}
+{% endif %}
+<div class="small text-muted mt-4">
+    <p>Este informe presenta resultados vigentes al momento de consultar, también al seleccionar períodos históricos;
+        no reconstruye estados ni configuraciones de una fecha pasada. Los indicadores inactivos se identifican y quedan fuera de la agregación.</p>
+    <p>El resultado métrico usa la unidad y sentido del indicador. El resultado ponderado se expresa en puntos porcentuales (pp).
+        El cumplimiento normalizado de cada meta utiliza solo su cobertura calculable. Los valores no calculables no equivalen a cero.
+        No se agrega un porcentaje global entre metas, porque no existe una ponderación entre ellas.</p>
+    <p>El avance esperado usa un calendario inclusivo: incluye ambos extremos y el día de consulta completo;
+        no descuenta feriados, licencias, vacaciones, emergencias ni tiempos compensatorios.
+        Verde: real ≥ esperado; naranjo: desde el 60% del esperado y por debajo de él; rojo: inferior al 60%.
+        Sin clasificación cuando no haya datos válidos o el esperado sea cero. Se permite superar el 100%.
+        La regla especial de pendientes en tubo está fuera de este cálculo.</p>
+</div>
+{% endblock %}

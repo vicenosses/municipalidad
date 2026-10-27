@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Editar{% else %}Nueva{% endif %} Meta | SGR{% endblock %}
+{% block content %}
+{% include "sgr/_navegacion.html" %}
+<h2 class="h4 fw-bold mb-4">{% if object %}Editar{% else %}Nueva{% endif %} Meta</h2>
+{% if object %}<p>Período: <strong>{{ object.periodo }}</strong> · Delegación: <strong>{{ object.delegacion }}</strong></p>{% endif %}
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {{ form.non_field_errors }}
+        {% for campo in form %}
+        <div class="mb-3">
+            <label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+            {{ campo }}
+            {% if campo.errors %}<div class="text-danger small">{{ campo.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-custom-red">Guardar</button>
+        <a href="{% url 'sgr:meta_lista' %}" class="btn btn-outline-secondary">Volver</a>
+    </div>
+</form>
+{% endblock %}

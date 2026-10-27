@@ -5,23 +5,27 @@ from usuarios.models import permisos_por_codigo
 
 def obtener_rol(user):
     """Devuelve el código de rol del perfil o administrador si es superusuario."""
-    if not user.is_authenticated:
+    if not user.is_authenticated or not user.is_active:
+        return None
+    perfil = getattr(user, 'perfil', None)
+    if perfil is not None and not perfil.activo:
         return None
     if user.is_superuser:
         return 'administrador'
-    perfil = getattr(user, 'perfil', None)
-    if perfil and perfil.activo and user.is_active:
+    if perfil and perfil.activo and user.is_active and perfil.rol_id and perfil.rol.activo:
         return perfil.rol_codigo
     return None
 
 
 def obtener_permisos(user):
     codigo = obtener_rol(user)
-    base = permisos_por_codigo(codigo) if codigo else {}
+    if not codigo:
+        return {}
+    base = permisos_por_codigo(codigo)
     if user.is_superuser:
         return {clave: True for clave in base}
     perfil = getattr(user, 'perfil', None)
-    if perfil and perfil.rol_id and isinstance(perfil.rol.permisos, dict) and perfil.rol.permisos:
+    if perfil and isinstance(perfil.rol.permisos, dict) and perfil.rol.permisos:
         combinado = dict(base)
         combinado.update(perfil.rol.permisos)
         return combinado
@@ -29,13 +33,15 @@ def obtener_permisos(user):
 
 
 def obtener_nombre_rol(user):
+    codigo = obtener_rol(user)
+    if not codigo:
+        return '—'
     if user.is_superuser:
         return 'Administrador'
     perfil = getattr(user, 'perfil', None)
     if perfil and perfil.rol_id:
         return perfil.rol.nombre
-    codigo = obtener_rol(user)
-    return codigo.title() if codigo else '—'
+    return codigo.title()
 
 
 class RolRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):

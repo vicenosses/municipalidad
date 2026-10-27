@@ -1,9 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Subatenciones | SGR{% endblock %}
+{% block title %}Subcategorías | SGR{% endblock %}
 {% block content %}
+{% include "catalogos/_navegacion.html" %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Subatenciones</h2>
-    <a href="{% url 'catalogos:sub_crear' %}" class="btn btn-custom-red">Nueva subatención</a>
+    <h2 class="h4 fw-bold mb-0">Subcategorías</h2>
+    <div class="d-flex gap-2">
+        {% if sesion_rol_codigo == 'administrador' %}
+        <a href="{% url 'catalogos:sub_crear' %}" class="btn btn-custom-red">Nueva subcategoría</a>
+        {% else %}
+        <a href="{% url 'catalogos:sub_crear' %}" class="btn btn-custom-red">Nueva subcategoría de delegación</a>
+        <a href="{% url 'catalogos:solicitud_subcategoria' %}" class="btn btn-outline-danger">Solicitar subcategoría general</a>
+        {% endif %}
+    </div>
 </div>
 {% include "includes/toolbar_listado.html" %}
 <div class="table-responsive shadow-sm">
@@ -12,7 +20,8 @@
             <tr>
                 <th>Código</th>
                 <th>Nombre</th>
-                <th>Tipo de atención</th>
+                <th>Tipo de Atención</th>
+                <th>Alcance</th>
                 <th>Estado</th>
                 <th></th>
             </tr>
@@ -23,18 +32,21 @@
                 <td>{{ sub.codigo }}</td>
                 <td>{{ sub.nombre }}</td>
                 <td>{{ sub.tipo }}</td>
+                <td>{% if sub.es_general %}General{% else %}{{ sub.delegacion.nombre }}{% endif %}</td>
                 <td>{{ sub.estado_display }}</td>
                 <td class="text-end">
                     <a href="{% url 'catalogos:sub_detalle' sub.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    {% if sub.pk in catalogos_editables %}
                     <a href="{% url 'catalogos:sub_editar' sub.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'catalogos:sub_desactivar' sub.pk %}" class="d-inline js-confirm" data-message="¿Desactivar esta subatención?">
+                    <form method="post" action="{% url 'catalogos:sub_desactivar' sub.pk %}" class="d-inline js-confirm" data-message="¿Desactivar esta subcategoría?">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No hay subatenciones.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">No hay subcategorías.</td></tr>
             {% endfor %}
         </tbody>
     </table>

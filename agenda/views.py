@@ -6,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -13,32 +14,70 @@ from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from agenda.forms import CompromisoFiltroForm, CompromisoForm
 from agenda.models import Compromiso, HistorialCompromiso
+from atenciones.models import AtencionCiudadana
 from auditoria.utils import registrar_auditoria
+from evidencias.permisos import puede_agregar_evidencia
 from usuarios.mixins import RolRequiredMixin, obtener_rol
-from usuarios.sesion import get_delegacion_activa
+from usuarios.sesion import (
+    delegaciones_autorizadas,
+    get_delegacion_activa,
+    en_contexto_delegacion,
+    filtrar_contexto_territorial,
+    usuario_tiene_alcance_delegacion,
+)
 
 User = get_user_model()
+ROLES_AGENDA = ('administrador', 'delegado', 'coordinador', 'verificador', 'funcionario')
+ROLES_GESTORES = ('administrador', 'delegado', 'coordinador')
 
 
 def compromisos_visibles(request):
     qs = Compromiso.objects.select_related(
         'responsable', 'delegacion'
     ).prefetch_related('actividades', 'historial__realizado_por')
-    rol = obtener_rol(request.user)
+    return filtrar_contexto_territorial(qs, request)
+
+
+def puede_gestionar(user, compromiso):
+    rol = obtener_rol(user)
     if rol == 'administrador':
-        return qs
+        return True
+    return (
+        rol in ('delegado', 'coordinador')
+        and usuario_tiene_alcance_delegacion(user, compromiso.delegacion)
+    )
+
+
+def puede_editar_compromiso(user, compromiso):
+    return puede_gestionar(user, compromiso) or (
+        obtener_rol(user) in ('funcionario', 'verificador')
+        and compromiso.responsable_id == user.pk
+    )
+
+
+def puede_crear_compromiso_desde_actividad(request, actividad):
+    if (
+        obtener_rol(request.user) not in ROLES_AGENDA
+        or not actividad.activo
+        or actividad.estado == AtencionCiudadana.Estado.CERRADA
+    ):
+        return False
+    if obtener_rol(request.user) == 'administrador':
+        return en_contexto_delegacion(request, actividad.delegacion)
     delegacion = get_delegacion_activa(request)
-    if delegacion:
-        return qs.filter(
-            Q(delegacion=delegacion) | Q(responsable=request.user)
-        ).distinct()
-    if rol == 'coordinador':
-        return qs.none()
-    return qs.filter(responsable=request.user)
+    return (
+        delegacion == actividad.delegacion
+        and usuario_tiene_alcance_delegacion(request.user, actividad.delegacion)
+    )
 
 
-def puede_gestionar(user):
-    return user.is_superuser or obtener_rol(user) in ('administrador', 'coordinador')
+def actividad_para_nuevo_compromiso(request, pk):
+    queryset = filtrar_contexto_territorial(
+        AtencionCiudadana.objects.select_related('delegacion'), request)
+    actividad = get_object_or_404(queryset, pk=pk)
+    if not puede_crear_compromiso_desde_actividad(request, actividad):
+        raise Http404
+    return actividad
 
 
 class CompromisoListView(LoginRequiredMixin, ListView):
@@ -83,9 +122,7 @@ class CompromisoListView(LoginRequiredMixin, ListView):
         context['proximos'] = visibles.exclude(
             estado=Compromiso.Estado.REALIZADO
         ).filter(fecha_hora__gte=ahora, fecha_hora__lte=ahora + timedelta(days=7))[:10]
-        context['puede_crear'] = obtener_rol(self.request.user) in (
-            'administrador', 'coordinador', 'delegado'
-        ) or self.request.user.is_superuser
+        context['puede_crear'] = obtener_rol(self.request.user) in ROLES_AGENDA
         return context
 
 
@@ -93,25 +130,40 @@ class CompromisoCreateView(RolRequiredMixin, CreateView):
     form_class = CompromisoForm
     template_name = 'agenda/form.html'
     success_url = reverse_lazy('agenda:lista')
-    roles_permitidos = ('administrador', 'coordinador', 'delegado')
+    roles_permitidos = ROLES_AGENDA
+
+    def get_actividad_origen(self):
+        return None
+
+    def get_delegacion_compromiso(self):
+        return get_delegacion_activa(self.request)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        delegacion = get_delegacion_activa(self.request)
+        actividad_origen = self.get_actividad_origen()
+        delegacion = self.get_delegacion_compromiso()
+        delegaciones = [delegacion] if delegacion else []
         kwargs.update(
             user=self.request.user,
             delegacion=delegacion,
-            delegaciones=[delegacion] if delegacion else [],
+            delegaciones=delegaciones,
             es_creacion=True,
+            actividad_origen=actividad_origen,
         )
+        if actividad_origen is not None:
+            kwargs['initial'] = {
+                **kwargs.get('initial', {}),
+                'actividades': [actividad_origen.pk],
+            }
         return kwargs
 
     def form_valid(self, form):
-        delegacion = get_delegacion_activa(self.request)
+        delegacion = self.get_delegacion_compromiso()
         if delegacion is None:
-            form.add_error(None, 'Su perfil no tiene una delegación asignada.')
+            form.add_error(None, 'Seleccione una delegación activa autorizada antes de crear un compromiso.')
             return self.form_invalid(form)
         form.instance.delegacion = delegacion
+        form.instance.creado_por = self.request.user
         form.instance.estado = Compromiso.Estado.INGRESADO
         with transaction.atomic():
             response = super().form_valid(form)
@@ -123,12 +175,21 @@ class CompromisoCreateView(RolRequiredMixin, CreateView):
             )
             registrar_auditoria(
                 self.request,
-                'crear',
+                self.get_audit_action(),
                 self.object,
-                f'Alta de compromiso: {self.object.titulo}',
+                self.get_audit_description(),
             )
-        messages.success(self.request, 'Compromiso ingresado a la agenda.')
+        messages.success(self.request, self.get_success_message())
         return response
+
+    def get_audit_action(self):
+        return 'crear'
+
+    def get_audit_description(self):
+        return f'Alta de compromiso: {self.object.titulo}'
+
+    def get_success_message(self):
+        return 'Compromiso ingresado a la agenda.'
 
 
 class CompromisoDetailView(LoginRequiredMixin, DetailView):
@@ -144,12 +205,52 @@ class CompromisoDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         compromiso = self.object
-        context['puede_editar'] = (
-            puede_gestionar(self.request.user)
-            or compromiso.responsable_id == self.request.user.pk
+        context['puede_editar'] = puede_editar_compromiso(self.request.user, compromiso)
+        context['puede_subir_evidencia'] = puede_agregar_evidencia(
+            self.request,
+            compromiso,
         )
-        context['puede_subir_evidencia'] = context['puede_editar']
+        actividades = compromiso.actividades.select_related(
+            'delegacion'
+        ).order_by('-fecha', 'titulo')
+        if get_delegacion_activa(self.request) is not None or obtener_rol(self.request.user) != 'administrador':
+            actividades = actividades.filter(delegacion=compromiso.delegacion)
+        context['actividades_relacionadas'] = actividades
         return context
+
+
+class CompromisoDesdeActividadView(CompromisoCreateView):
+    def get_actividad_origen(self):
+        if not hasattr(self, '_actividad_origen'):
+            self._actividad_origen = actividad_para_nuevo_compromiso(
+                self.request,
+                self.kwargs['actividad_pk'],
+            )
+        return self._actividad_origen
+
+    def get_delegacion_compromiso(self):
+        return self.get_actividad_origen().delegacion
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['actividad_origen'] = self.get_actividad_origen()
+        return context
+
+    def get_success_url(self):
+        return reverse('agenda:detalle', kwargs={'pk': self.object.pk})
+
+    def get_audit_action(self):
+        return 'crear_compromiso_desde_actividad'
+
+    def get_audit_description(self):
+        actividad = self.get_actividad_origen()
+        return (
+            f'Compromiso {self.object.titulo} creado desde la actividad '
+            f'{actividad.pk}: {actividad.titulo}'
+        )
+
+    def get_success_message(self):
+        return 'Compromiso creado y asociado correctamente a la actividad.'
 
 
 class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
@@ -163,10 +264,7 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_object(self, queryset=None):
         compromiso = super().get_object(queryset)
-        if not (
-            puede_gestionar(self.request.user)
-            or compromiso.responsable_id == self.request.user.pk
-        ):
+        if not puede_editar_compromiso(self.request.user, compromiso):
             raise PermissionDenied
         return compromiso
 

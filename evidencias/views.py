@@ -2,7 +2,6 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse, Http404
@@ -22,6 +21,7 @@ from evidencias.forms import (
     ValidacionEvidenciaForm,
 )
 from evidencias.models import Evidencia
+from evidencias.permisos import puede_agregar_evidencia, puede_validar_evidencia
 from usuarios.mixins import RolRequiredMixin, obtener_rol
 from usuarios.sesion import get_delegacion_activa
 
@@ -31,26 +31,32 @@ User = get_user_model()
 
 def evidencias_visibles(request):
     qs = Evidencia.objects.select_related(
-        'actividad',
-        'atencion',
-        'compromiso',
+        'atencion__creado_por',
+        'atencion__delegacion',
+        'compromiso__creado_por',
+        'compromiso__delegacion',
         'subido_por',
         'validado_por',
     )
     rol = obtener_rol(request.user)
-    if rol == 'administrador':
+    delegacion = get_delegacion_activa(request)
+    if rol == 'administrador' and delegacion is None:
         return qs
-    if rol in ('coordinador', 'verificador'):
-        delegacion = get_delegacion_activa(request)
-        if delegacion:
-            return qs.filter(
-                Q(actividad__delegacion=delegacion)
-                | Q(atencion__delegacion=delegacion)
-                | Q(compromiso__delegacion=delegacion)
-                | Q(subido_por=request.user)
-            ).distinct()
-        return qs.filter(subido_por=request.user)
-    return qs.filter(subido_por=request.user)
+    if delegacion is None:
+        return qs.none()
+    en_delegacion = qs.filter(
+        Q(atencion__delegacion=delegacion)
+        | Q(compromiso__delegacion=delegacion)
+    )
+    if rol in ('administrador', 'delegado', 'coordinador', 'verificador'):
+        return en_delegacion.distinct()
+    if rol == 'funcionario':
+        return en_delegacion.filter(
+            Q(atencion__delegacion=delegacion, atencion__responsable=request.user)
+            | Q(compromiso__delegacion=delegacion, compromiso__responsable=request.user)
+            | Q(subido_por=request.user)
+        ).distinct()
+    return qs.none()
 
 
 class EvidenciaListView(LoginRequiredMixin, ListView):
@@ -79,8 +85,6 @@ class EvidenciaListView(LoginRequiredMixin, ListView):
                 qs = qs.filter(estado=datos['estado'])
             if datos.get('origen') == 'atencion':
                 qs = qs.filter(atencion__isnull=False)
-            elif datos.get('origen') == 'registro':
-                qs = qs.filter(actividad__isnull=False, compromiso__isnull=True)
             elif datos.get('origen') == 'agenda':
                 qs = qs.filter(compromiso__isnull=False)
             if datos.get('subido_por'):
@@ -95,8 +99,13 @@ class EvidenciaListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['filtro'] = getattr(self, 'filtro', EvidenciaFiltroForm())
         context['puede_subir'] = obtener_rol(self.request.user) in (
-            'administrador', 'coordinador', 'funcionario', 'delegado'
-        ) or self.request.user.is_superuser
+            'administrador', 'delegado', 'coordinador', 'funcionario', 'verificador'
+        )
+        context['evidencias_validables'] = {
+            evidencia.pk
+            for evidencia in context['evidencias']
+            if puede_validar_evidencia(self.request, evidencia)
+        }
         return context
 
 
@@ -108,19 +117,27 @@ class EvidenciaDetailView(LoginRequiredMixin, DetailView):
     def get_queryset(self):
         return evidencias_visibles(self.request)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['puede_validar'] = puede_validar_evidencia(self.request, self.object)
+        return context
+
 
 class EvidenciaCreateView(RolRequiredMixin, CreateView):
     form_class = EvidenciaForm
     template_name = 'evidencias/form.html'
     success_url = reverse_lazy('evidencias:lista')
-    roles_permitidos = ('administrador', 'coordinador', 'funcionario', 'delegado')
+    roles_permitidos = ('administrador', 'delegado', 'coordinador', 'funcionario', 'verificador')
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
+        kwargs['request'] = self.request
         return kwargs
 
     def form_valid(self, form):
+        registro = form.cleaned_data.get('atencion') or form.cleaned_data.get('compromiso')
+        if not puede_agregar_evidencia(self.request, registro):
+            raise Http404
         form.instance.subido_por = self.request.user
         response = super().form_valid(form)
         registrar_auditoria(
@@ -142,11 +159,10 @@ class EvidenciaAtencionCreateView(LoginRequiredMixin, FormView):
 
     def get_atencion(self):
         if not hasattr(self, '_atencion'):
-            self._atencion = get_object_or_404(
-                AtencionCiudadana,
-                pk=self.kwargs['pk'],
-                responsable=self.request.user,
-            )
+            atencion = get_object_or_404(AtencionCiudadana, pk=self.kwargs['pk'])
+            if not puede_agregar_evidencia(self.request, atencion):
+                raise Http404
+            self._atencion = atencion
         return self._atencion
 
     def get_context_data(self, **kwargs):
@@ -195,16 +211,7 @@ class EvidenciaCompromisoCreateView(LoginRequiredMixin, FormView):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         compromiso = self.get_compromiso()
-        rol = obtener_rol(request.user)
-        gestionado = (
-            rol == 'administrador'
-            or request.user.is_superuser
-            or (
-                rol in ('coordinador', 'verificador')
-                and get_delegacion_activa(request) == compromiso.delegacion
-            )
-        )
-        if not gestionado and compromiso.responsable_id != request.user.pk:
+        if not puede_agregar_evidencia(request, compromiso):
             raise Http404
         return super().dispatch(request, *args, **kwargs)
 
@@ -245,7 +252,7 @@ class EvidenciaArchivoView(LoginRequiredMixin, View):
     def get(self, request, pk):
         evidencia = get_object_or_404(
             Evidencia.objects.select_related(
-                'actividad', 'atencion', 'compromiso', 'subido_por'
+                'atencion', 'compromiso', 'subido_por'
             ),
             pk=pk,
         )
@@ -268,66 +275,30 @@ class EvidenciaArchivoView(LoginRequiredMixin, View):
 
     @staticmethod
     def puede_ver(request, evidencia):
-        if obtener_rol(request.user) == 'administrador':
-            return True
-        if evidencia.subido_por_id == request.user.pk:
-            return True
-        if evidencia.atencion_id:
-            if evidencia.atencion.responsable_id == request.user.pk:
-                return True
-            delegacion = get_delegacion_activa(request)
-            return bool(
-                evidencia.estado == Evidencia.Estado.APROBADA
-                and obtener_rol(request.user) in ('coordinador', 'verificador')
-                and delegacion
-                and evidencia.atencion.delegacion_id == delegacion.pk
-            )
-        if evidencia.compromiso_id:
-            if evidencia.compromiso.responsable_id == request.user.pk:
-                return True
-            delegacion = get_delegacion_activa(request)
-            return bool(
-                delegacion
-                and obtener_rol(request.user) in ('coordinador', 'verificador')
-                and evidencia.compromiso.delegacion_id == delegacion.pk
-            )
-        if obtener_rol(request.user) in ('coordinador', 'verificador'):
-            delegacion = get_delegacion_activa(request)
-            return bool(
-                delegacion
-                and evidencia.actividad_id
-                and evidencia.actividad.delegacion_id == delegacion.pk
-            )
-        return False
+        return evidencias_visibles(request).filter(pk=evidencia.pk).exists()
 
 
 class EvidenciaValidarView(RolRequiredMixin, View):
-    roles_permitidos = ('administrador', 'coordinador', 'verificador')
+    roles_permitidos = ('administrador', 'delegado', 'verificador')
 
     def get_evidencia(self, request, pk):
-        qs = Evidencia.objects.select_related(
-            'actividad', 'atencion', 'compromiso', 'subido_por'
-        )
-        if obtener_rol(request.user) != 'administrador':
-            qs = qs.exclude(atencion__isnull=False)
-            delegacion = get_delegacion_activa(request)
-            if delegacion is None:
-                return get_object_or_404(qs.none(), pk=pk)
-            qs = qs.filter(
-                Q(actividad__delegacion=delegacion)
-                | Q(compromiso__delegacion=delegacion)
-            )
-        return get_object_or_404(qs, pk=pk)
+        return get_object_or_404(evidencias_visibles(request), pk=pk)
 
     def get(self, request, pk):
         evidencia = self.get_evidencia(request, pk)
+        if not puede_validar_evidencia(request, evidencia):
+            raise Http404
         form = ValidacionEvidenciaForm(initial={'comentario': evidencia.comentario_validacion})
         return render(request, 'evidencias/validar.html', {'evidencia': evidencia, 'form': form})
 
+    @transaction.atomic
     def post(self, request, pk):
         evidencia = self.get_evidencia(request, pk)
-        if evidencia.atencion_id and obtener_rol(request.user) != 'administrador':
-            raise PermissionDenied
+        if not puede_validar_evidencia(request, evidencia):
+            if evidencia.estado != Evidencia.Estado.PENDIENTE:
+                messages.error(request, 'Esta evidencia ya fue validada.')
+                return redirect('evidencias:lista')
+            raise Http404
         if evidencia.estado != Evidencia.Estado.PENDIENTE:
             messages.error(request, 'Esta evidencia ya fue validada.')
             return redirect('evidencias:lista')
@@ -346,7 +317,15 @@ class EvidenciaValidarView(RolRequiredMixin, View):
         evidencia.estado = (
             Evidencia.Estado.APROBADA if accion == 'aprobar' else Evidencia.Estado.RECHAZADA
         )
-        evidencia.save()
+        actualizadas = Evidencia.objects.filter(pk=evidencia.pk, estado=Evidencia.Estado.PENDIENTE).update(
+            comentario_validacion=evidencia.comentario_validacion,
+            validado_por=evidencia.validado_por,
+            fecha_validacion=evidencia.fecha_validacion,
+            estado=evidencia.estado,
+        )
+        if actualizadas != 1:
+            messages.error(request, 'Esta evidencia ya fue validada.')
+            return redirect('evidencias:lista')
         registrar_auditoria(
             request,
             'validar',

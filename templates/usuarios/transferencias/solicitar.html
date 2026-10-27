@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Solicitar transferencia | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-2">Solicitar transferencia</h2>
+<p class="text-muted mb-4">Origen: {{ delegacion_origen.nombre }}. La solicitud quedará pendiente hasta que un Delegado autorizado o un Administrador decida.</p>
+<form method="post" class="card shadow-sm">
+    {% csrf_token %}
+    <div class="card-body">
+        {% include "includes/form_campos.html" %}
+        <button type="submit" class="btn btn-custom-red">Enviar solicitud</button>
+        <a href="{% url 'usuarios:transferencias' %}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}
