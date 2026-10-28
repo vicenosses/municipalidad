@@ -2,6 +2,17 @@
 {% block title %}Dashboard SGR | Inicio{% endblock %}
 {% block extra_css %}
 <style>
+    .inicio-encabezado { border-left: 4px solid #c92a2a; padding: .25rem 0 .25rem 1.15rem; }
+    .inicio-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .inicio-contexto { display: flex; flex-wrap: wrap; gap: .35rem 1.5rem; color: #6c757d; font-size: .9rem; }
+    .inicio-cifra { height: 100%; border: 1px solid #e9ecef !important; border-radius: .65rem; box-shadow: 0 .15rem .7rem rgba(0,0,0,.05); }
+    .inicio-cifra .card-body { padding: 1.35rem; }
+    .inicio-cifra .h3 { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .inicio-seccion { border-top: 1px solid #dee2e6; margin-top: 2.5rem !important; padding-top: 1.75rem; }
+    .inicio-periodo { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: .65rem; padding: 1rem 1.25rem; }
+    .inicio-tabla { border: 1px solid #dee2e6; border-radius: .65rem; }
+    .inicio-tabla thead { background: #f8f9fa; }
+    .inicio-nota { max-width: 75rem; line-height: 1.6; }
     .semaforo { display: inline-block; border-radius: .4rem; padding: .35rem .6rem; font-weight: 600; }
     .semaforo-verde { background: #d1e7dd; color: #0a3622; }
     .semaforo-naranjo { background: #ffe5d0; color: #773300; }
@@ -10,37 +21,44 @@
 </style>
 {% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-3">Dashboard SGR</h2>
-{% if sesion_informes_sgr %}<p><a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Consultar informe SGR</a></p>{% endif %}
-<p class="mb-1">Contexto territorial: <strong>{{ dashboard.contexto_territorial|default:"Sin delegación autorizada" }}</strong></p>
-<p class="text-muted small">Fecha de corte: {{ dashboard.fecha_corte|date:"d/m/Y" }}</p>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div class="inicio-encabezado">
+        <div class="inicio-etiqueta mb-1">Resumen general</div>
+        <h2 class="h3 fw-bold mb-2">Dashboard SGR</h2>
+        <div class="inicio-contexto">
+            <span>Contexto territorial: <strong class="text-dark">{{ dashboard.contexto_territorial|default:"Sin delegación autorizada" }}</strong></span>
+            <span>Fecha de corte: <strong class="text-dark">{{ dashboard.fecha_corte|date:"d/m/Y" }}</strong></span>
+        </div>
+    </div>
+    {% if sesion_informes_sgr %}<a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Consultar informe SGR</a>{% endif %}
+</div>
 <div class="row g-3">
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card inicio-cifra">
             <div class="card-body">
                 <p class="text-muted small mb-1">Usuarios activos</p>
                 <p class="h3 text-institucional mb-0">{{ total_usuarios }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card inicio-cifra">
             <div class="card-body">
                 <p class="text-muted small mb-1">Actividades</p>
                 <p class="h3 text-institucional mb-0">{{ total_actividades }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card inicio-cifra">
             <div class="card-body">
                 <p class="text-muted small mb-1">Evidencias pendientes</p>
                 <p class="h3 text-institucional mb-0">{{ evidencias_pendientes }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
-        <div class="card border-0 shadow-sm">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card inicio-cifra">
             <div class="card-body">
                 <p class="text-muted small mb-1">Compromisos próximos</p>
                 <p class="h3 text-institucional mb-0">{{ compromisos_proximos }}</p>
@@ -48,14 +66,15 @@
         </div>
     </div>
 </div>
-<section class="mt-4" aria-labelledby="titulo-metas">
-    <h3 id="titulo-metas" class="h5 fw-bold">Seguimiento de metas</h3>
+<section class="inicio-seccion" aria-labelledby="titulo-metas">
+    <div class="inicio-etiqueta mb-1">Resultados</div>
+    <h3 id="titulo-metas" class="h4 fw-bold mb-3">Seguimiento de metas</h3>
     {% if dashboard.mensaje %}
     <div class="alert alert-info" role="status">{{ dashboard.mensaje }}</div>
     {% else %}
-    <p class="mb-1">Período: <strong>{{ dashboard.periodo.nombre }}</strong>
+    <div class="inicio-periodo mb-3"><p class="mb-1">Período: <strong>{{ dashboard.periodo.nombre }}</strong>
         · {{ dashboard.periodo.fecha_inicio|date:"d/m/Y" }} al {{ dashboard.periodo.fecha_fin|date:"d/m/Y" }}</p>
-    <p>Avance esperado: <strong>{{ dashboard.esperado|floatformat:2 }}%</strong></p>
+    <p class="mb-0">Avance esperado: <strong>{{ dashboard.esperado|floatformat:2 }}%</strong></p></div>
     <div class="row g-3 mb-3">
         <div class="col-sm-4"><div class="card border-0 shadow-sm"><div class="card-body">
             <p class="text-muted small mb-1">Metas activas del período</p><p class="h3 mb-0">{{ dashboard.total_metas }}</p>
@@ -72,7 +91,7 @@
         Verde: {{ dashboard.conteos.verde }} · Naranjo: {{ dashboard.conteos.naranjo }} ·
         Rojo: {{ dashboard.conteos.rojo }} · Sin datos calculables: {{ dashboard.conteos.sin_datos }}
     </p>
-    <div class="table-responsive">
+    <div class="table-responsive inicio-tabla">
         <table class="table table-striped align-middle">
             <caption>Semáforo de metas del período vigente y contexto territorial indicado.</caption>
             <thead><tr>
@@ -100,7 +119,7 @@
     <div class="alert alert-info" role="status">No hay metas activas para este período y contexto territorial.</div>
     {% endif %}
     {% endif %}
-    <p class="small text-muted mt-3">
+    <p class="small text-muted mt-3 inicio-nota">
         El avance esperado usa días calendario e incluye el día de corte y ambos extremos del período.
         No descuenta vacaciones, licencias, emergencias, tiempos compensatorios ni feriados.
         Verde: real mayor o igual al esperado; naranjo: desde el 60% del esperado; rojo: inferior al 60%.

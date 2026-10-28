@@ -6,6 +6,7 @@
     <title>{% block title %}SGR - Municipalidad de La Serena{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/interfaz.css' %}">
     <style>
         body {
             background-color: #ffffff;
@@ -54,7 +55,7 @@
             <a class="navbar-brand fw-bold" href="{% url 'home' %}">
                 <span class="text-white">SGR</span> <small class="text-light fs-6">La Serena</small>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Mostrar navegación">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -77,9 +78,6 @@
                     {% endif %}
                     {% if sesion_permisos.roles %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">Roles</a></li>
-                    {% endif %}
-                    {% if sesion_catalogo_completo %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:item_lista' %}">Ítems</a></li>
                     {% endif %}
                     {% if sesion_catalogos %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:inicio' %}">Tipos de Atención</a></li>

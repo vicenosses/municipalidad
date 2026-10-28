@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2 class="h4">Solicitar ampliación: {{ compromiso.titulo }}</h2>
+<p>Plazo actual: {{ compromiso.fecha_hora|date:'d/m/Y H:i' }}</p>
+<form method="post" action="{% url 'agenda:solicitar_ampliacion' compromiso.pk %}">{% csrf_token %}{% include 'includes/form_campos.html' %}<button class="btn btn-custom-red">Enviar solicitud</button> <a class="btn btn-outline-secondary" href="{% url 'agenda:detalle' compromiso.pk %}">Volver</a></form>
+{% endblock %}

@@ -10,6 +10,9 @@ from sgr.plazos import dentro_plazo
 
 
 class AtencionCiudadanaForm(forms.ModelForm):
+    plazo_tubo = forms.DateTimeField(label='Fecha y hora límite del tubo', required=False,
+        widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+        input_formats=['%Y-%m-%dT%H:%M'])
     indicador = forms.ModelChoiceField(label='Indicador SGR (opcional)', queryset=Indicador.objects.none(),
                                        required=False, widget=forms.Select(attrs={'class': 'form-select'}),
                                        help_text='Puede registrar la Actividad sin Indicador. Las opciones dependen de la fecha y Delegación.')
@@ -80,6 +83,13 @@ class AtencionCiudadanaForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get('va_al_tubo') and not cleaned.get('plazo_tubo'):
+            self.add_error('plazo_tubo', 'Indique el plazo para ingresar al tubo.')
+        plazo = cleaned.get('plazo_tubo')
+        if cleaned.get('va_al_tubo') and plazo and cleaned.get('fecha'):
+            from django.utils import timezone
+            if timezone.localtime(plazo).date() < cleaned['fecha']:
+                self.add_error('plazo_tubo', 'El plazo no puede ser anterior a la fecha de la actividad.')
         indicador = cleaned.get('indicador')
         if indicador:
             fecha = cleaned.get('fecha')

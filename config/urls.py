@@ -10,6 +10,7 @@ from usuarios.auth_views import (
     RecuperacionCodigoView,
     RecuperacionNuevaView,
     RecuperacionSolicitarView,
+    RecuperacionEnlaceView,
 )
 
 urlpatterns = [
@@ -17,6 +18,7 @@ urlpatterns = [
     path('login/', LoginSGRView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('recuperacion/', RecuperacionSolicitarView.as_view(), name='recuperacion_solicitar'),
+    path('recuperacion/enlace/<uidb64>/<token>/', RecuperacionEnlaceView.as_view(), name='recuperacion_enlace'),
     path('recuperacion/codigo/', RecuperacionCodigoView.as_view(), name='recuperacion_codigo'),
     path('recuperacion/nueva/', RecuperacionNuevaView.as_view(), name='recuperacion_nueva'),
     path('', HomeView.as_view(), name='home'),

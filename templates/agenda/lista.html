@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Agenda | SGR{% endblock %}
 {% block content %}
+{% if puede_revisar_ampliaciones %}<p><a class="btn btn-outline-secondary" href="{% url 'agenda:ampliaciones' %}">Solicitudes de ampliación <span class="badge bg-danger">{{ ampliaciones_pendientes }}</span></a></p>{% endif %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="h4 fw-bold mb-0">Agenda de la delegación</h2>
     {% if puede_crear %}<a href="{% url 'agenda:crear' %}" class="btn btn-custom-red">Nuevo compromiso</a>{% endif %}

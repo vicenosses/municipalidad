@@ -7,7 +7,7 @@
     <p><strong>Descripción:</strong> {{ meta.descripcion|default:"Sin descripción"|linebreaksbr }}</p>
     <p><strong>Período:</strong> <a href="{{ meta.periodo.get_absolute_url }}">{{ meta.periodo }}</a></p>
     <p><strong>Delegación:</strong> {{ meta.delegacion }}</p>
-    <p><strong>Estado:</strong> {% if meta.activo %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-secondary">Inactiva</span>{% endif %}</p>
+    <p><strong>Estado:</strong> {% if meta.activo %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-danger">Inactiva</span>{% endif %}</p>
     <p><strong>Creado por:</strong> {{ meta.creado_por|default:"Sistema / usuario no disponible" }}</p>
     <p><strong>Fecha creación:</strong> {{ meta.creado_en|date:"d/m/Y H:i" }}</p>
     <p><strong>Última actualización:</strong> {{ meta.actualizado_en|date:"d/m/Y H:i" }}</p>

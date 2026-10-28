@@ -53,13 +53,18 @@ class TipoAtencionForm(forms.ModelForm):
         self.delegacion_activa = delegacion_catalogo(request)
         self.es_administrador = es_administrador_catalogos(request) and self.delegacion_activa is None
         if self.es_administrador:
+            self.fields.pop('es_general')
+            self.fields['delegacion'].empty_label = 'Todas las delegaciones (global)'
+            self.fields['delegacion'].help_text = 'Seleccione una delegación o la opción global para todas.'
             return
         self.fields.pop('es_general')
         self.fields.pop('delegacion')
 
     def clean(self):
         cleaned_data = super().clean()
-        if not self.es_administrador:
+        if self.es_administrador:
+            self.instance.es_general = cleaned_data.get('delegacion') is None
+        else:
             if 'es_general' in self.data or 'delegacion' in self.data:
                 raise forms.ValidationError(
                     'El alcance de este catálogo está fijado a su delegación.'
@@ -103,13 +108,18 @@ class SubAtencionForm(forms.ModelForm):
                 pk=self.instance.tipo_id
             )
         if self.es_administrador:
+            self.fields.pop('es_general')
+            self.fields['delegacion'].empty_label = 'Todas las delegaciones (global)'
+            self.fields['delegacion'].help_text = 'Seleccione una delegación o la opción global para todas. Una subcategoría global requiere un tipo global.'
             return
         self.fields.pop('es_general')
         self.fields.pop('delegacion')
 
     def clean(self):
         cleaned_data = super().clean()
-        if not self.es_administrador:
+        if self.es_administrador:
+            self.instance.es_general = cleaned_data.get('delegacion') is None
+        else:
             if 'es_general' in self.data or 'delegacion' in self.data:
                 raise forms.ValidationError(
                     'El alcance de esta subcategoría está fijado a su delegación.'

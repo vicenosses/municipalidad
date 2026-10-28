@@ -11,8 +11,8 @@
         <p><strong>Delegaciones autorizadas:</strong>
             {% for d in perfil.delegaciones.all %}{{ d.nombre }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
         </p>
-        <p><strong>Cargo:</strong> {{ perfil.cargo|default:"—" }}</p>
-        <p class="mb-0"><strong>Estado:</strong> {{ perfil.estado_display }}</p>
+        {% if perfil.rol.codigo == 'funcionario' %}<p><strong>Cargo:</strong> {{ perfil.cargo|default:"—" }}</p>{% endif %}
+        <p class="mb-0"><strong>Estado:</strong> <span class="badge {% if perfil.activo %}bg-success{% else %}bg-danger{% endif %}">{{ perfil.estado_display }}</span></p>
     </div>
 </div>
 <a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-custom-red mt-3">Editar</a>

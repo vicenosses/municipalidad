@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Cargos | SGR{% endblock %}
+{% block content %}
+<nav class="d-flex gap-2 mb-4" aria-label="Roles y cargos"><a class="btn btn-outline-secondary" href="{% url 'usuarios:rol_lista' %}">Roles</a><a class="btn btn-custom-red" aria-current="page" href="{% url 'usuarios:cargo_lista' %}">Cargos</a></nav>
+<div class="d-flex justify-content-between align-items-center mb-4"><h2 class="h4 fw-bold mb-0">Cargos de funcionarios</h2><a class="btn btn-custom-red" href="{% url 'usuarios:cargo_crear' %}">Nuevo cargo</a></div>
+{% include 'includes/toolbar_listado.html' %}
+<div class="table-responsive shadow-sm"><table class="table table-hover align-middle mb-0">
+<thead class="table-light"><tr><th scope="col">Cargo</th><th scope="col">Descripción</th><th scope="col">Alcance</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead>
+<tbody>{% for cargo in cargos %}<tr><td>{{ cargo.nombre }}</td><td>{{ cargo.descripcion|default:'—' }}</td><td>{{ cargo.get_alcance_display }}</td><td><span class="badge {% if cargo.activo %}bg-success{% else %}bg-danger{% endif %}">{% if cargo.activo %}Activo{% else %}Inactivo{% endif %}</span></td><td class="text-nowrap">
+<a href="{% url 'usuarios:cargo_detalle' cargo.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+<a href="{% url 'usuarios:cargo_editar' cargo.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
+<form method="post" action="{% url 'usuarios:cargo_estado' cargo.pk %}" class="d-inline js-confirm" data-message="¿{% if cargo.activo %}Desactivar{% else %}Activar{% endif %} este cargo?">{% csrf_token %}<input type="hidden" name="activo" value="{% if cargo.activo %}false{% else %}true{% endif %}"><button type="submit" class="btn btn-sm {% if cargo.activo %}btn-danger{% else %}btn-success{% endif %}">{% if cargo.activo %}Desactivar{% else %}Activar{% endif %}</button></form>
+</td></tr>{% empty %}<tr><td colspan="5" class="text-muted text-center py-4">No hay cargos registrados.</td></tr>{% endfor %}</tbody></table></div>
+{% include 'includes/paginacion.html' %}
+{% endblock %}

@@ -11,7 +11,7 @@
     <p><strong>Unidad:</strong> {{ indicador.unidad_display }}</p>
     <p><strong>Objetivo:</strong> {{ indicador.objetivo_display }}</p>
     <p><strong>Sentido:</strong> {{ indicador.get_sentido_display }}</p>
-    <p><strong>Estado:</strong> {% if indicador.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</p>
+    <p><strong>Estado:</strong> {% if indicador.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-danger">Inactivo</span>{% endif %}</p>
     <p><strong>Creado por:</strong> {{ indicador.creado_por|default:"Sistema / usuario no disponible" }}</p>
     <p><strong>Fecha creación:</strong> {{ indicador.creado_en|date:"d/m/Y H:i" }}</p>
     <p><strong>Última actualización:</strong> {{ indicador.actualizado_en|date:"d/m/Y H:i" }}</p>

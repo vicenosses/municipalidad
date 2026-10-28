@@ -56,6 +56,7 @@ class CatalogosInicioView(RolRequiredMixin, TemplateView):
 
 
 class ItemListView(CatalogoMixin, ListView):
+    ordering = ('-activo', 'codigo', 'pk')
     model = ItemMeta
     template_name = 'catalogos/items/lista.html'
     context_object_name = 'items'
@@ -104,10 +105,10 @@ class ItemDesactivarView(RolRequiredMixin, View):
 
     def post(self, request, pk):
         obj = get_object_or_404(ItemMeta, pk=pk)
-        obj.activo = False
+        obj.activo = request.POST.get('activo') == 'true'
         obj.save(update_fields=['activo'])
-        registrar_auditoria(request, 'desactivar', obj, f'Desactivación de ítem {obj.codigo}')
-        messages.success(request, 'Ítem desactivado.')
+        registrar_auditoria(request, 'activar' if obj.activo else 'desactivar', obj, f'Cambio de estado de ítem {obj.codigo}')
+        messages.success(request, 'Ítem activado.' if obj.activo else 'Ítem desactivado.')
         return redirect('catalogos:item_lista')
 
 
@@ -125,7 +126,7 @@ class TipoListView(CatalogoTerritorialMixin, ListView):
             self.get_visible_queryset(
                 TipoAtencion.objects.select_related('delegacion')
             )
-        )
+        ).order_by('-activo', '-pk')
 
 
 class TipoCreateView(CatalogoTerritorialMixin, CreateView):
@@ -186,10 +187,10 @@ class TipoDesactivarView(CatalogoTerritorialMixin, View):
             catalogos_editables(TipoAtencion.objects.all(), request),
             pk=pk,
         )
-        obj.activo = False
+        obj.activo = request.POST.get('activo') == 'true'
         obj.save(update_fields=['activo'])
-        registrar_auditoria(request, 'desactivar', obj, f'Desactivación de tipo {obj.codigo}')
-        messages.success(request, 'Tipo de atención desactivado.')
+        registrar_auditoria(request, 'activar' if obj.activo else 'desactivar', obj, f'Cambio de estado de tipo {obj.codigo}')
+        messages.success(request, 'Tipo de atención activado.' if obj.activo else 'Tipo de atención desactivado.')
         return redirect('catalogos:tipo_lista')
 
 
@@ -211,7 +212,7 @@ class SubListView(CatalogoTerritorialMixin, ListView):
                     'tipo__delegacion',
                 )
             )
-        )
+        ).order_by('-activo', '-pk')
 
 
 class SubCreateView(CatalogoTerritorialMixin, CreateView):
@@ -272,10 +273,10 @@ class SubDesactivarView(CatalogoTerritorialMixin, View):
             catalogos_editables(SubAtencion.objects.all(), request),
             pk=pk,
         )
-        obj.activo = False
+        obj.activo = request.POST.get('activo') == 'true'
         obj.save(update_fields=['activo'])
-        registrar_auditoria(request, 'desactivar', obj, f'Desactivación de subatención {obj.codigo}')
-        messages.success(request, 'Subatención desactivada.')
+        registrar_auditoria(request, 'activar' if obj.activo else 'desactivar', obj, f'Cambio de estado de subatención {obj.codigo}')
+        messages.success(request, 'Subatención activada.' if obj.activo else 'Subatención desactivada.')
         return redirect('catalogos:sub_lista')
 
 

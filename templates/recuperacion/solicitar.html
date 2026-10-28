@@ -5,12 +5,12 @@
     <div class="col-md-5">
         <div class="card shadow-sm">
             <div class="card-body p-4">
-                <h2 class="h4 fw-bold mb-3">Paso 1: solicitar código</h2>
+                <h2 class="h4 fw-bold mb-3">Recuperar contraseña</h2>
                 <p class="text-muted small">Ingrese el correo asociado a su cuenta.</p>
                 <form method="post">
                     {% csrf_token %}
                     {% include "includes/form_campos.html" %}
-                    <button type="submit" class="btn btn-custom-red">Enviar código</button>
+                    <button type="submit" class="btn btn-custom-red">Enviar enlace</button>
                     <a href="{% url 'login' %}" class="btn btn-outline-secondary">Volver</a>
                 </form>
             </div>

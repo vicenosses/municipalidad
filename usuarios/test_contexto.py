@@ -216,6 +216,45 @@ class ContextoAdministradorTests(DatosPonderacionesMixin, TestCase):
         respuesta = self.client.post(url, {'delegacion_id': self.b.pk, 'next': destino})
         self.assertRedirects(respuesta, destino, fetch_redirect_response=False)
 
+    def test_redireccion_rechaza_variantes_externas_en_next_y_referer(self):
+        url = reverse('usuarios:delegacion_activa')
+        destinos = (
+            '//example.org/', '///example.org/', '\\\\example.org/',
+            '/\\example.org/', 'javascript:alert(1)',
+            'https://testserver@example.org/', 'https://testserver.example.org/',
+            'https://testserver:8443/', '\x00https://example.org/',
+        )
+        for destino in destinos:
+            for origen in ('next', 'referer'):
+                with self.subTest(destino=destino, origen=origen):
+                    datos = {'delegacion_id': self.a.pk}
+                    cabeceras = {}
+                    if origen == 'next':
+                        datos['next'] = destino
+                    else:
+                        cabeceras['HTTP_REFERER'] = destino
+                    respuesta = self.client.post(url, datos, **cabeceras)
+                    self.assertRedirects(respuesta, reverse('home'), fetch_redirect_response=False)
+
+    def test_redireccion_local_absoluta_y_referer_conservan_filtros(self):
+        url = reverse('usuarios:delegacion_activa')
+        destino = 'https://testserver' + reverse('sgr:informe') + '?periodo=' + str(self.periodo.pk)
+        for origen in ('next', 'referer'):
+            with self.subTest(origen=origen):
+                datos = {'delegacion_id': self.a.pk}
+                cabeceras = {}
+                if origen == 'next':
+                    datos['next'] = destino
+                else:
+                    cabeceras['HTTP_REFERER'] = destino
+                respuesta = self.client.post(url, datos, **cabeceras)
+                self.assertRedirects(respuesta, destino, fetch_redirect_response=False)
+
+    def test_redireccion_https_rechaza_descenso_a_http(self):
+        respuesta = self.client.post(reverse('usuarios:delegacion_activa'),
+            {'delegacion_id': self.a.pk, 'next': 'http://testserver/sgr/informes/'}, secure=True)
+        self.assertRedirects(respuesta, reverse('home'), fetch_redirect_response=False)
+
     def test_cambiar_contexto_no_modifica_registros_ni_auditoria(self):
         modelos = (AtencionCiudadana, Compromiso, Evidencia, Perfil, Meta, Indicador, RegistroAuditoria)
         antes = {m: list(m.objects.order_by('pk').values()) for m in modelos}

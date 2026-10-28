@@ -44,13 +44,14 @@
                 <td>{{ perfil.usuario.email|default:"—" }}</td>
                 <td><span class="badge badge-rol">{{ perfil.rol.nombre|default:"—" }}</span></td>
                 <td>{{ perfil.delegaciones_display|default:"—" }}</td>
-                <td>{{ perfil.estado_display }}</td>
+                <td><span class="badge {% if perfil.activo %}bg-success{% else %}bg-danger{% endif %}">{{ perfil.estado_display }}</span></td>
                 <td class="text-end">
                     <a href="{% url 'usuarios:detalle' perfil.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'usuarios:desactivar' perfil.pk %}" class="d-inline js-confirm" data-message="¿Desactivar este usuario?">
+                    <form method="post" action="{% url 'usuarios:desactivar' perfil.pk %}" class="d-inline js-confirm" data-message="¿{% if perfil.activo %}Desactivar{% else %}Activar{% endif %} este usuario?">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                        <input type="hidden" name="activo" value="{% if perfil.activo %}false{% else %}true{% endif %}">
+                        <button type="submit" class="btn btn-sm {% if perfil.activo %}btn-danger{% else %}btn-success{% endif %}">{% if perfil.activo %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
                 </td>
             </tr>

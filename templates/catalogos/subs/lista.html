@@ -33,14 +33,15 @@
                 <td>{{ sub.nombre }}</td>
                 <td>{{ sub.tipo }}</td>
                 <td>{% if sub.es_general %}General{% else %}{{ sub.delegacion.nombre }}{% endif %}</td>
-                <td>{{ sub.estado_display }}</td>
+                <td><span class="badge {% if sub.activo %}bg-success{% else %}bg-danger{% endif %}">{{ sub.estado_display }}</span></td>
                 <td class="text-end">
                     <a href="{% url 'catalogos:sub_detalle' sub.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     {% if sub.pk in catalogos_editables %}
                     <a href="{% url 'catalogos:sub_editar' sub.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'catalogos:sub_desactivar' sub.pk %}" class="d-inline js-confirm" data-message="¿Desactivar esta subcategoría?">
+                    <form method="post" action="{% url 'catalogos:sub_desactivar' sub.pk %}" class="d-inline js-confirm" data-message="¿{% if sub.activo %}Desactivar{% else %}Activar{% endif %} esta subcategoría?">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                        <input type="hidden" name="activo" value="{% if sub.activo %}false{% else %}true{% endif %}">
+                        <button type="submit" class="btn btn-sm {% if sub.activo %}btn-danger{% else %}btn-success{% endif %}">{% if sub.activo %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
                     {% endif %}
                 </td>

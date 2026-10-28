@@ -1,15 +1,21 @@
 import secrets
+import logging
 from datetime import timedelta
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.models import User
-from django.contrib.auth.views import LoginView
+from django.contrib.auth.views import LoginView, PasswordResetConfirmView
+from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+from django.urls import reverse, reverse_lazy
 from django.views import View
 
 from usuarios.forms import (
@@ -20,7 +26,8 @@ from usuarios.forms import (
 )
 from usuarios.models import CodigoRecuperacion
 
-MENSAJE_GENERICO = 'Si el correo está registrado, enviamos un código de verificación.'
+MENSAJE_GENERICO = 'Si existe una cuenta habilitada para ese correo, recibirás un enlace de recuperación.'
+logger = logging.getLogger(__name__)
 VIGENCIA_MINUTOS = 15
 MAX_INTENTOS = 5
 
@@ -59,6 +66,48 @@ class RecuperacionSolicitarView(View):
         form = SolicitudRecuperacionForm(request.POST)
         if not form.is_valid():
             return render(request, 'recuperacion/solicitar.html', _ctx({'form': form}))
+        email = form.cleaned_data['email']
+        user = User.objects.filter(email__iexact=email).exclude(email='').first()
+        if _usuario_puede_recuperar(user) and user.has_usable_password():
+            enlace = request.build_absolute_uri(reverse('recuperacion_enlace', kwargs={
+                'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
+                'token': default_token_generator.make_token(user),
+            }))
+            try:
+                send_mail(
+                    'Recuperación de contraseña SGR',
+                    f'Ilustre Municipalidad de La Serena\nSistema de Gestión de Resultados\n\n'
+                    f'Para establecer una nueva contraseña, abre este enlace:\n\n{enlace}\n\n'
+                    'El enlace vence en 2 minutos. Si no solicitaste este cambio, ignora este mensaje.',
+                    settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False,
+                    html_message=render_to_string('recuperacion/correo.html', {'enlace': enlace}),
+                )
+            except Exception:
+                logger.exception('No se pudo enviar el correo de recuperación.')
+        messages.info(request, MENSAJE_GENERICO)
+        return redirect('recuperacion_solicitar')
+
+
+class RecuperacionEnlaceView(PasswordResetConfirmView):
+    template_name = 'recuperacion/enlace.html'
+    form_class = NuevaContrasenaForm
+    success_url = reverse_lazy('login')
+
+    def get_user(self, uidb64):
+        user = super().get_user(uidb64)
+        return user if _usuario_puede_recuperar(user) else None
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, 'Contraseña actualizada. Puede ingresar.')
+        return response
+
+
+class RecuperacionSolicitarCodigoAnteriorView(View):
+    def post(self, request):
+        form = SolicitudRecuperacionForm(request.POST)
+        if not form.is_valid():
+            return redirect('recuperacion_solicitar')
         email = form.cleaned_data['email']
         user = User.objects.filter(email__iexact=email).exclude(email='').first()
         request.session['recuperacion_pendiente'] = True

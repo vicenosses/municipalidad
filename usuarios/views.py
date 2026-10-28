@@ -3,9 +3,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, F
+from django.db.models import Case, Count, F, IntegerField, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, HttpResponseRedirect
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -16,6 +16,7 @@ from auditoria.utils import registrar_auditoria
 from config.listado import FiltroExportMixin
 from usuarios.forms import (
     DecisionTransferenciaForm,
+    CargoForm,
     DelegacionForm,
     RolForm,
     SolicitudTransferenciaForm,
@@ -24,7 +25,7 @@ from usuarios.forms import (
     UsuarioMunicipalForm,
 )
 from usuarios.mixins import RolRequiredMixin, obtener_rol
-from usuarios.models import Delegacion, Perfil, Rol, SolicitudTransferencia
+from usuarios.models import Cargo, Delegacion, Perfil, Rol, SolicitudTransferencia
 from usuarios.sesion import CONTEXTO_GLOBAL, DELEGACION_SESION, delegaciones_autorizadas
 from usuarios.sesion import get_delegacion_activa, usuario_tiene_alcance_delegacion
 from usuarios.sesion import en_contexto_delegacion, filtrar_contexto_territorial
@@ -68,7 +69,9 @@ class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = perfiles_en_contexto(self.request)
-        return self.filtrar_queryset(qs).distinct()
+        return self.filtrar_queryset(qs).distinct().annotate(
+            orden_inactivo=Case(When(activo=True, usuario__is_active=True, then=Value(0)), default=Value(1), output_field=IntegerField())
+        ).order_by('orden_inactivo', 'usuario__username', 'pk')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -142,12 +145,12 @@ class UsuarioDesactivarView(RolRequiredMixin, View):
 
     def post(self, request, pk):
         perfil = get_object_or_404(perfiles_en_contexto(request), pk=pk)
-        perfil.activo = False
+        perfil.activo = request.POST.get('activo') == 'true'
         perfil.save(update_fields=['activo'])
-        perfil.usuario.is_active = False
+        perfil.usuario.is_active = perfil.activo
         perfil.usuario.save(update_fields=['is_active'])
-        registrar_auditoria(request, 'desactivar', perfil.usuario, f'Desactivación de {perfil.usuario.username}')
-        messages.success(request, 'Usuario desactivado.')
+        registrar_auditoria(request, 'activar' if perfil.activo else 'desactivar', perfil.usuario, f'Cambio de estado de {perfil.usuario.username}')
+        messages.success(request, 'Usuario activado.' if perfil.activo else 'Usuario desactivado.')
         return redirect('usuarios:lista')
 
 
@@ -465,14 +468,15 @@ class DelegacionActivaView(LoginRequiredMixin, View):
             etiqueta = str(delegacion)
         messages.success(request, f'Contexto territorial actualizado: {etiqueta}.')
         destino = request.POST.get('next') or request.META.get('HTTP_REFERER')
-        if not destino or not url_has_allowed_host_and_scheme(
+        if destino and url_has_allowed_host_and_scheme(
             destino, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
         ):
-            destino = 'home'
-        return redirect(destino)
+            return HttpResponseRedirect(destino)
+        return redirect('home')
 
 
 class DelegacionListView(FiltroExportMixin, RolRequiredMixin, ListView):
+    ordering = ('-activa', 'nombre', 'pk')
     model = Delegacion
     template_name = 'usuarios/delegaciones/lista.html'
     context_object_name = 'delegaciones'
@@ -522,14 +526,79 @@ class DelegacionDesactivarView(RolRequiredMixin, View):
 
     def post(self, request, pk):
         obj = get_object_or_404(Delegacion, pk=pk)
-        obj.activa = False
+        obj.activa = request.POST.get('activo') == 'true'
         obj.save(update_fields=['activa'])
-        registrar_auditoria(request, 'desactivar', obj, f'Desactivación de delegación {obj.nombre}')
-        messages.success(request, 'Delegación desactivada.')
+        registrar_auditoria(request, 'activar' if obj.activa else 'desactivar', obj, f'Cambio de estado de delegación {obj.nombre}')
+        messages.success(request, 'Delegación activada.' if obj.activa else 'Delegación desactivada.')
         return redirect('usuarios:delegacion_lista')
 
 
+class CargoListView(FiltroExportMixin, RolRequiredMixin, ListView):
+    ordering = ('-activo', 'nombre', 'pk')
+    model = Cargo
+    template_name = 'usuarios/cargos/lista.html'
+    context_object_name = 'cargos'
+    roles_permitidos = ('administrador',)
+    search_fields = ('nombre', 'descripcion')
+    export_filename = 'cargos.xlsx'
+    export_headers = ('Cargo', 'Descripción', 'Alcance', 'Estado')
+    export_fields = ('nombre', 'descripcion', 'get_alcance_display', 'activo')
+
+
+class CargoCreateView(RolRequiredMixin, CreateView):
+    form_class = CargoForm
+    template_name = 'usuarios/cargos/form.html'
+    success_url = reverse_lazy('usuarios:cargo_lista')
+    roles_permitidos = ('administrador',)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        registrar_auditoria(self.request, 'crear', self.object, f'Alta de cargo {self.object.nombre}')
+        messages.success(self.request, 'Cargo creado correctamente.')
+        return response
+
+
+class CargoDetailView(RolRequiredMixin, DetailView):
+    model = Cargo
+    template_name = 'usuarios/cargos/detalle.html'
+    roles_permitidos = ('administrador',)
+
+
+class CargoUpdateView(RolRequiredMixin, UpdateView):
+    model = Cargo
+    form_class = CargoForm
+    template_name = 'usuarios/cargos/form.html'
+    success_url = reverse_lazy('usuarios:cargo_lista')
+    roles_permitidos = ('administrador',)
+
+    @transaction.atomic
+    def form_valid(self, form):
+        nombre_anterior = Cargo.objects.select_for_update().get(pk=self.object.pk).nombre
+        response = super().form_valid(form)
+        if nombre_anterior != self.object.nombre:
+            Perfil.objects.filter(cargo=nombre_anterior).update(cargo=self.object.nombre)
+        registrar_auditoria(self.request, 'editar', self.object, f'Edición de cargo {nombre_anterior} → {self.object.nombre}')
+        messages.success(self.request, 'Cargo actualizado.')
+        return response
+
+
+class CargoEstadoView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador',)
+
+    def post(self, request, pk):
+        cargo = get_object_or_404(Cargo, pk=pk)
+        valor = request.POST.get('activo')
+        if valor not in ('true', 'false'):
+            return HttpResponseBadRequest('Estado no válido.')
+        cargo.activo = valor == 'true'
+        cargo.save(update_fields=['activo'])
+        registrar_auditoria(request, 'activar' if cargo.activo else 'desactivar', cargo, f'Cambio de estado de cargo {cargo.nombre}')
+        messages.success(request, 'Cargo activado.' if cargo.activo else 'Cargo desactivado.')
+        return redirect('usuarios:cargo_lista')
+
+
 class RolListView(FiltroExportMixin, RolRequiredMixin, ListView):
+    ordering = ('-activo', 'nombre', 'pk')
     model = Rol
     template_name = 'usuarios/roles/lista.html'
     context_object_name = 'roles'
@@ -579,8 +648,8 @@ class RolDesactivarView(RolRequiredMixin, View):
 
     def post(self, request, pk):
         obj = get_object_or_404(Rol, pk=pk)
-        obj.activo = False
+        obj.activo = request.POST.get('activo') == 'true'
         obj.save(update_fields=['activo'])
-        registrar_auditoria(request, 'desactivar', obj, f'Desactivación de rol {obj.nombre}')
-        messages.success(request, 'Rol desactivado.')
+        registrar_auditoria(request, 'activar' if obj.activo else 'desactivar', obj, f'Cambio de estado de rol {obj.nombre}')
+        messages.success(request, 'Rol activado.' if obj.activo else 'Rol desactivado.')
         return redirect('usuarios:rol_lista')

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Solicitudes de ampliación | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-3">Solicitudes de ampliación pendientes</h2>
+<p><a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Volver a Agenda</a></p>
+{% for solicitud in solicitudes %}
+<section class="card shadow-sm mb-3"><div class="card-body">
+<h3 class="h5"><a href="{% url 'agenda:detalle' solicitud.compromiso.pk %}">{{ solicitud.compromiso.titulo }}</a></h3>
+<p>Solicitante: {{ solicitud.solicitante }} · Delegación: {{ solicitud.compromiso.delegacion }}</p>
+<p>Plazo actual: <strong>{{ solicitud.plazo_anterior|date:'d/m/Y H:i' }}</strong> · Plazo solicitado: <strong>{{ solicitud.plazo_propuesto|date:'d/m/Y H:i' }}</strong></p>
+<p>Motivo: {{ solicitud.motivo|linebreaksbr }}</p>
+<form method="post" action="{% url 'agenda:decidir_ampliacion' solicitud.pk %}">{% csrf_token %}<button name="accion" value="aprobar" class="btn btn-success">Aprobar</button> <button name="accion" value="rechazar" class="btn btn-danger">Rechazar</button></form>
+</div></section>
+{% empty %}<p>No hay solicitudes pendientes.</p>{% endfor %}
+{% endblock %}

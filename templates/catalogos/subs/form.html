@@ -3,6 +3,7 @@
 {% block content %}
 {% include "catalogos/_navegacion.html" %}
 <h2 class="h4 fw-bold mb-4">{% if object %}Editar subcategoría{% else %}Nueva subcategoría{% endif %}</h2>
+{% if not form.es_administrador %}<p class="text-muted">El alcance está limitado a la delegación activa. Para crear una subcategoría global o elegir otra delegación, el administrador debe seleccionar el contexto global.</p>{% endif %}
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">

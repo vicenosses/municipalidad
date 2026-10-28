@@ -68,7 +68,7 @@ class FilaMeta:
     semaforo: Semaforo
 
 
-def construir_dashboard(request, delegacion, hoy=None):
+def construir_dashboard(request, hoy=None):
     hoy = hoy if hoy is not None else timezone.localdate()
     rol = obtener_rol(request.user)
     delegacion = get_delegacion_activa(request)

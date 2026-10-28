@@ -25,13 +25,14 @@
                 <td>{{ d.nombre }}</td>
                 <td>{{ d.direccion|default:"—" }}</td>
                 <td>{{ d.comuna|default:"—" }}</td>
-                <td>{{ d.estado_display }}</td>
+                <td><span class="badge {% if d.activa %}bg-success{% else %}bg-danger{% endif %}">{{ d.estado_display }}</span></td>
                 <td class="text-end">
                     <a href="{% url 'usuarios:delegacion_detalle' d.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:delegacion_editar' d.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'usuarios:delegacion_desactivar' d.pk %}" class="d-inline js-confirm" data-message="¿Desactivar esta delegación?">
+                    <form method="post" action="{% url 'usuarios:delegacion_desactivar' d.pk %}" class="d-inline js-confirm" data-message="¿{% if d.activa %}Desactivar{% else %}Activar{% endif %} esta delegación?">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                        <input type="hidden" name="activo" value="{% if d.activa %}false{% else %}true{% endif %}">
+                        <button type="submit" class="btn btn-sm {% if d.activa %}btn-danger{% else %}btn-success{% endif %}">{% if d.activa %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
                 </td>
             </tr>

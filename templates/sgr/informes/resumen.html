@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Informe SGR | SGR{% endblock %}
 {% block content %}
-{% if sesion_sgr_periodos %}{% include "sgr/_navegacion.html" %}{% endif %}
 <h2 class="h4 fw-bold mb-3">Informe SGR de metas e indicadores</h2>
 <form method="get" class="card shadow-sm mb-4">
     <div class="card-body row g-3 align-items-end">
@@ -26,7 +25,7 @@
     <div class="card-body">
         <h3 id="datos-informe" class="h5">{{ informe.periodo.nombre }}</h3>
         <p>Fechas: {{ informe.periodo.fecha_inicio|date:"d/m/Y" }} al {{ informe.periodo.fecha_fin|date:"d/m/Y" }}
-            · Período {% if informe.periodo.activo %}activo{% else %}inactivo{% endif %}</p>
+            · Período <span class="badge {% if informe.periodo.activo %}bg-success{% else %}bg-danger{% endif %}">{% if informe.periodo.activo %}activo{% else %}inactivo{% endif %}</span></p>
         <p>Contexto territorial: <strong>{{ informe.contexto_territorial }}</strong>
             · Fecha de consulta: <strong>{{ informe.fecha_corte|date:"d/m/Y" }}</strong></p>
         <p>Avance esperado: <strong>{{ informe.esperado|floatformat:2 }}%</strong></p>

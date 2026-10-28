@@ -7,13 +7,14 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.http import Http404
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
+from django.views import View
 
-from agenda.forms import CompromisoFiltroForm, CompromisoForm
-from agenda.models import Compromiso, HistorialCompromiso
+from agenda.forms import CompromisoFiltroForm, CompromisoForm, SolicitudAmpliacionForm
+from agenda.models import Compromiso, HistorialCompromiso, SolicitudAmpliacion
 from atenciones.models import AtencionCiudadana
 from auditoria.utils import registrar_auditoria
 from evidencias.permisos import puede_agregar_evidencia
@@ -123,6 +124,9 @@ class CompromisoListView(LoginRequiredMixin, ListView):
             estado=Compromiso.Estado.REALIZADO
         ).filter(fecha_hora__gte=ahora, fecha_hora__lte=ahora + timedelta(days=7))[:10]
         context['puede_crear'] = obtener_rol(self.request.user) in ROLES_AGENDA
+        context['puede_revisar_ampliaciones'] = obtener_rol(self.request.user) in ('administrador', 'delegado', 'coordinador', 'verificador')
+        if context['puede_revisar_ampliaciones']:
+            context['ampliaciones_pendientes'] = SolicitudAmpliacion.objects.filter(compromiso__in=visibles, estado='pendiente').count()
         return context
 
 
@@ -167,6 +171,7 @@ class CompromisoCreateView(RolRequiredMixin, CreateView):
         form.instance.estado = Compromiso.Estado.INGRESADO
         with transaction.atomic():
             response = super().form_valid(form)
+            self.object.actividades.filter(va_al_tubo=False).update(va_al_tubo=True)
             HistorialCompromiso.objects.create(
                 compromiso=self.object,
                 campo='creacion',
@@ -216,7 +221,69 @@ class CompromisoDetailView(LoginRequiredMixin, DetailView):
         if get_delegacion_activa(self.request) is not None or obtener_rol(self.request.user) != 'administrador':
             actividades = actividades.filter(delegacion=compromiso.delegacion)
         context['actividades_relacionadas'] = actividades
+        context['puede_solicitar_ampliacion'] = (compromiso.responsable_id == self.request.user.pk and compromiso.estado != Compromiso.Estado.REALIZADO)
+        context['form_ampliacion'] = SolicitudAmpliacionForm(compromiso=compromiso)
+        context['solicitudes_ampliacion'] = compromiso.solicitudes_ampliacion.select_related('solicitante', 'decidido_por')
         return context
+
+
+class SolicitarAmpliacionView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        with transaction.atomic():
+            compromiso = get_object_or_404(compromisos_visibles(request).select_for_update(), pk=pk)
+            if compromiso.responsable_id != request.user.pk or compromiso.estado == Compromiso.Estado.REALIZADO:
+                raise PermissionDenied
+            form = SolicitudAmpliacionForm(request.POST, compromiso=compromiso)
+            if not form.is_valid():
+                return render(request, 'agenda/solicitar_ampliacion.html', {'form': form, 'compromiso': compromiso}, status=400)
+            if compromiso.solicitudes_ampliacion.filter(estado='pendiente').exists():
+                messages.error(request, 'Ya existe una solicitud pendiente para este compromiso.')
+                return redirect('agenda:detalle', pk=pk)
+            solicitud = form.save(commit=False)
+            solicitud.compromiso = compromiso
+            solicitud.solicitante = request.user
+            solicitud.plazo_anterior = compromiso.fecha_hora
+            solicitud.save()
+            registrar_auditoria(request, 'solicitar_ampliacion', compromiso, 'Solicitud de ampliación de plazo')
+        messages.success(request, 'Solicitud de ampliación enviada para revisión.')
+        return redirect('agenda:detalle', pk=pk)
+
+
+class AmpliacionesListView(RolRequiredMixin, ListView):
+    roles_permitidos = ('administrador', 'delegado', 'coordinador', 'verificador')
+    template_name = 'agenda/ampliaciones.html'
+    context_object_name = 'solicitudes'
+
+    def get_queryset(self):
+        return SolicitudAmpliacion.objects.filter(compromiso__in=compromisos_visibles(self.request), estado='pendiente').select_related('compromiso', 'solicitante')
+
+
+class DecidirAmpliacionView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador', 'delegado', 'coordinador', 'verificador')
+
+    def post(self, request, pk):
+        accion = request.POST.get('accion')
+        if accion not in ('aprobar', 'rechazar'):
+            raise PermissionDenied
+        with transaction.atomic():
+            solicitud = get_object_or_404(SolicitudAmpliacion.objects.select_for_update().select_related('compromiso'), pk=pk, compromiso__in=compromisos_visibles(request))
+            compromiso = Compromiso.objects.select_for_update().get(pk=solicitud.compromiso_id)
+            if solicitud.estado != 'pendiente':
+                messages.error(request, 'Esta solicitud ya fue resuelta.')
+            elif accion == 'aprobar' and (compromiso.estado == Compromiso.Estado.REALIZADO or compromiso.fecha_hora != solicitud.plazo_anterior):
+                messages.error(request, 'El compromiso cambió; rechace la solicitud o revise el plazo actual.')
+            else:
+                if accion == 'aprobar':
+                    compromiso.fecha_hora = solicitud.plazo_propuesto
+                    compromiso.save(update_fields=['fecha_hora'])
+                    HistorialCompromiso.objects.create(compromiso=compromiso, campo='fecha_hora', valor_anterior=solicitud.plazo_anterior.isoformat(), valor_nuevo=solicitud.plazo_propuesto.isoformat(), motivo=solicitud.motivo, realizado_por=request.user)
+                solicitud.estado = 'aprobada' if accion == 'aprobar' else 'rechazada'
+                solicitud.decidido_por = request.user
+                solicitud.fecha_decision = timezone.now()
+                solicitud.save(update_fields=['estado', 'decidido_por', 'fecha_decision'])
+                registrar_auditoria(request, solicitud.estado, compromiso, 'Decisión de solicitud de ampliación de plazo')
+                messages.success(request, 'Solicitud resuelta correctamente.')
+        return redirect('agenda:ampliaciones')
 
 
 class CompromisoDesdeActividadView(CompromisoCreateView):
@@ -298,6 +365,7 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
         with transaction.atomic():
             response = super().form_valid(form)
             compromiso.refresh_from_db()
+            compromiso.actividades.filter(va_al_tubo=False).update(va_al_tubo=True)
             nuevos = {
                 'estado': compromiso.get_estado_display(),
                 'responsable': str(compromiso.responsable),

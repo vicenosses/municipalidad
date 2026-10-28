@@ -27,7 +27,7 @@
                 <td>{{ periodo.nombre }}</td>
                 <td class="text-nowrap">{{ periodo.fecha_inicio|date:"d/m/Y" }}</td>
                 <td class="text-nowrap">{{ periodo.fecha_fin|date:"d/m/Y" }}</td>
-                <td>{% if periodo.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+                <td>{% if periodo.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-danger">Inactivo</span>{% endif %}</td>
                 <td>{{ periodo.creado_por|default:"Sistema / usuario no disponible" }}</td>
                 <td>
                     <a href="{{ periodo.get_absolute_url }}" class="btn btn-sm btn-outline-secondary">Ver</a>

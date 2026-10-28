@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Cargo | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">{% if object %}Editar cargo{% else %}Nuevo cargo de funcionario{% endif %}</h2>
+<form method="post" class="card shadow-sm">{% csrf_token %}<div class="card-body">{% include 'includes/form_campos.html' %}<button class="btn btn-custom-red" type="submit">Guardar</button> <a class="btn btn-outline-secondary" href="{% url 'usuarios:cargo_lista' %}">Cancelar</a></div></form>
+{% endblock %}

@@ -311,6 +311,55 @@ class CatalogoScopePermissionTests(TestCase):
             delegacion=delegacion,
         )
 
+    def test_listados_ordenan_activos_recientes_y_desactivados_al_final(self):
+        self.iniciar_sesion(self.users['administrador'])
+        antiguo = self.crear_categoria('ORD-ANT')
+        reciente = self.crear_categoria('ORD-REC')
+        inactivo = self.crear_categoria('ORD-INACT')
+        inactivo.activo = False
+        inactivo.save()
+        respuesta = self.client.get(reverse('catalogos:tipo_lista'))
+        self.assertEqual(list(respuesta.context['tipos']), [reciente, antiguo, inactivo])
+        sub_antigua = self.crear_subcategoria('SUB-ANT', antiguo)
+        sub_reciente = self.crear_subcategoria('SUB-REC', antiguo)
+        sub_inactiva = self.crear_subcategoria('SUB-INACT', antiguo)
+        sub_inactiva.activo = False
+        sub_inactiva.save()
+        respuesta = self.client.get(reverse('catalogos:sub_lista'))
+        self.assertEqual(list(respuesta.context['subs']), [sub_reciente, sub_antigua, sub_inactiva])
+
+    def test_botones_de_estado_activan_y_desactivan_tipo(self):
+        self.iniciar_sesion(self.users['administrador'])
+        tipo = self.crear_categoria('ESTADO-TEST')
+        url = reverse('catalogos:tipo_desactivar', args=[tipo.pk])
+        self.assertContains(self.client.get(reverse('catalogos:tipo_lista')), 'Desactivar')
+        self.client.post(url, {'activo': 'false'})
+        tipo.refresh_from_db()
+        self.assertFalse(tipo.activo)
+        self.assertContains(self.client.get(reverse('catalogos:tipo_lista')), 'Activar')
+        self.client.post(url, {'activo': 'true'})
+        tipo.refresh_from_db()
+        self.assertTrue(tipo.activo)
+
+    def test_opcion_todas_las_delegaciones_crea_catalogos_generales(self):
+        self.iniciar_sesion(self.users['administrador'])
+        respuesta = self.client.get(reverse('catalogos:tipo_crear'))
+        self.assertContains(respuesta, 'Todas las delegaciones (global)')
+        respuesta = self.client.post(reverse('catalogos:tipo_crear'), {
+            'codigo': 'GLOBAL-OPCION', 'nombre': 'Tipo global', 'delegacion': '', 'activo': 'on',
+        })
+        self.assertEqual(respuesta.status_code, 302)
+        tipo = TipoAtencion.objects.get(codigo='GLOBAL-OPCION')
+        self.assertTrue(tipo.es_general)
+        self.assertIsNone(tipo.delegacion_id)
+        respuesta = self.client.post(reverse('catalogos:sub_crear'), {
+            'nombre': 'Sub global', 'tipo': tipo.pk, 'delegacion': '',
+        })
+        self.assertEqual(respuesta.status_code, 302)
+        sub = SubAtencion.objects.get(nombre='Sub global')
+        self.assertTrue(sub.es_general)
+        self.assertIsNone(sub.delegacion_id)
+
     def test_administrador_crea_categoria_general_y_de_cualquier_delegacion(self):
         self.iniciar_sesion(self.users['administrador'])
 

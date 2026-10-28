@@ -12,6 +12,7 @@
     <div class="d-flex gap-2">
         {% if puede_editar %}<a href="{% url 'agenda:editar' compromiso.pk %}" class="btn btn-outline-secondary">Editar / actualizar estado</a>{% endif %}
         {% if puede_subir_evidencia %}<a href="{% url 'evidencias:agenda_crear' compromiso.pk %}" class="btn btn-custom-red">Adjuntar evidencia</a>{% endif %}
+        {% if puede_solicitar_ampliacion %}<button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#solicitarAmpliacion">Solicitar ampliación</button>{% endif %}
         <a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Volver</a>
     </div>
 </div>
@@ -44,7 +45,7 @@
                     <div class="small text-muted">
                         {{ actividad.fecha|date:"d/m/Y" }} · {{ actividad.get_estado_display }} ·
                         Va al tubo: {% if actividad.va_al_tubo %}Sí{% else %}No{% endif %} ·
-                        {% if actividad.activo %}Habilitada{% else %}Deshabilitada{% endif %}
+                        <span class="badge {% if actividad.activo %}bg-success{% else %}bg-danger{% endif %}">{% if actividad.activo %}Habilitada{% else %}Deshabilitada{% endif %}</span>
                     </div>
                     <p class="mb-0 mt-1">{{ actividad.descripcion }}</p>
                 </div>
@@ -87,4 +88,18 @@
         </section>
     </div>
 </div>
+{% if puede_solicitar_ampliacion %}
+<div class="modal fade" id="solicitarAmpliacion" tabindex="-1" aria-labelledby="tituloAmpliacion" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <form method="post" action="{% url 'agenda:solicitar_ampliacion' compromiso.pk %}">{% csrf_token %}
+      <div class="modal-header"><h2 class="modal-title h5" id="tituloAmpliacion">Solicitar ampliación de plazo</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body"><p>Plazo actual: <strong>{{ compromiso.fecha_hora|date:"d/m/Y H:i" }}</strong></p>{% with form=form_ampliacion %}{% include 'includes/form_campos.html' %}{% endwith %}</div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-custom-red">Enviar solicitud</button></div>
+    </form>
+  </div></div>
+</div>
+{% endif %}
+<section class="card shadow-sm mt-4"><div class="card-header bg-white fw-semibold">Solicitudes de ampliación</div><div class="list-group list-group-flush">
+{% for solicitud in solicitudes_ampliacion %}<div class="list-group-item"><strong>{{ solicitud.get_estado_display }}</strong> · {{ solicitud.plazo_anterior|date:'d/m/Y H:i' }} → {{ solicitud.plazo_propuesto|date:'d/m/Y H:i' }}<br>Motivo: {{ solicitud.motivo }}<br><small>Solicitada por {{ solicitud.solicitante }} · {{ solicitud.creado|date:'d/m/Y H:i' }}{% if solicitud.decidido_por %} · Resuelta por {{ solicitud.decidido_por }} el {{ solicitud.fecha_decision|date:'d/m/Y H:i' }}{% endif %}</small></div>{% empty %}<div class="list-group-item text-muted">No hay solicitudes de ampliación.</div>{% endfor %}
+</div></section>
 {% endblock %}

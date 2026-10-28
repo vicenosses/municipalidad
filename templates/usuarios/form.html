@@ -11,3 +11,20 @@
     </div>
 </form>
 {% endblock %}
+{% block extra_js %}
+<script>
+  const rolUsuario = document.getElementById('id_rol');
+  const cargoUsuario = document.getElementById('id_cargo');
+  const rolesFuncionario = [{% for rol in form.fields.rol.queryset %}{% if rol.codigo == 'funcionario' %}'{{ rol.pk }}',{% endif %}{% endfor %}];
+  if (rolUsuario && cargoUsuario) {
+    const grupoCargo = cargoUsuario.closest('.mb-3');
+    function mostrarCargo() {
+      const disponible = rolesFuncionario.includes(rolUsuario.value);
+      grupoCargo.hidden = !disponible;
+      if (!disponible) cargoUsuario.value = '';
+    }
+    rolUsuario.addEventListener('change', mostrarCargo);
+    mostrarCargo();
+  }
+</script>
+{% endblock %}

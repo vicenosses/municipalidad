@@ -32,7 +32,7 @@ class PeriodoListView(PeriodoConsultaMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = Periodo.objects.select_related('creado_por')
+        qs = Periodo.objects.select_related('creado_por').order_by('-activo', '-fecha_inicio', '-pk')
         self.filtro = PeriodoFiltroForm(self.request.GET or None)
         if not self.filtro.is_bound:
             return qs
@@ -64,7 +64,7 @@ class PeriodoDetailView(PeriodoConsultaMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['metas'] = metas_visibles(self.request).filter(periodo=self.object)
+        context['metas'] = metas_visibles(self.request).filter(periodo=self.object).order_by('-activo', 'nombre', 'pk')
         context['puede_crear_meta'] = self.object.activo and puede_crear_meta(self.request)
         context['puede_estado_meta'] = obtener_rol(self.request.user) in ROLES_ESTADO_META
         return context
@@ -152,7 +152,7 @@ class MetaListView(MetaConsultaMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().order_by('-activo', '-periodo__fecha_inicio', 'nombre', 'pk')
         self.filtro = MetaFiltroForm(self.request.GET or None, request=self.request)
         if not self.filtro.is_bound:
             return qs
@@ -185,7 +185,7 @@ class MetaDetailView(MetaConsultaMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['resultado_meta'] = calcular_resultado_meta(self.object)
-        context['indicadores'] = [fila.indicador for fila in context['resultado_meta'].indicadores]
+        context['indicadores'] = sorted((fila.indicador for fila in context['resultado_meta'].indicadores), key=lambda indicador: not indicador.activo)
         context['puede_crear_indicador'] = (
             self.object.activo and self.object.periodo.activo and puede_crear_meta(self.request)
         )

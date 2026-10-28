@@ -38,7 +38,7 @@ class IndicadorListView(IndicadorConsultaMixin, ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().order_by('-activo', '-meta__periodo__fecha_inicio', 'nombre', 'pk')
         self.filtro = IndicadorFiltroForm(self.request.GET or None, request=self.request)
         if not self.filtro.is_bound:
             return qs

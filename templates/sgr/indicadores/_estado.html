@@ -1,5 +1,5 @@
 <form method="post" action="{% url 'sgr:indicador_estado' indicador.pk %}" class="d-inline">
     {% csrf_token %}
     <input type="hidden" name="activo" value="{% if indicador.activo %}false{% else %}true{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-warning">{% if indicador.activo %}Desactivar{% else %}Activar{% endif %}</button>
+    <button type="submit" class="btn btn-sm {% if indicador.activo %}btn-danger{% else %}btn-success{% endif %}">{% if indicador.activo %}Desactivar{% else %}Activar{% endif %}</button>
 </form>

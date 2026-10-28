@@ -46,9 +46,7 @@
                     {% else %}
                     <span class="badge bg-secondary">No va al tubo</span>
                     {% endif %}
-                    {% if not atencion.activo %}
-                    <span class="badge bg-dark">Deshabilitada</span>
-                    {% endif %}
+                    <span class="badge {% if atencion.activo %}bg-success{% else %}bg-danger{% endif %}">{% if atencion.activo %}Habilitada{% else %}Deshabilitada{% endif %}</span>
                 </td>
                 <td>{{ atencion.solicitante }}</td>
                 <td>
@@ -74,8 +72,8 @@
                         {{ atencion.etiqueta_estado_evidencias }}
                     </span>
                 </td>
-                <td class="text-end">
-                    <div class="d-flex justify-content-end align-items-center gap-2">
+                <td class="text-end text-nowrap">
+                    <div class="d-flex flex-nowrap justify-content-end align-items-center gap-2">
                         <a href="{% url 'atenciones:detalle' atencion.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                         <div class="dropdown">
                             <button class="btn btn-sm btn-custom-red dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -87,8 +85,8 @@
                             <form method="post" action="{% url 'atenciones:cambiar_disponibilidad' atencion.pk %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="activo" value="{% if atencion.activo %}false{% else %}true{% endif %}">
-                                <button type="submit" class="dropdown-item">
-                                    {% if atencion.activo %}Deshabilitar{% else %}Habilitar{% endif %}
+                                <button type="submit" class="dropdown-item {% if atencion.activo %}text-danger{% else %}text-success{% endif %}">
+                                    {% if atencion.activo %}Desactivar{% else %}Activar{% endif %}
                                 </button>
                             </form>
                         </li>

@@ -123,7 +123,7 @@ class AtencionListView(FiltroExportMixin, LoginRequiredMixin, ListView):
             valor = self.filtro_va_al_tubo.cleaned_data['va_al_tubo']
             if valor in ('true', 'false'):
                 queryset = queryset.filter(va_al_tubo=(valor == 'true'))
-        return queryset
+        return queryset.order_by('-activo', '-fecha_registro', '-pk')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -286,6 +286,12 @@ class AtencionVaAlTuboView(RolRequiredMixin, View):
 
         valor_anterior = atencion.va_al_tubo
         valor_nuevo = form.cleaned_data['va_al_tubo'] == 'true'
+        if valor_nuevo and not atencion.compromisos.exists():
+            messages.info(request, 'Para ingresar al tubo, cree un compromiso con plazo obligatorio.')
+            return redirect('atenciones:agregar_a_agenda', actividad_pk=atencion.pk)
+        if not valor_nuevo and atencion.compromisos.exists():
+            messages.error(request, 'Esta actividad tiene compromisos asociados y debe permanecer en el tubo.')
+            return redirect('atenciones:detalle', pk=atencion.pk)
         if valor_anterior != valor_nuevo:
             atencion.va_al_tubo = valor_nuevo
             atencion.save(update_fields=['va_al_tubo'])
@@ -332,6 +338,16 @@ class AtencionCreateView(RolRequiredMixin, CreateView):
             with transaction.atomic():
                 response = super().form_valid(form)
                 registrar_creacion_actividad(form.instance, self.request.user)
+                if form.cleaned_data.get('va_al_tubo'):
+                    from agenda.models import Compromiso, HistorialCompromiso
+                    compromiso = Compromiso.objects.create(
+                        titulo=form.instance.titulo, descripcion=form.instance.descripcion,
+                        solicitante=form.instance.solicitante, fecha_hora=form.cleaned_data['plazo_tubo'],
+                        responsable=self.request.user, creado_por=self.request.user, delegacion=delegacion,
+                    )
+                    compromiso.actividades.add(form.instance)
+                    HistorialCompromiso.objects.create(compromiso=compromiso, campo='creacion',
+                        valor_nuevo=compromiso.get_estado_display(), realizado_por=self.request.user)
                 registrar_auditoria(self.request, 'crear', form.instance,
                                     f'Atención ciudadana de {form.instance.solicitante}')
                 if form.cleaned_data.get('indicador'):

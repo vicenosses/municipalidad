@@ -5,7 +5,7 @@
             {% for meta in metas %}
             <tr>
                 <td>{{ meta.nombre }}</td><td>{{ meta.periodo }}</td><td>{{ meta.delegacion }}</td>
-                <td>{% if meta.activo %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-secondary">Inactiva</span>{% endif %}</td>
+                <td>{% if meta.activo %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-danger">Inactiva</span>{% endif %}</td>
                 <td>{{ meta.creado_por|default:"Sistema / usuario no disponible" }}</td>
                 <td>
                     <a href="{{ meta.get_absolute_url }}" class="btn btn-sm btn-outline-secondary">Ver</a>

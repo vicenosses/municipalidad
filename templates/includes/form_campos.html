@@ -12,6 +12,21 @@
     <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
     {{ field }}
     {% endif %}
+    {% if field.name == 'password1' or field.name == 'new_password1' %}
+    <div class="form-text" id="{{ field.id_for_label }}_helptext">
+        La contraseña debe cumplir estos requisitos:
+        <ul class="mb-0">
+            <li>Tener al menos 8 caracteres.</li>
+            <li>Incluir al menos una letra mayúscula.</li>
+            <li>Incluir al menos un número.</li>
+            <li>Incluir al menos un carácter especial, como !, @ o #.</li>
+            <li>No parecerse a tu nombre, usuario u otros datos personales.</li>
+            <li>No ser una contraseña común.</li>
+        </ul>
+    </div>
+    {% else %}
+    {% if field.help_text %}<div class="form-text" id="{{ field.id_for_label }}_helptext">{{ field.help_text }}</div>{% endif %}
+    {% endif %}
     {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
 </div>
 {% endfor %}

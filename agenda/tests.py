@@ -921,7 +921,7 @@ class CompromisoDesdeActividadTests(TestCase):
             datos,
         )
 
-    def test_todos_los_roles_agenda_crean_y_origen_se_asocia_sin_alterar_actividad(self):
+    def test_todos_los_roles_agenda_crean_y_origen_ingresa_al_tubo(self):
         for rol, user in self.users.items():
             with self.subTest(rol=rol):
                 actividad = self.actividad_b if rol == 'administrador' else self.actividad_a
@@ -942,7 +942,7 @@ class CompromisoDesdeActividadTests(TestCase):
                 actividad.refresh_from_db()
                 self.assertEqual(actividad.estado, AtencionCiudadana.Estado.REGISTRADA)
                 self.assertTrue(actividad.activo)
-                self.assertFalse(actividad.va_al_tubo)
+                self.assertTrue(actividad.va_al_tubo)
                 self.assertEqual(
                     actividad.creado_por,
                     self.responsable_b if rol == 'administrador' else self.users['funcionario'],

@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Detalle de cargo | SGR{% endblock %}
+{% block content %}
+<h2 class="h4 fw-bold mb-4">{{ object.nombre }}</h2>
+<div class="card shadow-sm"><div class="card-body">
+<p><strong>Descripción:</strong> {{ object.descripcion|default:'—'|linebreaksbr }}</p>
+<p><strong>Alcance:</strong> {{ object.get_alcance_display }}</p>
+<p class="mb-0"><strong>Estado:</strong> <span class="badge {% if object.activo %}bg-success{% else %}bg-danger{% endif %}">{% if object.activo %}Activo{% else %}Inactivo{% endif %}</span></p>
+</div></div>
+<a href="{% url 'usuarios:cargo_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a> <a href="{% url 'usuarios:cargo_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
+{% endblock %}

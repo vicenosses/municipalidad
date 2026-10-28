@@ -91,6 +91,20 @@ def permisos_por_codigo(codigo):
     }
 
 
+class Cargo(models.Model):
+    nombre = models.CharField('Nombre', max_length=120, unique=True)
+    descripcion = models.TextField('Descripción', blank=True)
+    alcance = models.CharField('Alcance', max_length=20, choices=Rol.Alcance.choices, default=Rol.Alcance.GLOBAL)
+    activo = models.BooleanField('Activo', default=True)
+
+    class Meta:
+        ordering = ['nombre']
+        verbose_name_plural = 'Cargos'
+
+    def __str__(self):
+        return self.nombre
+
+
 class Perfil(models.Model):
     """Extiende al usuario de Django con rol y delegaciones."""
 

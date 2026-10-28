@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Roles | SGR{% endblock %}
 {% block content %}
+<nav class="d-flex gap-2 mb-4" aria-label="Roles y cargos"><a class="btn btn-custom-red" aria-current="page" href="{% url 'usuarios:rol_lista' %}">Roles</a><a class="btn btn-outline-secondary" href="{% url 'usuarios:cargo_lista' %}">Cargos</a></nav>
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="h4 fw-bold mb-0">Roles</h2>
     <a href="{% url 'usuarios:rol_crear' %}" class="btn btn-custom-red">Nuevo rol</a>
@@ -25,13 +26,14 @@
                 <td>{{ rol.nombre }}</td>
                 <td>{{ rol.descripcion|default:"—" }}</td>
                 <td>{{ rol.get_alcance_display }}</td>
-                <td>{{ rol.estado_display }}</td>
+                <td><span class="badge {% if rol.activo %}bg-success{% else %}bg-danger{% endif %}">{{ rol.estado_display }}</span></td>
                 <td class="text-end">
                     <a href="{% url 'usuarios:rol_detalle' rol.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:rol_editar' rol.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
-                    <form method="post" action="{% url 'usuarios:rol_desactivar' rol.pk %}" class="d-inline js-confirm" data-message="¿Desactivar este rol?">
+                    <form method="post" action="{% url 'usuarios:rol_desactivar' rol.pk %}" class="d-inline js-confirm" data-message="¿{% if rol.activo %}Desactivar{% else %}Activar{% endif %} este rol?">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger">Desactivar</button>
+                        <input type="hidden" name="activo" value="{% if rol.activo %}false{% else %}true{% endif %}">
+                        <button type="submit" class="btn btn-sm {% if rol.activo %}btn-danger{% else %}btn-success{% endif %}">{% if rol.activo %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
                 </td>
             </tr>

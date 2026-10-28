@@ -1,7 +1,7 @@
 <div class="table-responsive">
     <table class="table table-striped align-middle mb-0">
         <thead class="table-light"><tr><th>Indicador</th><th>Ponderación</th><th>Resultado</th><th>Objetivo</th><th>Cumplimiento</th><th>Resultado ponderado (pp)</th><th>Estado</th>{% if not solo_lectura %}<th>Acciones</th>{% endif %}</tr></thead>
-        <tbody>{% for fila in resultado_meta.indicadores %}{% with indicador=fila.indicador metrica=fila.metrica %}
+        <tbody>{% for fila in resultado_meta.indicadores|dictsortreversed:'indicador.activo' %}{% with indicador=fila.indicador metrica=fila.metrica %}
             <tr>
                 <td>{% if not solo_lectura or puede_ver_detalle %}<a href="{{ indicador.get_absolute_url }}">{{ indicador.nombre }}</a>{% else %}{{ indicador.nombre }}{% endif %}</td>
                 <td>{{ indicador.ponderacion_display }}</td>
@@ -9,7 +9,7 @@
                 <td>{{ indicador.objetivo_display }}</td>
                 <td>{% if metrica.cumplimiento.porcentaje != None %}{{ metrica.cumplimiento.porcentaje|floatformat:2 }}%{% elif metrica.cumplimiento.estado == 'sin_limite' %}Superior al objetivo (resultado 0), sin porcentaje numérico{% else %}Sin cumplimiento calculable{% endif %}</td>
                 <td>{% if fila.resultado_ponderado != None %}{{ fila.resultado_ponderado|floatformat:2 }} pp{% elif not indicador.activo %}Excluido: inactivo{% else %}Sin resultado ponderado calculable{% endif %}</td>
-                <td>{% if indicador.activo %}Activo{% else %}Inactivo{% endif %}</td>
+                <td><span class="badge {% if indicador.activo %}bg-success{% else %}bg-danger{% endif %}">{% if indicador.activo %}Activo{% else %}Inactivo{% endif %}</span></td>
                 {% if not solo_lectura %}<td>{% if indicador.meta.activo and indicador.meta.periodo.activo %}
                     <a href="{% url 'sgr:indicador_editar' indicador.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
                     {% if puede_estado_indicador %}{% include "sgr/indicadores/_estado.html" %}{% endif %}

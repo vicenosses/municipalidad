@@ -1,13 +1,34 @@
 from django import forms
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 
 from atenciones.models import AtencionCiudadana
-from agenda.models import Compromiso
+from agenda.models import Compromiso, SolicitudAmpliacion
 from usuarios.mixins import obtener_rol
 
 User = get_user_model()
 ROLES_GESTORES = ('administrador', 'delegado', 'coordinador')
+
+
+class SolicitudAmpliacionForm(forms.ModelForm):
+    class Meta:
+        model = SolicitudAmpliacion
+        fields = ['plazo_propuesto', 'motivo']
+        labels = {'plazo_propuesto': 'Nueva fecha y hora límite', 'motivo': 'Motivo de la solicitud'}
+        widgets = {'plazo_propuesto': forms.DateTimeInput(attrs={'type': 'datetime-local', 'class': 'form-control'}, format='%Y-%m-%dT%H:%M'),
+                   'motivo': forms.Textarea(attrs={'class': 'form-control', 'rows': 3})}
+
+    def __init__(self, *args, compromiso, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.compromiso = compromiso
+        self.fields['plazo_propuesto'].input_formats = ['%Y-%m-%dT%H:%M']
+
+    def clean_plazo_propuesto(self):
+        plazo = self.cleaned_data['plazo_propuesto']
+        if timezone.localtime(plazo).date() <= timezone.localtime(self.compromiso.fecha_hora).date():
+            raise forms.ValidationError('La nueva fecha debe ser posterior al plazo actual.')
+        return plazo
 
 
 class CompromisoForm(forms.ModelForm):
@@ -111,6 +132,9 @@ class CompromisoForm(forms.ModelForm):
             for field in tuple(self.fields):
                 if field != 'estado':
                     self.fields.pop(field)
+        if self.instance.pk and 'fecha_hora' in self.fields:
+            self.fields['fecha_hora'].disabled = True
+            self.fields['fecha_hora'].help_text = 'Para ampliar el plazo, presente una solicitud desde el detalle del compromiso.'
 
     def clean(self):
         cleaned_data = super().clean()

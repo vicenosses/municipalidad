@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserCreationForm
 from django.contrib.auth.models import User
 
-from usuarios.models import Delegacion, Perfil, Rol
+from usuarios.models import Cargo, Delegacion, Perfil, Rol
 
 
 class LoginUsuarioCorreoForm(AuthenticationForm):
@@ -185,7 +185,34 @@ class RolForm(forms.ModelForm):
         return instance
 
 
-class UsuarioMunicipalForm(UserCreationForm):
+class CargoForm(forms.ModelForm):
+    class Meta:
+        model = Cargo
+        fields = ['nombre', 'descripcion', 'alcance', 'activo']
+        widgets = {'nombre': forms.TextInput(attrs={'class': 'form-control'}),
+                   'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+                   'alcance': forms.Select(attrs={'class': 'form-select'}),
+                   'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'})}
+
+    def clean_nombre(self):
+        nombre = self.cleaned_data['nombre'].strip()
+        if not nombre:
+            raise forms.ValidationError('Ingrese un nombre.')
+        if Cargo.objects.filter(nombre__iexact=nombre).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('Ya existe un cargo con ese nombre.')
+        return nombre
+
+
+class CargoUsuarioMixin:
+    def clean(self):
+        data = super().clean()
+        rol, cargo = data.get('rol'), data.get('cargo')
+        if rol and rol.codigo != 'funcionario' and cargo:
+            self.add_error('cargo', 'Solo los funcionarios pueden tener un cargo asignado.')
+        return data
+
+
+class UsuarioMunicipalForm(CargoUsuarioMixin, UserCreationForm):
     first_name = forms.CharField(
         label='Nombre',
         required=True,
@@ -211,10 +238,11 @@ class UsuarioMunicipalForm(UserCreationForm):
         queryset=Delegacion.objects.filter(activa=True),
         widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': 5}),
     )
-    cargo = forms.CharField(
+    cargo = forms.ModelChoiceField(
         label='Cargo',
+        queryset=Cargo.objects.filter(activo=True),
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
     activo = forms.BooleanField(
         label='Activo',
@@ -251,7 +279,7 @@ class UsuarioMunicipalForm(UserCreationForm):
         user.save()
         perfil, _ = Perfil.objects.get_or_create(usuario=user)
         perfil.rol = self.cleaned_data['rol']
-        perfil.cargo = self.cleaned_data.get('cargo', '')
+        perfil.cargo = str(self.cleaned_data['cargo']) if self.cleaned_data.get('cargo') else ''
         perfil.activo = self.cleaned_data.get('activo', True)
         delegaciones = list(self.cleaned_data['delegaciones'])
         perfil.delegacion = delegaciones[0] if delegaciones else None
@@ -260,7 +288,7 @@ class UsuarioMunicipalForm(UserCreationForm):
         return user
 
 
-class UsuarioEditarForm(forms.ModelForm):
+class UsuarioEditarForm(CargoUsuarioMixin, forms.ModelForm):
     rol = forms.ModelChoiceField(
         label='Rol',
         queryset=Rol.objects.filter(activo=True),
@@ -271,10 +299,11 @@ class UsuarioEditarForm(forms.ModelForm):
         queryset=Delegacion.objects.filter(activa=True),
         widget=forms.SelectMultiple(attrs={'class': 'form-select', 'size': 5}),
     )
-    cargo = forms.CharField(
+    cargo = forms.ModelChoiceField(
         label='Cargo',
+        queryset=Cargo.objects.filter(activo=True),
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
     activo = forms.BooleanField(
         label='Activo',
@@ -304,7 +333,11 @@ class UsuarioEditarForm(forms.ModelForm):
         if perfil:
             self.fields['rol'].initial = perfil.rol_id
             self.fields['delegaciones'].initial = perfil.delegaciones.values_list('id', flat=True)
-            self.fields['cargo'].initial = perfil.cargo
+            cargo_actual = Cargo.objects.filter(nombre=perfil.cargo).first()
+            if cargo_actual:
+                self.fields['cargo'].queryset = Cargo.objects.filter(activo=True) | Cargo.objects.filter(pk=cargo_actual.pk)
+                if perfil.rol and perfil.rol.codigo == 'funcionario':
+                    self.fields['cargo'].initial = cargo_actual.pk
             self.fields['activo'].initial = perfil.activo and self.instance.is_active
 
     def clean_email(self):
@@ -320,7 +353,8 @@ class UsuarioEditarForm(forms.ModelForm):
         user.save()
         perfil, _ = Perfil.objects.get_or_create(usuario=user)
         perfil.rol = self.cleaned_data['rol']
-        perfil.cargo = self.cleaned_data.get('cargo', '')
+        if perfil.rol.codigo == 'funcionario':
+            perfil.cargo = str(self.cleaned_data['cargo']) if self.cleaned_data.get('cargo') else ''
         perfil.activo = activo
         delegaciones = list(self.cleaned_data['delegaciones'])
         ids = {d.pk for d in delegaciones}

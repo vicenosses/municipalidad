@@ -1,6 +1,5 @@
 <nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Gestión de Resultados">
-    <a href="{% url 'sgr:periodo_lista' %}" class="btn btn-outline-secondary">Períodos</a>
-    <a href="{% url 'sgr:meta_lista' %}" class="btn btn-outline-secondary">Metas</a>
-    <a href="{% url 'sgr:indicador_lista' %}" class="btn btn-outline-secondary">Indicadores</a>
-    {% if sesion_informes_sgr %}<a href="{% url 'sgr:informe' %}" class="btn btn-outline-secondary">Informes SGR</a>{% endif %}
+    <a href="{% url 'sgr:periodo_lista' %}" class="btn btn-outline-secondary" {% if 'periodo' in request.resolver_match.url_name %}aria-current="page"{% endif %}>Períodos</a>
+    <a href="{% url 'sgr:meta_lista' %}" class="btn btn-outline-secondary" {% if 'meta' in request.resolver_match.url_name %}aria-current="page"{% endif %}>Metas</a>
+    <a href="{% url 'sgr:indicador_lista' %}" class="btn btn-outline-secondary" {% if 'indicador' in request.resolver_match.url_name %}aria-current="page"{% endif %}>Indicadores</a>
 </nav>

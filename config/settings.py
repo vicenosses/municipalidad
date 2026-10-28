@@ -89,6 +89,9 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
+        'NAME': 'usuarios.validadores.ComplejidadContrasenaValidator',
+    },
+    {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
@@ -130,6 +133,7 @@ EVIDENCIA_MAX_BATCH_MB = int(os.getenv('EVIDENCIA_MAX_BATCH_MB', '250'))
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
+PASSWORD_RESET_TIMEOUT = 60 * 2
 LOGOUT_REDIRECT_URL = 'login'
 
 AUTHENTICATION_BACKENDS = [
@@ -151,7 +155,10 @@ EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587') or 587)
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'true').lower() in ('1', 'true', 'yes')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'SGR La Serena <no-reply@localhost>')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or (
+    f'Sistema de Gestión Municipal <{EMAIL_HOST_USER}>' if EMAIL_HOST_USER
+    else 'Sistema de Gestión Municipal <no-reply@localhost>'
+)
 
 MESSAGE_TAGS = {
     message_constants.ERROR: 'danger',

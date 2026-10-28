@@ -116,3 +116,24 @@ class HistorialCompromiso(models.Model):
 
     def __str__(self):
         return f'{self.compromiso}: {self.campo} ({self.creado:%Y-%m-%d %H:%M})'
+
+
+class SolicitudAmpliacion(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = 'pendiente', 'Pendiente'
+        APROBADA = 'aprobada', 'Aprobada'
+        RECHAZADA = 'rechazada', 'Rechazada'
+
+    compromiso = models.ForeignKey(Compromiso, on_delete=models.PROTECT, related_name='solicitudes_ampliacion')
+    solicitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='ampliaciones_solicitadas')
+    plazo_anterior = models.DateTimeField()
+    plazo_propuesto = models.DateTimeField()
+    motivo = models.TextField()
+    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.PENDIENTE)
+    creado = models.DateTimeField(auto_now_add=True)
+    decidido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name='ampliaciones_decididas')
+    fecha_decision = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-creado']
+        constraints = [models.UniqueConstraint(fields=['compromiso'], condition=models.Q(estado='pendiente'), name='una_ampliacion_pendiente_por_compromiso')]

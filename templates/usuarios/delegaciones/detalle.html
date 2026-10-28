@@ -7,7 +7,7 @@
         <p><strong>Código:</strong> {{ object.codigo }}</p>
         <p><strong>Dirección:</strong> {{ object.direccion|default:"—" }}</p>
         <p><strong>Comuna:</strong> {{ object.comuna|default:"—" }}</p>
-        <p class="mb-0"><strong>Estado:</strong> {{ object.estado_display }}</p>
+        <p class="mb-0"><strong>Estado:</strong> <span class="badge {% if object.activa %}bg-success{% else %}bg-danger{% endif %}">{{ object.estado_display }}</span></p>
     </div>
 </div>
 <a href="{% url 'usuarios:delegacion_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>

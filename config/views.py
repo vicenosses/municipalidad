@@ -41,7 +41,7 @@ class HomeView(LoginRequiredMixin, TemplateView):
                     | Q(compromiso__delegacion=delegacion)
                 )
         context['total_usuarios'] = usuarios.count()
-        context['dashboard'] = construir_dashboard(self.request, delegacion)
+        context['dashboard'] = construir_dashboard(self.request)
         context['total_actividades'] = actividades.count()
         context['evidencias_pendientes'] = evidencias.filter(
             estado=Evidencia.Estado.PENDIENTE

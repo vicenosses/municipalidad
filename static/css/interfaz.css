@@ -1,0 +1,26 @@
+/* Presentación compartida, manteniendo la paleta institucional y Bootstrap. */
+body { line-height: 1.55; }
+.navbar-custom .navbar-nav { gap: .15rem; }
+.navbar-custom .nav-link { border-radius: .35rem; padding-inline: .65rem; }
+.navbar-custom .nav-link:hover, .navbar-custom .nav-link:focus-visible { background: rgba(255,255,255,.16); }
+main { overflow-wrap: anywhere; }
+main h2, main h3 { line-height: 1.25; }
+.card { border-radius: .5rem; }
+.card-body { padding: 1.25rem; }
+.table-responsive { border-radius: .4rem; }
+.table th, .table td { padding: .75rem; }
+.table thead th { white-space: nowrap; }
+.form-label { font-weight: 600; margin-bottom: .35rem; }
+.form-control, .form-select { min-height: 2.5rem; }
+textarea.form-control { min-height: 6rem; }
+.btn { line-height: 1.4; }
+.btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #c92a2a; outline-offset: 2px; }
+.navbar-custom :focus-visible { outline-color: white; }
+nav .btn[aria-current="page"] { background-color: #6c757d; border-color: #6c757d; color: white; }
+.pagination { flex-wrap: wrap; gap: .2rem; }
+@media (max-width: 767.98px) {
+  main.container { margin-top: 1rem !important; }
+  main .d-flex.justify-content-between { flex-wrap: wrap; gap: .75rem; }
+  .table th, .table td { padding: .6rem; }
+  .navbar-custom .navbar-nav { padding-block: .5rem; }
+}

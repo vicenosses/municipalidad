@@ -6,7 +6,7 @@
     <div class="card-body">
         <p><strong>Código:</strong> {{ object.codigo }}</p>
         <p><strong>Descripción:</strong> {{ object.descripcion|default:"—" }}</p>
-        <p class="mb-0"><strong>Estado:</strong> {{ object.estado_display }}</p>
+        <p class="mb-0"><strong>Estado:</strong> <span class="badge {% if object.activo %}bg-success{% else %}bg-danger{% endif %}">{{ object.estado_display }}</span></p>
     </div>
 </div>
 <a href="{% url 'catalogos:item_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>

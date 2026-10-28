@@ -8,7 +8,7 @@
         <p><strong>Código:</strong> {{ object.codigo }}</p>
         <p><strong>Descripción:</strong> {{ object.descripcion|default:"—" }}</p>
         <p><strong>Alcance:</strong> {% if object.es_general %}General{% else %}{{ object.delegacion.nombre }}{% endif %}</p>
-        <p class="mb-0"><strong>Estado:</strong> {{ object.estado_display }}</p>
+        <p class="mb-0"><strong>Estado:</strong> <span class="badge {% if object.activo %}bg-success{% else %}bg-danger{% endif %}">{{ object.estado_display }}</span></p>
     </div>
 </div>
 {% if puede_editar %}<a href="{% url 'catalogos:tipo_editar' object.pk %}" class="btn btn-custom-red mt-3">Editar</a>{% endif %}

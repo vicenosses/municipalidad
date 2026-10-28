@@ -27,6 +27,14 @@
 {% endblock %}
 {% block extra_js %}
 <script>
+    const vaAlTubo = document.getElementById('id_va_al_tubo');
+    const plazoTubo = document.getElementById('id_plazo_tubo');
+    if (vaAlTubo && plazoTubo) {
+        const contenedorPlazo = plazoTubo.closest('.mb-3');
+        function actualizarPlazo() { contenedorPlazo.hidden = !vaAlTubo.checked; plazoTubo.required = vaAlTubo.checked; }
+        vaAlTubo.addEventListener('change', actualizarPlazo);
+        actualizarPlazo();
+    }
     const fechaActividad = document.getElementById('id_fecha');
     const indicadorActividad = document.getElementById('id_indicador');
     let consultaIndicadores = 0;
