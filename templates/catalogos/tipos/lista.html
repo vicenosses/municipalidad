@@ -43,6 +43,7 @@
                         <input type="hidden" name="activo" value="{% if tipo.activo %}false{% else %}true{% endif %}">
                         <button type="submit" class="btn btn-sm {% if tipo.activo %}btn-danger{% else %}btn-success{% endif %}">{% if tipo.activo %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
+                    {% include 'includes/eliminar_registro.html' with tipo_eliminar='tipo' objeto_eliminar=tipo %}
                     {% endif %}
                 </td>
             </tr>

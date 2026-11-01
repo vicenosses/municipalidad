@@ -4,6 +4,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
 from config.views import HomeView
+from config.eliminacion import EliminarRegistroView
 from evidencias.views import EvidenciaArchivoView
 from usuarios.auth_views import (
     LoginSGRView,
@@ -14,6 +15,7 @@ from usuarios.auth_views import (
 )
 
 urlpatterns = [
+    path('eliminar/<str:tipo>/<int:pk>/', EliminarRegistroView.as_view(), name='eliminar_registro'),
     path('admin/', admin.site.urls),
     path('login/', LoginSGRView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),

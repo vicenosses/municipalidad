@@ -9,7 +9,7 @@
         <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
     </div>
     {% else %}
-    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
     {{ field }}
     {% endif %}
     {% if field.name == 'password1' or field.name == 'new_password1' %}

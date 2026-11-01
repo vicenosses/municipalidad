@@ -1,11 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Ingreso de actividad | SGR{% endblock %}
+{% block extra_css %}
+<style>
+    .actividad-form-cabecera { border-left: 4px solid #c92a2a; padding-left: 1.15rem; }
+    .actividad-form-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .actividad-form-tarjeta { border: 1px solid #e9ecef; border-radius: .75rem; }
+    .actividad-form-seccion + .actividad-form-seccion { border-top: 1px solid #e9ecef; margin-top: 1.5rem; padding-top: 1.5rem; }
+    .actividad-form-contexto { background: #f8f9fa; border-radius: .6rem; padding: .25rem .75rem 1rem; }
+    .actividad-form-acciones { border-top: 1px solid #e9ecef; margin-top: 1.5rem; padding-top: 1.5rem; }
+</style>
+{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Registrar actividad</h2>
-<form method="post" class="card shadow-sm">
+<div class="actividad-form-cabecera mb-4">
+    <div class="actividad-form-etiqueta mb-1">Actividades</div>
+    <h2 class="h3 fw-bold mb-1">Registrar actividad</h2>
+    <p class="text-muted small mb-0">Completa los datos y, si corresponde, agrega un plazo para el tubo.</p>
+</div>
+<form method="post" class="card shadow-sm actividad-form-tarjeta">
     {% csrf_token %}
     <div class="card-body">
-        <div class="row g-3 mb-3">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        <section class="actividad-form-seccion" aria-labelledby="actividad-contexto">
+        <h3 id="actividad-contexto" class="h5 fw-bold mb-1">Contexto del registro</h3>
+        <p class="small text-muted">Estos datos se asignan según tu sesión.</p>
+        <div class="row g-3 mb-3 actividad-form-contexto">
             <div class="col-md-4">
                 <label class="form-label">Delegación activa</label>
                 <input type="text" class="form-control" value="{{ delegacion_activa|default:'Sin delegación activa' }}" readonly>
@@ -19,9 +37,26 @@
                 <input type="text" class="form-control" value="Se asigna al guardar" readonly>
             </div>
         </div>
-        {% include "includes/form_campos.html" %}
-        <button type="submit" class="btn btn-custom-red">Registrar</button>
-        <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+        </section>
+        <section class="actividad-form-seccion" aria-labelledby="actividad-datos">
+            <h3 id="actividad-datos" class="h5 fw-bold mb-1">Datos de la actividad</h3>
+            <p class="small text-muted">Describe la actividad y su clasificación. Los campos marcados con * son obligatorios.</p>
+            {% for field in form %}{% if field.name == 'titulo' or field.name == 'fecha' or field.name == 'solicitante' or field.name == 'tipo' or field.name == 'subatencion' or field.name == 'descripcion' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+        </section>
+        <section class="actividad-form-seccion" aria-labelledby="actividad-tubo">
+            <h3 id="actividad-tubo" class="h5 fw-bold mb-1">Seguimiento en el tubo</h3>
+            <p class="small text-muted">Si requiere seguimiento, indica la fecha y hora límite.</p>
+            {% for field in form %}{% if field.name == 'va_al_tubo' or field.name == 'plazo_tubo' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+        </section>
+        <section class="actividad-form-seccion" aria-labelledby="actividad-sgr">
+            <h3 id="actividad-sgr" class="h5 fw-bold mb-1">Vinculación con SGR</h3>
+            <p class="small text-muted">Puedes asociar la actividad a un indicador si corresponde.</p>
+            {% for field in form %}{% if field.name == 'indicador' or field.name == 'valor_declarado' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+        </section>
+        <div class="actividad-form-acciones d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-custom-red">Registrar</button>
+            <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
     </div>
 </form>
 {% endblock %}

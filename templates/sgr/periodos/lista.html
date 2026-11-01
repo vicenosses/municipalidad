@@ -34,6 +34,7 @@
                     {% if puede_administrar %}
                     <a href="{% url 'sgr:periodo_editar' periodo.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
                     {% include "sgr/periodos/_estado.html" %}
+                    {% include 'includes/eliminar_registro.html' with tipo_eliminar='periodo' objeto_eliminar=periodo %}
                     {% endif %}
                 </td>
             </tr>

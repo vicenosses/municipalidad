@@ -10,6 +10,7 @@
 <a href="{% url 'usuarios:cargo_detalle' cargo.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
 <a href="{% url 'usuarios:cargo_editar' cargo.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
 <form method="post" action="{% url 'usuarios:cargo_estado' cargo.pk %}" class="d-inline js-confirm" data-message="¿{% if cargo.activo %}Desactivar{% else %}Activar{% endif %} este cargo?">{% csrf_token %}<input type="hidden" name="activo" value="{% if cargo.activo %}false{% else %}true{% endif %}"><button type="submit" class="btn btn-sm {% if cargo.activo %}btn-danger{% else %}btn-success{% endif %}">{% if cargo.activo %}Desactivar{% else %}Activar{% endif %}</button></form>
+{% include 'includes/eliminar_registro.html' with tipo_eliminar='cargo' objeto_eliminar=cargo %}
 </td></tr>{% empty %}<tr><td colspan="5" class="text-muted text-center py-4">No hay cargos registrados.</td></tr>{% endfor %}</tbody></table></div>
 {% include 'includes/paginacion.html' %}
 {% endblock %}

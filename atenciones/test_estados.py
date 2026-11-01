@@ -92,6 +92,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
 
     def test_cierre_genera_un_solo_evento_adicional(self):
         actividad = self.crear()
+        Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.assertEqual(self.cambiar(actividad, 'en_proceso').status_code, 302)
         self.assertEqual(self.cambiar(actividad, 'cerrada').status_code, 302)
         self.assertEqual(actividad.historial_estados.count(), 3)
@@ -101,6 +102,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
 
     def test_cinco_eventos_con_reapertura_y_segundo_cierre_orden_determinista(self):
         actividad = self.crear()
+        Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         instante = timezone.now()
         with patch('atenciones.estados.timezone.now', return_value=instante):
             for estado, rol in (('en_proceso', 'funcionario'), ('cerrada', 'funcionario'),
@@ -115,6 +117,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
 
     def test_motivo_opcional_conservado_sin_obligarlo_en_reapertura(self):
         actividad = self.crear()
+        Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.cambiar(actividad, 'en_proceso', motivo='  Inicio territorial  ')
         self.assertEqual(actividad.historial_estados.first().motivo, 'Inicio territorial')
         self.cambiar(actividad, 'cerrada')
@@ -158,6 +161,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
 
     def test_reglas_de_propiedad_y_reapertura_operativa_no_cambian(self):
         actividad = self.crear()
+        Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.assertEqual(self.cambiar(actividad, 'en_proceso', 'verificador').status_code, 404)
         self.cambiar(actividad, 'en_proceso')
         self.cambiar(actividad, 'cerrada')
@@ -282,10 +286,10 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
 
     def test_reapertura_conserva_9d_y_avance_9e(self):
         actividad = self.crear(indicador=self.indicador_a.pk, valor_declarado='20')
-        self.cambiar(actividad, 'en_proceso')
-        self.cambiar(actividad, 'cerrada')
         Evidencia.objects.create(atencion=actividad, estado=Evidencia.Estado.APROBADA,
             subido_por=self.usuarios['funcionario'], archivo='historia.jpg')
+        self.cambiar(actividad, 'en_proceso')
+        self.cambiar(actividad, 'cerrada')
         aporte = AporteIndicador.objects.get(actividad=actividad)
         self.decidir(aporte)
         self.assertEqual(calcular_avance_indicador(self.indicador_a).puntos_ponderados, 1)

@@ -45,6 +45,13 @@ class RecuperacionEnlaceTests(TestCase):
         self.solicitar()
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_si_hay_mismo_correo_omite_cuenta_inactiva(self):
+        self.user.is_active = False
+        self.user.save(update_fields=['is_active'])
+        User.objects.create_user(username='otra_persona', email=self.user.email, password='OtraSegura123!')
+        self.solicitar()
+        self.assertEqual(len(mail.outbox), 1)
+
     def test_token_invalido(self):
         from django.utils.encoding import force_bytes
         from django.utils.http import urlsafe_base64_encode

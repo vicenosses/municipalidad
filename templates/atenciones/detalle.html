@@ -2,6 +2,7 @@
 {% block title %}Detalle actividad | SGR{% endblock %}
 {% block content %}
 <h2 class="h4 fw-bold mb-4">Actividad de {{ atencion.solicitante }}</h2>
+{% if cierre_bloqueado_evidencias %}<div class="alert alert-info" role="status">Para cerrar la actividad debe existir al menos una evidencia aprobada y no puede quedar ninguna evidencia rechazada sin un reemplazo aprobado.</div>{% endif %}
 {% include "sgr/aportes/_actividad.html" %}
 <div class="card shadow-sm">
     <div class="card-body">
@@ -134,6 +135,7 @@
                     <p class="fw-semibold mb-1">{{ evidencia.identificador }}</p>
                     <p class="small mb-1">{{ evidencia.get_tipo_archivo_display }} · {{ evidencia.fecha_subida }}</p>
                     <p class="small mb-1">Subida por {{ evidencia.subido_por.get_full_name|default:evidencia.subido_por.username }}</p>
+                    <p class="small mb-1"><a href="{% url 'evidencias:detalle' evidencia.pk %}">Ver detalle de evidencia</a></p>
                     <span class="badge {% if evidencia.estado == 'aprobada' %}bg-success{% elif evidencia.estado == 'rechazada' %}bg-danger{% else %}bg-secondary{% endif %}">
                         {{ evidencia.get_estado_display }}
                     </span>

@@ -12,6 +12,7 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, FormView, ListView
 
 from atenciones.models import AtencionCiudadana
+from atenciones.models import HistorialEstadoActividad
 from auditoria.utils import registrar_auditoria
 from agenda.models import Compromiso
 from evidencias.forms import (
@@ -120,7 +121,36 @@ class EvidenciaDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['puede_validar'] = puede_validar_evidencia(self.request, self.object)
+        context['puede_reemplazar'] = (self.object.atencion_id and self.object.estado == Evidencia.Estado.RECHAZADA and not hasattr(self.object, 'reemplazo') and puede_agregar_evidencia(self.request, self.object.atencion))
         return context
+
+
+class EvidenciaReemplazoView(LoginRequiredMixin, View):
+    def get_evidencia(self, request, pk):
+        evidencia = get_object_or_404(evidencias_visibles(request), pk=pk, estado=Evidencia.Estado.RECHAZADA, atencion__isnull=False)
+        if not puede_agregar_evidencia(request, evidencia.atencion) or hasattr(evidencia, 'reemplazo'):
+            raise Http404
+        return evidencia
+
+    def get(self, request, pk):
+        evidencia = self.get_evidencia(request, pk)
+        return render(request, 'evidencias/reemplazar.html', {'form': EvidenciaAtencionForm(), 'evidencia': evidencia})
+
+    @transaction.atomic
+    def post(self, request, pk):
+        evidencia = self.get_evidencia(request, pk)
+        form = EvidenciaAtencionForm(request.POST, request.FILES)
+        if form.is_valid():
+            archivos = form.cleaned_data['archivos']
+            if len(archivos) != 1:
+                form.add_error('archivos', 'Seleccione un archivo para reemplazar esta evidencia.')
+            else:
+                nueva = Evidencia.objects.create(atencion=evidencia.atencion, reemplaza=evidencia,
+                    descripcion=form.cleaned_data['descripcion'], subido_por=request.user, archivo=archivos[0])
+                registrar_auditoria(request, 'reemplazar', nueva, f'Reemplazo de evidencia {evidencia.identificador}')
+                messages.success(request, 'Evidencia de reemplazo enviada para validación.')
+                return redirect('atenciones:detalle', pk=evidencia.atencion_id)
+        return render(request, 'evidencias/reemplazar.html', {'form': form, 'evidencia': evidencia})
 
 
 class EvidenciaCreateView(RolRequiredMixin, CreateView):
@@ -326,6 +356,23 @@ class EvidenciaValidarView(RolRequiredMixin, View):
         if actualizadas != 1:
             messages.error(request, 'Esta evidencia ya fue validada.')
             return redirect('evidencias:lista')
+        if evidencia.atencion_id:
+            actividad = AtencionCiudadana.objects.select_for_update().get(pk=evidencia.atencion_id)
+            puede_cerrar = actividad.puede_cerrar_por_evidencias()
+            anterior = actividad.estado
+            if puede_cerrar and actividad.activo:
+                actividad.estado = AtencionCiudadana.Estado.CERRADA
+            elif evidencia.estado == Evidencia.Estado.RECHAZADA and actividad.activo:
+                actividad.estado = AtencionCiudadana.Estado.EN_PROCESO
+            if actividad.estado != anterior:
+                actividad.save(update_fields=['estado'])
+                HistorialEstadoActividad.objects.create(actividad=actividad, estado_anterior=anterior,
+                    estado_nuevo=actividad.estado, actor=request.user, fecha_hora=timezone.now(),
+                    motivo='Actualización automática por validación de evidencia')
+                if anterior == AtencionCiudadana.Estado.CERRADA:
+                    from sgr.aportes import reiniciar_por_reapertura
+                    reiniciar_por_reapertura(request, actividad)
+                registrar_auditoria(request, 'cambiar_estado', actividad, f'Estado actualizado por evidencia: {actividad.get_estado_display()}')
         registrar_auditoria(
             request,
             'validar',

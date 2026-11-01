@@ -46,6 +46,7 @@
                 <td>{{ perfil.delegaciones_display|default:"—" }}</td>
                 <td><span class="badge {% if perfil.activo %}bg-success{% else %}bg-danger{% endif %}">{{ perfil.estado_display }}</span></td>
                 <td class="text-end">
+                    {% if sesion_rol_codigo == 'administrador' %}
                     <a href="{% url 'usuarios:detalle' perfil.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
                     <form method="post" action="{% url 'usuarios:desactivar' perfil.pk %}" class="d-inline js-confirm" data-message="¿{% if perfil.activo %}Desactivar{% else %}Activar{% endif %} este usuario?">
@@ -53,6 +54,8 @@
                         <input type="hidden" name="activo" value="{% if perfil.activo %}false{% else %}true{% endif %}">
                         <button type="submit" class="btn btn-sm {% if perfil.activo %}btn-danger{% else %}btn-success{% endif %}">{% if perfil.activo %}Desactivar{% else %}Activar{% endif %}</button>
                     </form>
+                    {% include 'includes/eliminar_registro.html' with tipo_eliminar='usuario' objeto_eliminar=perfil.usuario %}
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}

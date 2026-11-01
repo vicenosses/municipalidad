@@ -11,4 +11,5 @@ urlpatterns = [
     path('atencion/<int:pk>/nueva/', views.EvidenciaAtencionCreateView.as_view(), name='atencion_crear'),
     path('agenda/<int:pk>/nueva/', views.EvidenciaCompromisoCreateView.as_view(), name='agenda_crear'),
     path('<int:pk>/validar/', views.EvidenciaValidarView.as_view(), name='validar'),
+    path('<int:pk>/reemplazar/', views.EvidenciaReemplazoView.as_view(), name='reemplazar'),
 ]

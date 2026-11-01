@@ -44,6 +44,7 @@
             {% if puede_validar %}
             <div class="card-footer bg-white"><a href="{% url 'evidencias:validar' evidencia.pk %}" class="btn btn-custom-red">Validar evidencia</a></div>
             {% endif %}
+            {% if puede_reemplazar %}<div class="card-footer bg-white"><a href="{% url 'evidencias:reemplazar' evidencia.pk %}" class="btn btn-custom-red">Reemplazar evidencia rechazada</a></div>{% endif %}
         </section>
     </div>
 </div>

@@ -10,6 +10,9 @@ ROLES_OPERATIVOS_ESTADO = ('funcionario', 'verificador')
 def puede_cambiar_estado(request, atencion, nuevo_estado):
     if not atencion.activo:
         return False
+    if nuevo_estado == AtencionCiudadana.Estado.CERRADA:
+        if not atencion.puede_cerrar_por_evidencias():
+            return False
     rol = obtener_rol(request.user)
     if rol not in (*ROLES_GESTORES_ESTADO, *ROLES_OPERATIVOS_ESTADO):
         return False

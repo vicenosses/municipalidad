@@ -248,6 +248,8 @@ class AtencionEstadoPermissionsTests(TestCase):
         )
 
     def afirmar_transicion(self, user, actividad, estado_nuevo):
+        if estado_nuevo == AtencionCiudadana.Estado.CERRADA and not actividad.evidencias.filter(estado='aprobada').exists():
+            Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.users['funcionario'], archivo='aprobada.jpg')
         respuesta = self.cambiar(user, actividad, estado_nuevo)
         self.assertEqual(respuesta.status_code, 302)
         actividad.refresh_from_db()
@@ -694,16 +696,15 @@ class AtencionDisponibilidadTests(TestCase):
             with self.subTest(rol=codigo):
                 self.iniciar_sesion(self.users[codigo])
                 response = self.client.get(reverse('atenciones:lista'))
-                self.assertNotContains(response, 'Deshabilitar')
-                self.assertNotContains(response, 'Habilitar')
+                self.assertNotContains(response, reverse('atenciones:cambiar_disponibilidad', args=[self.actividad.pk]))
 
         self.iniciar_sesion(self.users['delegado'])
         delegado = self.client.get(reverse('atenciones:lista'))
-        self.assertContains(delegado, 'Deshabilitar')
+        self.assertContains(delegado, reverse('atenciones:cambiar_disponibilidad', args=[self.actividad.pk]))
 
         self.iniciar_sesion(self.admin)
         administrador = self.client.get(reverse('atenciones:lista'))
-        self.assertContains(administrador, 'Deshabilitar')
+        self.assertContains(administrador, reverse('atenciones:cambiar_disponibilidad', args=[self.actividad.pk]))
 
     def test_auditoria_registra_deshabilitacion_y_rehabilitacion(self):
         user = self.users['delegado']

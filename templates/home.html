@@ -5,9 +5,13 @@
     .inicio-encabezado { border-left: 4px solid #c92a2a; padding: .25rem 0 .25rem 1.15rem; }
     .inicio-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .inicio-contexto { display: flex; flex-wrap: wrap; gap: .35rem 1.5rem; color: #6c757d; font-size: .9rem; }
-    .inicio-cifra { height: 100%; border: 1px solid #e9ecef !important; border-radius: .65rem; box-shadow: 0 .15rem .7rem rgba(0,0,0,.05); }
-    .inicio-cifra .card-body { padding: 1.35rem; }
-    .inicio-cifra .h3 { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .inicio-cifra { position: relative; height: 100%; overflow: hidden; border: 1px solid #e9ecef !important; border-radius: .75rem; box-shadow: 0 .2rem .8rem rgba(0,0,0,.05); }
+    .inicio-cifra::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: #c92a2a; }
+    .inicio-cifra .card-body { padding: 1.5rem; }
+    .inicio-cifra .h3 { font-size: 2.2rem; font-weight: 700; line-height: 1.1; letter-spacing: -.03em; }
+    .inicio-cifra .inicio-cifra-label { min-height: 2.5rem; font-weight: 600; }
+    .inicio-resumen { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .inicio-resumen .semaforo { font-size: .82rem; }
     .inicio-seccion { border-top: 1px solid #dee2e6; margin-top: 2.5rem !important; padding-top: 1.75rem; }
     .inicio-periodo { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: .65rem; padding: 1rem 1.25rem; }
     .inicio-tabla { border: 1px solid #dee2e6; border-radius: .65rem; }
@@ -36,7 +40,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small mb-1">Usuarios activos</p>
+                <p class="text-muted small inicio-cifra-label mb-2">Usuarios activos</p>
                 <p class="h3 text-institucional mb-0">{{ total_usuarios }}</p>
             </div>
         </div>
@@ -44,7 +48,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small mb-1">Actividades</p>
+                <p class="text-muted small inicio-cifra-label mb-2">Actividades</p>
                 <p class="h3 text-institucional mb-0">{{ total_actividades }}</p>
             </div>
         </div>
@@ -52,7 +56,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small mb-1">Evidencias pendientes</p>
+                <p class="text-muted small inicio-cifra-label mb-2">Evidencias pendientes</p>
                 <p class="h3 text-institucional mb-0">{{ evidencias_pendientes }}</p>
             </div>
         </div>
@@ -60,7 +64,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small mb-1">Compromisos próximos</p>
+                <p class="text-muted small inicio-cifra-label mb-2">Compromisos próximos</p>
                 <p class="h3 text-institucional mb-0">{{ compromisos_proximos }}</p>
             </div>
         </div>
@@ -87,10 +91,12 @@
         </div></div></div>
     </div>
     {% if dashboard.filas %}
-    <p class="small">
-        Verde: {{ dashboard.conteos.verde }} · Naranjo: {{ dashboard.conteos.naranjo }} ·
-        Rojo: {{ dashboard.conteos.rojo }} · Sin datos calculables: {{ dashboard.conteos.sin_datos }}
-    </p>
+    <div class="inicio-resumen mb-3" aria-label="Resumen del semáforo de metas">
+        <span class="semaforo semaforo-verde">Verde: {{ dashboard.conteos.verde }}</span>
+        <span class="semaforo semaforo-naranjo">Naranjo: {{ dashboard.conteos.naranjo }}</span>
+        <span class="semaforo semaforo-rojo">Rojo: {{ dashboard.conteos.rojo }}</span>
+        <span class="semaforo semaforo-sin_datos">Sin datos calculables: {{ dashboard.conteos.sin_datos }}</span>
+    </div>
     <div class="table-responsive inicio-tabla">
         <table class="table table-striped align-middle">
             <caption>Semáforo de metas del período vigente y contexto territorial indicado.</caption>

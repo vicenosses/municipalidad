@@ -67,7 +67,8 @@ class RecuperacionSolicitarView(View):
         if not form.is_valid():
             return render(request, 'recuperacion/solicitar.html', _ctx({'form': form}))
         email = form.cleaned_data['email']
-        user = User.objects.filter(email__iexact=email).exclude(email='').first()
+        user = next((usuario for usuario in User.objects.filter(email__iexact=email).exclude(email='').order_by('pk')
+                     if _usuario_puede_recuperar(usuario) and usuario.has_usable_password()), None)
         if _usuario_puede_recuperar(user) and user.has_usable_password():
             enlace = request.build_absolute_uri(reverse('recuperacion_enlace', kwargs={
                 'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),

@@ -13,6 +13,7 @@
                     <a href="{% url 'sgr:meta_editar' meta.pk %}" class="btn btn-sm btn-outline-primary">Editar</a>
                     {% if puede_estado_meta %}{% include "sgr/metas/_estado.html" %}{% endif %}
                     {% endif %}
+                    {% include 'includes/eliminar_registro.html' with tipo_eliminar='meta' objeto_eliminar=meta %}
                 </td>
             </tr>
             {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No hay Metas para mostrar.</td></tr>{% endfor %}

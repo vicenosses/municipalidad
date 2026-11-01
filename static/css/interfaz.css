@@ -5,12 +5,21 @@ body { line-height: 1.55; }
 .navbar-custom .nav-link:hover, .navbar-custom .nav-link:focus-visible { background: rgba(255,255,255,.16); }
 main { overflow-wrap: anywhere; }
 main h2, main h3 { line-height: 1.25; }
-.card { border-radius: .5rem; }
-.card-body { padding: 1.25rem; }
-.table-responsive { border-radius: .4rem; }
+main h2:not(.modal-title) { border-left: 4px solid #c92a2a; padding-left: 1rem; font-weight: 700; }
+main .inicio-encabezado h2, main .actividades-cabecera h2, main .actividad-form-cabecera h2 { border-left: 0; padding-left: 0; }
+main .card { border-radius: .75rem; border-color: #e9ecef; }
+main .card-body { padding: 1.4rem; }
+main .card-header { padding: .9rem 1.4rem; }
+main .card-footer { padding: .9rem 1.4rem; }
+.table-responsive { border-radius: .65rem; }
 .table th, .table td { padding: .75rem; }
 .table thead th { white-space: nowrap; }
 .form-label { font-weight: 600; margin-bottom: .35rem; }
+.form-text { line-height: 1.5; }
+.barra-listado { background: #fff; border: 1px solid #e9ecef; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075); }
+.barra-listado > p:last-child { margin-bottom: 0; }
+.barra-listado .d-flex { flex-wrap: wrap; }
+.actividades-filtros .barra-listado { padding: 0; margin-bottom: 1rem; border: 0; box-shadow: none; }
 .form-control, .form-select { min-height: 2.5rem; }
 textarea.form-control { min-height: 6rem; }
 .btn { line-height: 1.4; }
@@ -23,4 +32,7 @@ nav .btn[aria-current="page"] { background-color: #6c757d; border-color: #6c757d
   main .d-flex.justify-content-between { flex-wrap: wrap; gap: .75rem; }
   .table th, .table td { padding: .6rem; }
   .navbar-custom .navbar-nav { padding-block: .5rem; }
+  main .card-body { padding: 1rem; }
+  main .card-header, main .card-footer { padding: .8rem 1rem; }
+  .barra-listado { padding: 1rem; }
 }

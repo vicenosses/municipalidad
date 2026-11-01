@@ -1,0 +1,5 @@
+{% if sesion_rol_codigo == 'administrador' %}
+<form method="post" action="{% url 'eliminar_registro' tipo_eliminar objeto_eliminar.pk %}" class="d-inline js-confirm" data-message="¿Eliminar este registro permanentemente? Esta acción no se puede deshacer.">
+    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-outline-danger" type="submit">Eliminar</button>
+</form>
+{% endif %}

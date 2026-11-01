@@ -46,7 +46,7 @@ class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
     model = Perfil
     template_name = 'usuarios/lista.html'
     context_object_name = 'perfiles'
-    roles_permitidos = ('administrador',)
+    roles_permitidos = ('administrador', 'delegado')
     search_fields = (
         'usuario__username',
         'usuario__first_name',
@@ -69,6 +69,8 @@ class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = perfiles_en_contexto(self.request)
+        if obtener_rol(self.request.user) == 'delegado':
+            qs = qs.filter(rol__codigo__in=('coordinador', 'verificador', 'funcionario'))
         return self.filtrar_queryset(qs).distinct().annotate(
             orden_inactivo=Case(When(activo=True, usuario__is_active=True, then=Value(0)), default=Value(1), output_field=IntegerField())
         ).order_by('orden_inactivo', 'usuario__username', 'pk')
@@ -85,24 +87,29 @@ class UsuarioCreateView(RolRequiredMixin, CreateView):
     form_class = UsuarioMunicipalForm
     template_name = 'usuarios/form.html'
     success_url = reverse_lazy('usuarios:lista')
-    roles_permitidos = ('administrador',)
+    roles_permitidos = ('administrador', 'delegado')
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         delegacion = get_delegacion_activa(self.request)
+        if obtener_rol(self.request.user) == 'delegado':
+            form.fields['rol'].queryset = form.fields['rol'].queryset.filter(codigo__in=('coordinador', 'verificador', 'funcionario'))
+            if delegacion is None:
+                form.fields['delegaciones'].queryset = Delegacion.objects.none()
         if delegacion is not None:
             form.fields['delegaciones'].queryset = Delegacion.objects.filter(pk=delegacion.pk)
             form.fields['delegaciones'].initial = [delegacion.pk]
         return form
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        registrar_auditoria(
-            self.request,
-            'crear',
-            form.instance,
-            f'Alta de usuario {form.instance.username}',
-        )
+        with transaction.atomic():
+            response = super().form_valid(form)
+            registrar_auditoria(
+                self.request,
+                'crear',
+                form.instance,
+                f'Alta de usuario {form.instance.username}',
+            )
         messages.success(self.request, 'Usuario creado correctamente.')
         return response
 

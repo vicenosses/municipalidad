@@ -26,6 +26,9 @@ class Evidencia(models.Model):
         APROBADA = 'aprobada', 'Aprobada'
         RECHAZADA = 'rechazada', 'Rechazada'
 
+    reemplaza = models.OneToOneField('self', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reemplazo', verbose_name='Evidencia rechazada reemplazada')
+
     atencion = models.ForeignKey(
         AtencionCiudadana,
         on_delete=models.PROTECT,

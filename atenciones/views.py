@@ -186,6 +186,7 @@ class AtencionDetailView(LoginRequiredMixin, DetailView):
             self.request,
             atencion,
         )
+        context['cierre_bloqueado_evidencias'] = atencion.estado != AtencionCiudadana.Estado.CERRADA and not atencion.puede_cerrar_por_evidencias()
         context['puede_cambiar_disponibilidad'] = puede_cambiar_disponibilidad(
             self.request,
             atencion,

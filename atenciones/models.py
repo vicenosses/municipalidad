@@ -100,7 +100,9 @@ class AtencionCiudadana(models.Model):
 
     @property
     def estado_evidencias(self):
-        estados = {e.estado for e in self.evidencias.all()}
+        evidencias = list(self.evidencias.all())
+        reemplazadas = {e.reemplaza_id for e in evidencias if e.reemplaza_id}
+        estados = {e.estado for e in evidencias if e.pk not in reemplazadas}
         if not estados:
             return 'sin_evidencia'
         if 'rechazada' in estados:
@@ -108,6 +110,13 @@ class AtencionCiudadana(models.Model):
         if 'pendiente' in estados:
             return 'pendiente'
         return 'aprobada'
+
+    def puede_cerrar_por_evidencias(self):
+        evidencias = list(self.evidencias.all())
+        reemplazadas = {e.reemplaza_id for e in evidencias if e.reemplaza_id}
+        vigentes = [e for e in evidencias if e.pk not in reemplazadas]
+        return (any(e.estado == 'aprobada' for e in vigentes)
+                and not any(e.estado == 'rechazada' or (e.reemplaza_id and e.estado == 'pendiente') for e in vigentes))
 
     @property
     def etiqueta_estado_evidencias(self):
