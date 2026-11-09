@@ -43,6 +43,105 @@ class Delegacion(models.Model):
         return 'Activo' if self.activa else 'Inactivo'
 
 
+class Territorio(models.Model):
+    codigo = models.CharField('Código', max_length=30, unique=True, editable=False)
+    nombre = models.CharField('Nombre', max_length=150)
+    descripcion = models.TextField('Descripción o sector', blank=True)
+    delegacion = models.ForeignKey(Delegacion, on_delete=models.PROTECT, related_name='territorios')
+    activo = models.BooleanField('Activo', default=True)
+
+    class Meta:
+        ordering = ['-activo', 'nombre', 'pk']
+        constraints = [models.UniqueConstraint(fields=['delegacion', 'nombre'], name='territorio_nombre_delegacion_unico')]
+
+    def __str__(self):
+        return f'{self.codigo} — {self.nombre}'
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            def guardar(**sobrescrituras):
+                opciones = kwargs.copy()
+                opciones.update(sobrescrituras)
+                return super(Territorio, self).save(*args, **opciones)
+            return guardar_con_codigo_automatico(self, 'TER', guardar)
+        original = type(self).objects.filter(pk=self.pk).values_list('codigo', flat=True).first()
+        if original is not None:
+            self.codigo = original
+        return super().save(*args, **kwargs)
+
+
+class IntentosIngreso(models.Model):
+    identificador_hash = models.CharField(max_length=64, unique=True)
+    intentos = models.PositiveIntegerField(default=0)
+    bloqueado_hasta = models.DateTimeField(null=True, blank=True)
+    actualizado = models.DateTimeField(auto_now=True)
+
+
+class Vecino(models.Model):
+    rut = models.CharField('RUT', max_length=20, unique=True)
+    nombres = models.CharField('Nombres', max_length=150)
+    apellidos = models.CharField('Apellidos', max_length=150)
+    telefono = models.CharField('Teléfono', max_length=30, blank=True)
+    correo = models.EmailField('Correo', blank=True)
+    direccion = models.CharField('Dirección', max_length=200, blank=True)
+    territorio = models.ForeignKey(Territorio, on_delete=models.PROTECT, related_name='vecinos')
+    activo = models.BooleanField('Activo', default=True)
+
+    class Meta:
+        ordering = ['-activo', 'apellidos', 'nombres']
+
+    def __str__(self):
+        return f'{self.nombres} {self.apellidos}'
+
+
+class JuntaVecinos(models.Model):
+    codigo = models.CharField('Código', max_length=30, unique=True, editable=False)
+    nombre = models.CharField('Nombre', max_length=150)
+    direccion = models.CharField('Dirección', max_length=200, blank=True)
+    territorio = models.ForeignKey(Territorio, on_delete=models.PROTECT, related_name='juntas')
+    fecha_constitucion = models.DateField('Fecha de constitución', null=True, blank=True)
+    activo = models.BooleanField('Activa', default=True)
+
+    class Meta:
+        ordering = ['-activo', 'nombre']
+        constraints = [models.UniqueConstraint(fields=['territorio', 'nombre'], name='junta_nombre_territorio_unico')]
+
+    def __str__(self):
+        return self.nombre
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            def guardar(**sobrescrituras):
+                opciones = kwargs.copy()
+                opciones.update(sobrescrituras)
+                return super(JuntaVecinos, self).save(*args, **opciones)
+            return guardar_con_codigo_automatico(self, 'JUN', guardar)
+        original = type(self).objects.filter(pk=self.pk).values_list('codigo', flat=True).first()
+        if original is not None:
+            self.codigo = original
+        return super().save(*args, **kwargs)
+
+
+class ParticipacionJunta(models.Model):
+    vecino = models.ForeignKey(Vecino, on_delete=models.PROTECT, related_name='participaciones')
+    junta = models.ForeignKey(JuntaVecinos, on_delete=models.PROTECT, related_name='participaciones')
+    dirigente = models.BooleanField('Es dirigente', default=False)
+    cargo = models.CharField('Cargo', max_length=150, blank=True)
+    fecha_incorporacion = models.DateField('Fecha de incorporación', null=True, blank=True)
+    activo = models.BooleanField('Activa', default=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['vecino', 'junta'], name='participacion_vecino_junta_unica')]
+
+    def __str__(self):
+        return f'{self.vecino} — {self.junta}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.vecino_id and self.junta_id and self.vecino.territorio.delegacion_id != self.junta.territorio.delegacion_id:
+            raise ValidationError('El vecino y la junta deben pertenecer a la misma delegación.')
+
+
 class Rol(models.Model):
     """Rol institucional con permisos y alcance."""
 
@@ -114,6 +213,7 @@ class Perfil(models.Model):
         related_name='perfil',
         verbose_name='Usuario',
     )
+    rut = models.CharField('RUT', max_length=20, unique=True, null=True, blank=True)
     rol = models.ForeignKey(
         Rol,
         on_delete=models.PROTECT,
@@ -154,7 +254,13 @@ class Perfil(models.Model):
         return None
 
     @property
+    def pendiente_activacion(self):
+        return self.activo and not self.usuario.is_active and not self.usuario.has_usable_password()
+
+    @property
     def estado_display(self):
+        if self.pendiente_activacion:
+            return 'Pendiente de activación'
         return 'Activo' if self.activo and self.usuario.is_active else 'Inactivo'
 
     @property

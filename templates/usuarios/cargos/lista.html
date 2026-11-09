@@ -2,7 +2,7 @@
 {% block title %}Cargos | SGR{% endblock %}
 {% block content %}
 <nav class="d-flex gap-2 mb-4" aria-label="Roles y cargos"><a class="btn btn-outline-secondary" href="{% url 'usuarios:rol_lista' %}">Roles</a><a class="btn btn-custom-red" aria-current="page" href="{% url 'usuarios:cargo_lista' %}">Cargos</a></nav>
-<div class="d-flex justify-content-between align-items-center mb-4"><h2 class="h4 fw-bold mb-0">Cargos de funcionarios</h2><a class="btn btn-custom-red" href="{% url 'usuarios:cargo_crear' %}">Nuevo cargo</a></div>
+<div class="d-flex justify-content-between align-items-center mb-4"><div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Administración municipal</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='roles' %}Cargos de funcionarios</h2></div><a class="btn btn-custom-red" href="{% url 'usuarios:cargo_crear' %}">Nuevo cargo</a></div>
 {% include 'includes/toolbar_listado.html' %}
 <div class="table-responsive shadow-sm"><table class="table table-hover align-middle mb-0">
 <thead class="table-light"><tr><th scope="col">Cargo</th><th scope="col">Descripción</th><th scope="col">Alcance</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr></thead>

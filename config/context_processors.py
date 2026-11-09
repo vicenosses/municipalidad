@@ -8,7 +8,18 @@ def sesion_sgr(request):
         return {}
     rol = obtener_rol(request.user)
     delegacion = get_delegacion_activa(request)
+    from django.utils import timezone
+    from sgr.dashboard import obtener_periodo_vigente
+    hoy = timezone.localdate()
+    periodo, periodo_mensaje = obtener_periodo_vigente(hoy)
+    ruta = getattr(request, 'resolver_match', None)
     return {
+        'sesion_comunidad_activa': bool(ruta and ruta.namespace == 'usuarios' and ruta.url_name in (
+            'comunidad_lista', 'comunidad_crear', 'comunidad_editar', 'comunidad_detalle',
+        )),
+        'sesion_hoy': hoy,
+        'sesion_periodo': periodo,
+        'sesion_periodo_mensaje': periodo_mensaje,
         'sesion_delegacion': delegacion,
         'sesion_contexto': ('Global: todas las delegaciones' if rol == 'administrador' and delegacion is None
                            else delegacion),

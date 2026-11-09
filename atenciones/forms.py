@@ -1,9 +1,11 @@
 from django import forms
 from django.db.models import Q
 
+from agenda.validaciones import validar_y_formatear_rut
 from atenciones.models import AtencionCiudadana
 from catalogos.models import SubAtencion, TipoAtencion
 from usuarios.sesion import get_delegacion_activa
+from usuarios.models import Territorio
 from sgr.models import Indicador
 from sgr.aportes import indicadores_para_actividad
 from sgr.plazos import dentro_plazo
@@ -13,6 +15,10 @@ class AtencionCiudadanaForm(forms.ModelForm):
     plazo_tubo = forms.DateTimeField(label='Fecha y hora límite del tubo', required=False,
         widget=forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
         input_formats=['%Y-%m-%dT%H:%M'])
+    rut_tubo = forms.CharField(label='RUT del solicitante', max_length=20, required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}))
+    telefono_tubo = forms.CharField(label='Teléfono del solicitante', max_length=30, required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}))
     indicador = forms.ModelChoiceField(label='Indicador SGR (opcional)', queryset=Indicador.objects.none(),
                                        required=False, widget=forms.Select(attrs={'class': 'form-select'}),
                                        help_text='Puede registrar la Actividad sin Indicador. Las opciones dependen de la fecha y Delegación.')
@@ -25,6 +31,7 @@ class AtencionCiudadanaForm(forms.ModelForm):
             'titulo',
             'fecha',
             'solicitante',
+            'territorio',
             'tipo',
             'subatencion',
             'va_al_tubo',
@@ -34,6 +41,7 @@ class AtencionCiudadanaForm(forms.ModelForm):
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
+            'territorio': forms.Select(attrs={'class': 'form-select'}),
             'tipo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo'}),
             'subatencion': forms.Select(attrs={'class': 'form-select', 'id': 'id_subatencion'}),
             'va_al_tubo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
@@ -45,13 +53,16 @@ class AtencionCiudadanaForm(forms.ModelForm):
     def __init__(self, *args, request=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.delegacion_activa = get_delegacion_activa(request) if request else None
+        self.fields['territorio'].queryset = Territorio.objects.filter(
+            delegacion=self.delegacion_activa, activo=True) if self.delegacion_activa else Territorio.objects.none()
+        self.fields['territorio'].empty_label = 'Sin territorio registrado'
         fecha_texto = self.data.get(self.add_prefix('fecha')) if self.is_bound else self.initial.get('fecha')
         try:
             fecha = forms.DateField().clean(fecha_texto)
         except forms.ValidationError:
             fecha = None
-        self.fields['indicador'].queryset = indicadores_para_actividad(fecha, self.delegacion_activa)
-        self.fields['indicador'].error_messages['invalid_choice'] = 'No hay un Indicador válido para la fecha y Delegación seleccionadas.'
+        self.fields['indicador'].queryset = indicadores_para_actividad(fecha, self.delegacion_activa, request.user) if request else Indicador.objects.none()
+        self.fields['indicador'].error_messages['invalid_choice'] = 'Seleccione un indicador de una meta asignada para la fecha y delegación de la actividad.'
         tipos = TipoAtencion.objects.filter(activo=True)
         subatenciones = SubAtencion.objects.filter(
             activo=True,
@@ -80,6 +91,9 @@ class AtencionCiudadanaForm(forms.ModelForm):
                         delegacion_id=tipo.delegacion_id,
                     )
         self.fields['subatencion'].queryset = subatenciones
+
+    def clean_rut_tubo(self):
+        return validar_y_formatear_rut(self.cleaned_data['rut_tubo'])
 
     def clean(self):
         cleaned = super().clean()

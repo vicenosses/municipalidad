@@ -6,7 +6,7 @@
     <title>{% block title %}SGR - Municipalidad de La Serena{% endblock %}</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'css/interfaz.css' %}?v=2">
+    <link rel="stylesheet" href="{% static 'css/interfaz.css' %}?v=5">
     <style>
         body {
             background-color: #ffffff;
@@ -16,6 +16,29 @@
             min-height: 100vh;
         }
         .navbar-custom { background-color: #c92a2a; }
+        .panel-lateral .navbar-brand { white-space: normal; max-width: calc(100% - 4rem); }
+        .ubicacion-actual { display: flex; align-items: flex-start; font-size: .8rem; line-height: 1.35; }
+        .ubicacion-actual .icono-nav { margin-right: .4rem; margin-top: .05rem; }
+        .panel-lateral .nav-link { border-radius: .45rem; padding: .55rem .8rem; }
+        .icono-nav { width: 1.15rem; height: 1.15rem; margin-right: .65rem; vertical-align: -.2rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+        .panel-lateral .nav-link:hover, .panel-lateral .nav-link.actual {
+            background: rgba(255,255,255,.18);
+        }
+        .panel-lateral .dropdown-item.actual { font-weight: 700; color: #a61e1e; }
+        @media (min-width: 992px) {
+            body.con-panel-lateral { padding-left: 15.5rem; }
+            .panel-lateral.navbar {
+                position: fixed; inset: 0 auto 0 0; z-index: 1030;
+                width: 15.5rem; overflow-y: auto; align-items: flex-start;
+            }
+            .panel-lateral > .container-fluid { min-height: 100%; align-items: stretch; flex-direction: column; }
+            .panel-lateral .navbar-brand { max-width: none; margin: .5rem 0 1rem; padding: .6rem .35rem; border-bottom: 1px solid rgba(255,255,255,.3); white-space: normal; }
+            .panel-lateral .navbar-collapse { flex: 1; flex-direction: column; align-items: stretch; }
+            .panel-lateral .navbar-nav { flex-direction: column; width: 100%; gap: .15rem; }
+            .panel-lateral .navbar-nav.me-auto { margin-bottom: 1rem; }
+            .panel-lateral .dropdown-menu { position: static !important; margin: .2rem 0; width: 100%; box-shadow: none; }
+            .panel-lateral .navbar-text { display: block; padding: .5rem .8rem; }
+        }
         .footer-custom {
             background-color: #f8f9fa;
             border-top: 3px solid #c92a2a;
@@ -49,11 +72,13 @@
     </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm">
+<body{% if user.is_authenticated %} class="con-panel-lateral"{% endif %}>
+    {% if user.is_authenticated or request.resolver_match.url_name != 'login' %}
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm{% if user.is_authenticated %} panel-lateral{% endif %}" aria-label="Navegación principal">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{% url 'home' %}">
                 <span class="text-white">SGR</span> <small class="text-light fs-6">La Serena</small>
+                {% if user.is_authenticated %}<span class="ubicacion-actual fw-normal text-white mt-1">{% include 'includes/icono_nav.html' with icono='ubicacion' %}<span><span class="visually-hidden">Delegación activa: </span>{% if sesion_delegacion %}{{ sesion_delegacion.nombre }}{% elif sesion_rol_codigo == 'administrador' %}Todas las delegaciones{% else %}Sin delegación autorizada{% endif %}</span></span>{% endif %}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Mostrar navegación">
                 <span class="navbar-toggler-icon"></span>
@@ -61,92 +86,95 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'home' %}">Inicio</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'home' %}">{% include 'includes/icono_nav.html' with icono='inicio' %}Inicio</a></li>
                     {% if sesion_permisos.atenciones %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">Actividades</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">{% include 'includes/icono_nav.html' with icono='actividades' %}Actividades</a></li>
                     {% endif %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">Agenda</a></li>
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">Evidencias</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">{% include 'includes/icono_nav.html' with icono='agenda' %}Agenda</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">{% include 'includes/icono_nav.html' with icono='evidencias' %}Evidencias</a></li>
                     {% if sesion_permisos.usuarios or sesion_rol_codigo == 'delegado' %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">Usuarios</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">{% include 'includes/icono_nav.html' with icono='usuarios' %}Usuarios</a></li>
                     {% endif %}
                     {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:transferencias' %}">Transferencias</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:transferencias' %}">{% include 'includes/icono_nav.html' with icono='transferencias' %}Transferencias</a></li>
                     {% endif %}
                     {% if sesion_permisos.delegaciones %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">Delegaciones</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">{% include 'includes/icono_nav.html' with icono='delegaciones' %}Delegaciones</a></li>
+                    {% endif %}
+                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-white{% if sesion_comunidad_activa %} show{% endif %}" href="#" id="menuComunidad" role="button" data-bs-toggle="dropdown" aria-expanded="{% if sesion_comunidad_activa %}true{% else %}false{% endif %}">{% include 'includes/icono_nav.html' with icono='comunidad' %}Comunidad</a>
+                        <ul class="dropdown-menu{% if sesion_comunidad_activa %} show{% endif %}" aria-labelledby="menuComunidad">
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'vecinos' %}">Vecinos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'juntas' %}">Juntas de vecinos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'participaciones' %}">Participaciones</a></li>
+                        </ul>
+                    </li>
                     {% endif %}
                     {% if sesion_permisos.roles %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">Roles</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">{% include 'includes/icono_nav.html' with icono='roles' %}Roles</a></li>
                     {% endif %}
                     {% if sesion_catalogos %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:inicio' %}">Tipos de Atención</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:inicio' %}">{% include 'includes/icono_nav.html' with icono='tipos' %}Tipos de Atención</a></li>
                     {% endif %}
                     {% if sesion_auditoria %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">Auditoría</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">{% include 'includes/icono_nav.html' with icono='auditoria' %}Auditoría</a></li>
                     {% endif %}
                     {% if sesion_sgr_periodos %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:periodo_lista' %}">Prioridades y Metas</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:periodo_lista' %}">{% include 'includes/icono_nav.html' with icono='metas' %}Prioridades y Metas</a></li>
                     {% endif %}
                     {% if sesion_informes_sgr %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:informe' %}">Informes SGR</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:informe' %}">{% include 'includes/icono_nav.html' with icono='informes' %}Informes SGR</a></li>
                     {% endif %}
                     {% if sesion_validar_aportes %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:aportes_pendientes' %}">Validar aportes</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:aportes_pendientes' %}">{% include 'includes/icono_nav.html' with icono='validar' %}Validar aportes</a></li>
                     {% endif %}
                     {% endif %}
                 </ul>
+                {% if not user.is_authenticated %}
                 <ul class="navbar-nav">
-                    {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <span class="navbar-text text-white me-3">{{ user.get_full_name|default:user.username }}</span>
-                    </li>
-                    <li class="nav-item">
-                        <form method="post" action="{% url 'logout' %}">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-outline-light">Salir</button>
-                        </form>
-                    </li>
-                    {% else %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'login' %}">Ingresar</a></li>
-                    {% endif %}
                 </ul>
+                {% endif %}
             </div>
         </div>
     </nav>
+    {% endif %}
 
+    {% if user.is_authenticated %}
+    <div class="border-bottom bg-white py-2">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <span class="small text-muted">Usuario: <strong class="text-dark">{{ sesion_nombre }}</strong></span>
+                <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" class="btn btn-sm btn-custom-red">Cerrar sesión</button></form>
+                {% if sesion_selector_delegacion %}
+                <form method="post" action="{% url 'usuarios:delegacion_activa' %}" class="d-flex flex-wrap align-items-center gap-2">
+                    {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <label for="selector-contexto-territorial" class="small text-muted">Delegación</label>
+                    <select id="selector-contexto-territorial" name="delegacion_id" class="form-select form-select-sm w-auto">
+                        <option value="global" {% if not sesion_delegacion %}selected{% endif %}>Global: todas las delegaciones</option>
+                        {% for d in sesion_delegaciones %}<option value="{{ d.pk }}" {% if sesion_delegacion and sesion_delegacion.pk == d.pk %}selected{% endif %}>{{ d.nombre }}</option>{% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-custom-red">Aplicar contexto</button>
+                </form>
+                {% endif %}
+            </div>
+            <div class="small text-muted text-end">Trimestre vigente: <strong class="text-dark">{% if sesion_periodo %}{{ sesion_periodo.nombre }}{% else %}No disponible{% endif %}</strong>
+                <span class="d-block">Hoy: <strong class="text-dark">{{ sesion_hoy|date:'d/m/Y' }}</strong>{% if sesion_periodo %} · Termina: <strong class="text-danger">{{ sesion_periodo.fecha_fin|date:'d/m/Y' }}</strong>{% endif %}</span>
+                {% if not sesion_periodo and sesion_periodo_mensaje %}<span class="d-block">{{ sesion_periodo_mensaje }}</span>{% endif %}
+            </div>
+        </div>
+        {% if sesion_contexto_recuperado %}<p class="container small text-warning-emphasis mt-2 mb-0" role="status">La delegación seleccionada ya no está disponible. Se restableció el contexto global.</p>{% endif %}
+    </div>
+    {% endif %}
+    {% if not user.is_authenticated and request.resolver_match.url_name != 'login' %}
     <header class="bg-light py-3 border-bottom mb-4">
         <div class="container">
             <h1 class="h4 text-danger fw-bold mb-0">Sistema de Gestión de Resultados</h1>
             <p class="text-muted small mb-0">Ilustre Municipalidad de La Serena</p>
-            {% if user.is_authenticated %}
-            <p class="small mb-0 mt-2">
-                Contexto territorial: <strong>{{ sesion_contexto|default:"Sin delegación autorizada" }}</strong>
-                · Usuario: <strong>{{ sesion_nombre }}</strong>
-                · Rol: <strong>{{ sesion_rol }}</strong>
-            </p>
-            {% if sesion_contexto_recuperado %}<p class="small text-warning-emphasis mt-2" role="status">La delegación seleccionada ya no está disponible. Se restableció el contexto global.</p>{% endif %}
-            {% if sesion_selector_delegacion %}
-            <form method="post" action="{% url 'usuarios:delegacion_activa' %}" class="row g-2 align-items-center mt-2">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <div class="col-auto">
-                    <label for="selector-contexto-territorial" class="form-label small">Contexto de consulta</label>
-                    <select id="selector-contexto-territorial" name="delegacion_id" class="form-select form-select-sm">
-                        <option value="global" {% if not sesion_delegacion %}selected{% endif %}>Global: todas las delegaciones</option>
-                        {% for d in sesion_delegaciones %}
-                        <option value="{{ d.pk }}" {% if sesion_delegacion and sesion_delegacion.pk == d.pk %}selected{% endif %}>{{ d.nombre }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-sm btn-custom-red">Aplicar contexto</button>
-                </div>
-            </form>
-            {% endif %}
-            {% endif %}
         </div>
     </header>
+    {% endif %}
 
     <main class="container my-4">
         {% if messages and not usar_swal_mensajes %}
@@ -168,7 +196,27 @@
     </footer>
 
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-    {% if user.is_authenticated %}<script>window.addEventListener('pageshow', function (event) { if (event.persisted) window.location.reload(); });</script>{% endif %}
+    {% if sesion_comunidad_activa %}<script>
+        document.getElementById('menuComunidad').addEventListener('hide.bs.dropdown', function (evento) {
+            evento.preventDefault();
+        });
+    </script>{% endif %}
+    {% if user.is_authenticated %}<script>
+        (function () {
+            var ruta = window.location.pathname;
+            var mejor = null;
+            document.querySelectorAll('.panel-lateral a[href^="/"]').forEach(function (enlace) {
+                var destino = enlace.getAttribute('href');
+                if ((ruta === destino || (destino !== '/' && ruta.indexOf(destino) === 0)) &&
+                    (!mejor || destino.length > mejor.getAttribute('href').length)) mejor = enlace;
+            });
+            if (mejor) {
+                mejor.classList.add('actual');
+                mejor.setAttribute('aria-current', 'page');
+            }
+        })();
+    </script>{% endif %}
+    <script>window.addEventListener('pageshow', function (event) { if (event.persisted) window.location.reload(); });</script>
     <script src="{% static 'js/sweetalert2.min.js' %}"></script>
     <script>
         document.querySelectorAll('form.js-confirm').forEach(function (form) {

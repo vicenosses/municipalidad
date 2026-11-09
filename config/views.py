@@ -6,7 +6,9 @@ from django.views.generic import TemplateView
 from agenda.models import Compromiso
 from atenciones.models import AtencionCiudadana
 from evidencias.models import Evidencia
-from sgr.dashboard import construir_dashboard
+from sgr.dashboard import construir_dashboard, calcular_semaforo
+from sgr.asignaciones import calcular_resultado_asignacion
+from sgr.models import AsignacionMeta
 from usuarios.mixins import obtener_rol
 from usuarios.models import Perfil
 from usuarios.sesion import get_delegacion_activa
@@ -42,6 +44,20 @@ class HomeView(LoginRequiredMixin, TemplateView):
                 )
         context['total_usuarios'] = usuarios.count()
         context['dashboard'] = construir_dashboard(self.request)
+        context['metas_individuales'] = []
+        periodo = context['dashboard']['periodo']
+        if periodo and delegacion and obtener_rol(self.request.user) in ('funcionario', 'verificador'):
+            asignaciones = AsignacionMeta.objects.filter(
+                funcionario=self.request.user, activa=True, meta__activo=True,
+                meta__periodo=periodo, meta__delegacion=delegacion,
+            ).select_related('meta__periodo', 'funcionario')
+            for asignacion in asignaciones:
+                resultado = calcular_resultado_asignacion(asignacion)
+                context['metas_individuales'].append({
+                    'resultado': resultado,
+                    'semaforo': calcular_semaforo(resultado.cumplimiento_aplicable,
+                                                 context['dashboard']['esperado']),
+                })
         context['total_actividades'] = actividades.count()
         context['evidencias_pendientes'] = evidencias.filter(
             estado=Evidencia.Estado.PENDIENTE

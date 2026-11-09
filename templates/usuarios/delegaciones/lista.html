@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Delegaciones | SGR{% endblock %}
 {% block content %}
+<p><a href="{% url 'usuarios:territorio_lista' %}" class="btn btn-outline-secondary">Ver territorios</a></p>
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Delegaciones</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Administración municipal</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='delegaciones' %}Delegaciones</h2></div>
     <a href="{% url 'usuarios:delegacion_crear' %}" class="btn btn-custom-red">Nueva delegación</a>
 </div>
 {% include "includes/toolbar_listado.html" %}

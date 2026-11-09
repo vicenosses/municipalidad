@@ -1,19 +1,23 @@
 from datetime import date
 
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from auditoria.utils import registrar_auditoria
-from sgr.forms import MetaFiltroForm, MetaForm, PeriodoFiltroForm, PeriodoForm
-from sgr.models import Meta, Periodo
+from sgr.forms import AsignacionMetaForm, MetaFiltroForm, MetaForm, PeriodoFiltroForm, PeriodoForm
+from sgr.asignaciones import aportes_asignacion, calcular_resultado_asignacion
+from sgr.models import AsignacionMeta, Meta, Periodo
 from sgr.ponderaciones import calcular_resultado_meta
+from sgr.preparacion_cierre import diagnosticar_periodo
 from sgr.permisos import ROLES_ESTADO_META, ROLES_METAS, indicadores_visibles, metas_visibles, puede_crear_meta
 from usuarios.mixins import RolRequiredMixin, obtener_rol
+from usuarios.sesion import get_delegacion_activa
 
 
 class PeriodoConsultaMixin(RolRequiredMixin):
@@ -67,6 +71,8 @@ class PeriodoDetailView(PeriodoConsultaMixin, DetailView):
         context['metas'] = metas_visibles(self.request).filter(periodo=self.object).order_by('-activo', 'nombre', 'pk')
         context['puede_crear_meta'] = self.object.activo and puede_crear_meta(self.request)
         context['puede_estado_meta'] = obtener_rol(self.request.user) in ROLES_ESTADO_META
+        if obtener_rol(self.request.user) == 'administrador' and get_delegacion_activa(self.request) is None:
+            context['revision_cierre'] = diagnosticar_periodo(self.object)
         return context
 
 
@@ -190,7 +196,58 @@ class MetaDetailView(MetaConsultaMixin, DetailView):
             self.object.activo and self.object.periodo.activo and puede_crear_meta(self.request)
         )
         context['puede_estado_indicador'] = obtener_rol(self.request.user) in ROLES_ESTADO_META
+        context['resultados_asignaciones'] = [calcular_resultado_asignacion(asignacion)
+            for asignacion in self.object.asignaciones.select_related('funcionario', 'meta__periodo')]
         return context
+
+
+class AsignacionMetaView(RolRequiredMixin, View):
+    roles_permitidos = ROLES_METAS
+
+    def dispatch(self, request, *args, **kwargs):
+        self.meta = get_object_or_404(metas_visibles(request), pk=kwargs['meta_pk'])
+        if not self.meta.activo or not self.meta.periodo.activo:
+            raise PermissionDenied('La meta y el período deben estar activos.')
+        self.asignacion = None
+        if kwargs.get('asignacion_pk'):
+            self.asignacion = get_object_or_404(AsignacionMeta, pk=kwargs['asignacion_pk'], meta=self.meta)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        form = AsignacionMetaForm(meta=self.meta, instance=self.asignacion)
+        return render(request, 'sgr/metas/asignacion.html', {'form': form, 'meta': self.meta})
+
+    def post(self, request, *args, **kwargs):
+        anterior = None
+        if self.asignacion:
+            anterior = (f'objetivo: {self.asignacion.cantidad_objetivo}; '
+                        f'ponderación: {self.asignacion.ponderacion}%; activa: {self.asignacion.activa}')
+        form = AsignacionMetaForm(request.POST, meta=self.meta, instance=self.asignacion)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    asignacion = form.save()
+                    registrar_auditoria(request, 'guardar_asignacion_meta', asignacion,
+                        f'Meta: {self.meta}; funcionario: {asignacion.funcionario}; '
+                        f'objetivo: {asignacion.cantidad_objetivo}; ponderación: {asignacion.ponderacion}%; '
+                        f'activa: {asignacion.activa}. Valor anterior: {anterior or "nueva asignación"}.')
+            except ValidationError as error:
+                form.add_error(None, ' '.join(error.messages))
+            else:
+                messages.success(request, 'Asignación guardada correctamente.')
+                return redirect(self.meta)
+        return render(request, 'sgr/metas/asignacion.html', {'form': form, 'meta': self.meta}, status=400)
+
+
+class MiAsignacionDetalleView(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        delegacion = get_delegacion_activa(request)
+        asignacion = get_object_or_404(AsignacionMeta.objects.select_related('meta__periodo'),
+            pk=pk, funcionario=request.user, activa=True, meta__delegacion=delegacion)
+        return render(request, 'sgr/metas/mi_asignacion.html', {
+            'resultado': calcular_resultado_asignacion(asignacion),
+            'aportes': aportes_asignacion(asignacion),
+        })
 
 
 class MetaGuardarMixin(MetaConsultaMixin):

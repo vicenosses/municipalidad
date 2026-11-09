@@ -16,7 +16,7 @@ class PropuestaAporteForm(forms.Form):
 
     def __init__(self, *args, actividad, aporte=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['indicador'].queryset = indicadores_para_actividad(actividad.fecha, actividad.delegacion)
+        self.fields['indicador'].queryset = indicadores_para_actividad(actividad.fecha, actividad.delegacion, actividad.responsable)
         self.initial['version'] = aporte.version if aporte else 0
         if aporte:
             self.initial.update(indicador=aporte.indicador_id, valor_declarado=aporte.valor_declarado)
@@ -28,8 +28,10 @@ class PropuestaAporteForm(forms.Form):
 class ValidacionAporteForm(forms.Form):
     estado = forms.ChoiceField(label='Decisión', choices=(
         (AporteIndicador.Estado.CUMPLE, 'Cumple'),
+        (AporteIndicador.Estado.APROBADA_NO_PONDERA, 'Aprobada y no pondera'),
         (AporteIndicador.Estado.REQUIERE_CORRECCION, 'Requiere corrección'),
         (AporteIndicador.Estado.NO_CUMPLE, 'No cumple'),
+        (AporteIndicador.Estado.ANULADO, 'Anular aporte'),
     ), widget=forms.Select(attrs={'class': 'form-select'}))
     valor_validado = forms.DecimalField(label='Valor validado (vacío: aprobar el declarado)',
                                         max_digits=12, decimal_places=2, min_value=Decimal('0'), required=False,
@@ -37,4 +39,5 @@ class ValidacionAporteForm(forms.Form):
     comentario = forms.CharField(required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}))
     corregir_indicador = forms.BooleanField(label='Autorizar corrección del Indicador', required=False)
     corregir_valor = forms.BooleanField(label='Autorizar corrección del aporte declarado', required=False)
+    corregir_evidencia = forms.BooleanField(label='Solicitar nueva evidencia', required=False)
     version = forms.IntegerField(label='', min_value=1, widget=forms.HiddenInput)

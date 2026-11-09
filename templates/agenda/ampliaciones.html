@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Solicitudes de ampliación | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-3">Solicitudes de ampliación pendientes</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Agenda</div><h2 class="h4 fw-bold mb-3">{% include 'includes/icono_titulo.html' with icono='agenda' %}Solicitudes de ampliación pendientes</h2></div>
 <p><a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Volver a Agenda</a></p>
 {% for solicitud in solicitudes %}
 <section class="card shadow-sm mb-3"><div class="card-body">

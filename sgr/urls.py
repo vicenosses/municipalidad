@@ -5,6 +5,7 @@ from sgr import views, views_indicadores, views_aportes, views_informes
 app_name = 'sgr'
 
 urlpatterns = [
+    path('mis-metas/<int:pk>/', views.MiAsignacionDetalleView.as_view(), name='mi_asignacion'),
     path('informes/', views_informes.InformeSGRView.as_view(), name='informe'),
     path('aportes/indicadores-disponibles/', views_aportes.IndicadoresActividadView.as_view(), name='indicadores_actividad'),
     path('aportes/actividad/<int:actividad_pk>/', views_aportes.PropuestaAporteView.as_view(), name='aporte_proponer'),
@@ -20,6 +21,8 @@ urlpatterns = [
     path('metas/', views.MetaListView.as_view(), name='meta_lista'),
     path('metas/nueva/', views.MetaCreateView.as_view(), name='meta_crear'),
     path('metas/<int:pk>/', views.MetaDetailView.as_view(), name='meta_detalle'),
+    path('metas/<int:meta_pk>/asignar/', views.AsignacionMetaView.as_view(), name='asignacion_crear'),
+    path('metas/<int:meta_pk>/asignaciones/<int:asignacion_pk>/editar/', views.AsignacionMetaView.as_view(), name='asignacion_editar'),
     path('metas/<int:pk>/editar/', views.MetaUpdateView.as_view(), name='meta_editar'),
     path('metas/<int:pk>/cambiar-estado/', views.MetaEstadoView.as_view(), name='meta_estado'),
     path('periodos/<int:periodo_pk>/metas/nueva/', views.MetaCreateView.as_view(),

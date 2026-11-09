@@ -10,6 +10,7 @@ from django.contrib.auth.views import LoginView, PasswordResetConfirmView
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -25,6 +26,8 @@ from usuarios.forms import (
     SolicitudRecuperacionForm,
 )
 from usuarios.models import CodigoRecuperacion
+from usuarios.tokens_activacion import token_activacion
+from usuarios.limite_ingreso import esta_bloqueado, registrar_fallo, limpiar_intentos
 
 MENSAJE_GENERICO = 'Si existe una cuenta habilitada para ese correo, recibirás un enlace de recuperación.'
 logger = logging.getLogger(__name__)
@@ -35,6 +38,25 @@ MAX_INTENTOS = 5
 class LoginSGRView(LoginView):
     template_name = 'registration/login.html'
     authentication_form = LoginUsuarioCorreoForm
+    redirect_authenticated_user = True
+
+    def post(self, request, *args, **kwargs):
+        identificador = request.POST.get('username', '')
+        if identificador and esta_bloqueado(identificador):
+            form = self.get_form()
+            form.add_error(None, 'Demasiados intentos fallidos. Espere 15 minutos antes de volver a intentarlo.')
+            return self.form_invalid(form)
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        identificador = self.request.POST.get('username', '')
+        if identificador and not esta_bloqueado(identificador):
+            registrar_fallo(identificador)
+        return super().form_invalid(form)
+
+    def form_valid(self, form):
+        limpiar_intentos(self.request.POST.get('username', ''))
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -66,9 +88,13 @@ class RecuperacionSolicitarView(View):
         form = SolicitudRecuperacionForm(request.POST)
         if not form.is_valid():
             return render(request, 'recuperacion/solicitar.html', _ctx({'form': form}))
-        email = form.cleaned_data['email']
-        user = next((usuario for usuario in User.objects.filter(email__iexact=email).exclude(email='').order_by('pk')
-                     if _usuario_puede_recuperar(usuario) and usuario.has_usable_password()), None)
+        identificador = form.cleaned_data['email'].strip()
+        candidatos = User.objects.filter(Q(email__iexact=identificador) | Q(username__iexact=identificador))\
+            .exclude(email='').order_by('pk')
+        habilitados = [usuario for usuario in candidatos
+                       if _usuario_puede_recuperar(usuario) and usuario.has_usable_password()]
+        # Una identificación ambigua nunca debe enviar un enlace a otra persona.
+        user = habilitados[0] if len(habilitados) == 1 else None
         if _usuario_puede_recuperar(user) and user.has_usable_password():
             enlace = request.build_absolute_uri(reverse('recuperacion_enlace', kwargs={
                 'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
@@ -100,7 +126,59 @@ class RecuperacionEnlaceView(PasswordResetConfirmView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        if self.user.email:
+            try:
+                send_mail(
+                    'Confirmación de cambio de contraseña SGR',
+                    'Ilustre Municipalidad de La Serena\nSistema de Gestión de Resultados\n\n'
+                    'La contraseña de su cuenta fue actualizada. Si no realizó este cambio, '
+                    'comuníquese con la administración del sistema.',
+                    settings.DEFAULT_FROM_EMAIL, [self.user.email], fail_silently=False,
+                )
+            except Exception:
+                logger.exception('No se pudo enviar la confirmación de cambio de contraseña.')
         messages.success(self.request, 'Contraseña actualizada. Puede ingresar.')
+        return response
+
+
+def enviar_activacion(request, user):
+    enlace = request.build_absolute_uri(reverse('activar_cuenta', kwargs={
+        'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
+        'token': token_activacion.make_token(user),
+    }))
+    return send_mail(
+        'Activación de cuenta SGR',
+        'Ilustre Municipalidad de La Serena\nSistema de Gestión de Resultados\n\n'
+        f'Para activar su cuenta y crear una contraseña, abra este enlace:\n\n{enlace}\n\n'
+        'El enlace vence en 10 minutos y solo puede utilizarse una vez. '
+        'Si vence, solicite otro al administrador o delegado.',
+        settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False,
+    )
+
+
+class ActivacionCuentaView(PasswordResetConfirmView):
+    template_name = 'usuarios/activar_cuenta.html'
+    form_class = NuevaContrasenaForm
+    token_generator = token_activacion
+    success_url = reverse_lazy('login')
+
+    def get_user(self, uidb64):
+        user = super().get_user(uidb64)
+        if not user or user.is_active or user.has_usable_password():
+            return None
+        perfil = getattr(user, 'perfil', None)
+        return user if perfil is not None and perfil.activo else None
+
+    @transaction.atomic
+    def form_valid(self, form):
+        user = User.objects.select_for_update().get(pk=self.user.pk)
+        if user.is_active or user.has_usable_password() or not getattr(user, 'perfil', None) or not user.perfil.activo:
+            messages.error(self.request, 'El enlace ya fue utilizado o la cuenta no está habilitada.')
+            return redirect('login')
+        user.is_active = True
+        self.user = form.user = user
+        response = super().form_valid(form)
+        messages.success(self.request, 'Cuenta activada. Ya puede iniciar sesión.')
         return response
 
 

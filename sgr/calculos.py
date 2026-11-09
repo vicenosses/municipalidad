@@ -21,6 +21,8 @@ class AvanceActividades:
     total_vinculaciones: int
     cantidad_consideradas: int
     excluidas_no_cumple: int
+    excluidas_no_pondera: int
+    excluidas_anuladas: int
     excluidas_correccion: int
     cantidad_pendientes: int
     cantidad_cumple: int
@@ -38,7 +40,7 @@ class AvanceActividades:
 
     @property
     def cantidad_excluidas(self):
-        return self.excluidas_no_cumple + self.excluidas_correccion
+        return self.excluidas_no_cumple + self.excluidas_no_pondera + self.excluidas_anuladas + self.excluidas_correccion
 
     @property
     def no_completas(self):
@@ -67,7 +69,7 @@ def calcular_avance_indicador(indicador):
     aportes = AporteIndicador.objects.filter(indicador=indicador).select_related('actividad').annotate(
         evidencia_aprobada=Exists(evidencias_aprobadas_actividad(OuterRef('actividad_id'))),
     ).order_by()
-    cantidades = dict(total_vinculaciones=0, cantidad_consideradas=0, excluidas_no_cumple=0,
+    cantidades = dict(total_vinculaciones=0, cantidad_consideradas=0, excluidas_no_cumple=0, excluidas_no_pondera=0, excluidas_anuladas=0,
                       excluidas_correccion=0, cantidad_pendientes=0, cantidad_cumple=0,
                       completas=0, en_proceso=0, sin_avance=0, deshabilitadas=0,
                       consideradas_deshabilitadas=0)
@@ -78,6 +80,12 @@ def calcular_avance_indicador(indicador):
             cantidades['deshabilitadas'] += 1
         if aporte.estado == AporteIndicador.Estado.NO_CUMPLE:
             cantidades['excluidas_no_cumple'] += 1
+            continue
+        if aporte.estado == AporteIndicador.Estado.APROBADA_NO_PONDERA:
+            cantidades['excluidas_no_pondera'] += 1
+            continue
+        if aporte.estado == AporteIndicador.Estado.ANULADO:
+            cantidades['excluidas_anuladas'] += 1
             continue
         if aporte.estado == AporteIndicador.Estado.REQUIERE_CORRECCION:
             cantidades['excluidas_correccion'] += 1

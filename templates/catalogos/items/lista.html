@@ -2,7 +2,7 @@
 {% block title %}Ítems y metas | SGR{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Ítems y metas</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Catálogos</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='tipos' %}Ítems y metas</h2></div>
     <a href="{% url 'catalogos:item_crear' %}" class="btn btn-custom-red">Nuevo ítem</a>
 </div>
 {% include "includes/toolbar_listado.html" %}

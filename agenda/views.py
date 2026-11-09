@@ -1,4 +1,6 @@
 from datetime import timedelta
+import re
+import unicodedata
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -32,6 +34,11 @@ ROLES_AGENDA = ('administrador', 'delegado', 'coordinador', 'verificador', 'func
 ROLES_GESTORES = ('administrador', 'delegado', 'coordinador')
 
 
+def normalizar_busqueda(texto):
+    return ''.join(c for c in unicodedata.normalize('NFKD', texto or '')
+                   if not unicodedata.combining(c)).casefold().strip()
+
+
 def compromisos_visibles(request):
     qs = Compromiso.objects.select_related(
         'responsable', 'delegacion'
@@ -63,12 +70,14 @@ def puede_crear_compromiso_desde_actividad(request, actividad):
         or actividad.estado == AtencionCiudadana.Estado.CERRADA
     ):
         return False
-    if obtener_rol(request.user) == 'administrador':
+    rol = obtener_rol(request.user)
+    if rol == 'administrador':
         return en_contexto_delegacion(request, actividad.delegacion)
     delegacion = get_delegacion_activa(request)
     return (
         delegacion == actividad.delegacion
         and usuario_tiene_alcance_delegacion(request.user, actividad.delegacion)
+        and (rol in ROLES_GESTORES or actividad.responsable_id == request.user.pk)
     )
 
 
@@ -98,18 +107,32 @@ class CompromisoListView(LoginRequiredMixin, ListView):
         if self.filtro.is_valid():
             datos = self.filtro.cleaned_data
             if datos.get('q'):
-                qs = qs.filter(
-                    Q(titulo__icontains=datos['q'])
-                    | Q(solicitante__icontains=datos['q'])
-                )
+                texto = normalizar_busqueda(datos['q'])
+                parece_rut = (bool(re.search(r'\d', datos['q'])) and
+                              bool(re.fullmatch(r'[0-9.\-\sKk]+', datos['q'].strip())))
+                rut = re.sub(r'[.\-\s]', '', datos['q']).casefold() if parece_rut else ''
+                ids = []
+                for pk, titulo, solicitante, rut_guardado in qs.prefetch_related(None).values_list(
+                        'pk', 'titulo', 'solicitante', 'rut_solicitante').iterator(chunk_size=1000):
+                    codigo = f'TUB-{pk:06d}'
+                    campos = (titulo, solicitante, codigo)
+                    rut_normalizado = re.sub(r'[.\-\s]', '', rut_guardado or '').casefold()
+                    if any(texto in normalizar_busqueda(campo) for campo in campos) or (rut and rut in rut_normalizado):
+                        ids.append(pk)
+                qs = qs.filter(pk__in=ids)
             if datos.get('estado'):
-                qs = qs.filter(estado=datos['estado'])
+                if datos['estado'] == 'vencido':
+                    qs = qs.exclude(estado=Compromiso.Estado.REALIZADO).filter(fecha_hora__lt=timezone.now())
+                else:
+                    qs = qs.filter(estado=datos['estado'])
             if datos.get('responsable'):
                 qs = qs.filter(responsable=datos['responsable'])
             if datos.get('desde'):
                 qs = qs.filter(fecha_hora__date__gte=datos['desde'])
             if datos.get('hasta'):
                 qs = qs.filter(fecha_hora__date__lte=datos['hasta'])
+            orden = {'fecha_desc': '-fecha_hora', 'reciente': '-creado', 'titulo': 'titulo'}
+            qs = qs.order_by(orden.get(datos.get('ordenar'), 'fecha_hora'), 'pk')
         return qs
 
     def get_context_data(self, **kwargs):
@@ -117,6 +140,9 @@ class CompromisoListView(LoginRequiredMixin, ListView):
         ahora = timezone.now()
         visibles = compromisos_visibles(self.request)
         context['filtro'] = getattr(self, 'filtro', CompromisoFiltroForm())
+        parametros = self.request.GET.copy()
+        parametros.pop('page', None)
+        context['query_params'] = parametros.urlencode()
         context['vencidos'] = visibles.exclude(
             estado=Compromiso.Estado.REALIZADO
         ).filter(fecha_hora__lt=ahora)[:10]
@@ -366,6 +392,13 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
             response = super().form_valid(form)
             compromiso.refresh_from_db()
             compromiso.actividades.filter(va_al_tubo=False).update(va_al_tubo=True)
+            desvinculadas = previo['actividades'] - set(compromiso.actividades.values_list('pk', flat=True))
+            for actividad in AtencionCiudadana.objects.filter(pk__in=desvinculadas, va_al_tubo=True):
+                if not actividad.compromisos.exists():
+                    actividad.va_al_tubo = False
+                    actividad.save(update_fields=['va_al_tubo'])
+                    registrar_auditoria(self.request, 'cambiar_va_al_tubo', actividad,
+                                        'La actividad salió del tubo al desvincularse de su último compromiso.')
             nuevos = {
                 'estado': compromiso.get_estado_display(),
                 'responsable': str(compromiso.responsable),

@@ -1,30 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Ingreso | SGR{% endblock %}
+{% block extra_css %}
+<style>
+    .acceso-contenedor { max-width: 470px; margin: clamp(2rem, 8vh, 5rem) auto 2rem; }
+    .acceso-tarjeta { border: 1px solid #e8e8e8; border-radius: 1rem; overflow: hidden; box-shadow: 0 .5rem 1.8rem rgba(0,0,0,.07); }
+    .acceso-franja { height: 5px; background: #c92a2a; }
+    .acceso-cuerpo { padding: 2rem; }
+    .acceso-identidad { display: flex; align-items: center; gap: .85rem; margin-bottom: 1.75rem; }
+    .acceso-marca { display: grid; place-items: center; width: 3.1rem; height: 3.1rem; flex-shrink: 0; border-radius: .75rem; background: #fbeaea; color: #c92a2a; font-weight: 800; font-size: .95rem; }
+    .acceso-subtitulo { color: #6c757d; line-height: 1.5; }
+    .acceso-cuerpo .form-label { color: #343a40; font-weight: 600; }
+    .acceso-cuerpo .form-control { min-height: 2.9rem; border-radius: .5rem; }
+    .acceso-cuerpo .form-control:focus { border-color: #c92a2a; box-shadow: 0 0 0 .2rem rgba(201,42,42,.15); }
+    .acceso-boton { min-height: 2.9rem; border-radius: .5rem; font-weight: 600; }
+    .acceso-recuperar { color: #a61e1e; text-decoration: none; }
+    .acceso-recuperar:hover { color: #7f1919; text-decoration: underline; }
+    @media (max-width: 575px) { .acceso-contenedor { margin-top: 2rem; } .acceso-cuerpo { padding: 1.4rem; } }
+</style>
+{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h2 class="h4 text-institucional fw-bold mb-3">Ingreso al SGR</h2>
-                <form method="post">
-                    {% csrf_token %}
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-                    {% endif %}
-                    <div class="mb-3">
-                        <label class="form-label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
-                        {{ form.username }}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
-                        {{ form.password }}
-                    </div>
-                    <button type="submit" class="btn btn-custom-red w-100">Ingresar</button>
-                </form>
-                <p class="text-center small mt-3 mb-0">
-                    <a href="{% url 'recuperacion_solicitar' %}">Olvidé mi contraseña</a>
-                </p>
+<div class="acceso-contenedor">
+    <div class="card acceso-tarjeta">
+        <div class="acceso-franja" aria-hidden="true"></div>
+        <div class="acceso-cuerpo">
+            <div class="acceso-identidad">
+                <div class="acceso-marca" aria-hidden="true">SGR</div>
+                <div><div class="fw-bold">Sistema de Gestión de Resultados</div><div class="small text-muted">Ilustre Municipalidad de La Serena</div></div>
             </div>
+            <h2 class="h4 fw-bold mb-2">Iniciar sesión</h2>
+            <p class="acceso-subtitulo small mb-4">Ingresa con tu usuario o correo y tu contraseña para acceder al sistema.</p>
+            <form method="post">
+                {% csrf_token %}
+                {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+                <div class="mb-3">
+                    <label class="form-label" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+                    {{ form.password }}
+                    {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors }}</div>{% endif %}
+                </div>
+                <button type="submit" class="btn btn-custom-red acceso-boton w-100">Ingresar</button>
+            </form>
+            <p class="text-center small mt-4 mb-0"><a class="acceso-recuperar" href="{% url 'recuperacion_solicitar' %}">¿Olvidaste tu contraseña?</a></p>
         </div>
     </div>
 </div>

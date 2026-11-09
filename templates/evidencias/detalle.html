@@ -2,7 +2,7 @@
 {% block title %}Detalle de evidencia | SGR{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Detalle de evidencia</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Detalle de evidencia</h2></div>
     <a href="{% url 'evidencias:lista' %}" class="btn btn-outline-secondary">Volver</a>
 </div>
 <div class="row g-4">

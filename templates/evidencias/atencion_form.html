@@ -2,9 +2,9 @@
 {% block title %}Agregar evidencia | SGR{% endblock %}
 {% block content %}
 {% if atencion %}
-<h2 class="h4 fw-bold mb-4">Agregar evidencia a la atención de {{ atencion.solicitante }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Agregar evidencia a la atención de {{ atencion.solicitante }}</h2></div>
 {% else %}
-<h2 class="h4 fw-bold mb-4">Agregar evidencia al compromiso {{ compromiso.titulo }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Agregar evidencia al compromiso {{ compromiso.titulo }}</h2></div>
 {% endif %}
 <div class="card shadow-sm">
     <div class="card-body">

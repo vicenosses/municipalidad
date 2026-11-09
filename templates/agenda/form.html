@@ -1,7 +1,20 @@
 {% extends "base.html" %}
 {% block title %}{% if es_edicion %}Editar compromiso{% else %}Nuevo compromiso{% endif %} | SGR{% endblock %}
+{% block extra_css %}
+<style>
+    .compromiso-cabecera { border-left: 4px solid #c92a2a; padding-left: 1.15rem; }
+    .compromiso-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .compromiso-formulario { border: 1px solid #e9ecef; border-radius: .75rem; }
+    .compromiso-seccion + .compromiso-seccion { border-top: 1px solid #e9ecef; margin-top: 1.5rem; padding-top: 1.5rem; }
+    .compromiso-acciones { border-top: 1px solid #e9ecef; margin-top: 1.5rem; padding-top: 1.5rem; }
+</style>
+{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">{% if es_edicion %}Actualizar compromiso{% else %}Registrar compromiso{% endif %}</h2>
+<div class="compromiso-cabecera mb-4">
+    <div class="compromiso-etiqueta mb-1">Gestión municipal · Agenda</div>
+    <h2 class="h3 fw-bold mb-1">{% include 'includes/icono_titulo.html' with icono='agenda' %}{% if es_edicion %}Actualizar compromiso{% else %}Registrar compromiso{% endif %}</h2>
+    <p class="text-muted small mb-0">{% if es_edicion %}Revisa los datos y actualiza el seguimiento del compromiso.{% else %}Registra los datos necesarios para dar seguimiento al compromiso.{% endif %}</p>
+</div>
 {% if actividad_origen %}
 <div class="alert alert-info">
     Creando compromiso desde la actividad: <strong>{{ actividad_origen.titulo }}</strong>
@@ -9,26 +22,32 @@
     <span class="d-block small">La relación con esta actividad se asignará automáticamente.</span>
 </div>
 {% endif %}
-<form method="post" class="card shadow-sm">
+<form method="post" class="card shadow-sm compromiso-formulario">
     {% csrf_token %}
-    <div class="card-body">
-        {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    <div class="card-body p-4">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        {% if form.titulo %}
+        <section class="compromiso-seccion" aria-labelledby="compromiso-datos">
+            <h3 id="compromiso-datos" class="h5 fw-bold mb-1">Datos del compromiso</h3>
+            <p class="small text-muted">Identifica el compromiso y describe el trabajo que se realizará.</p>
+            <div class="row g-2">{% for field in form %}{% if field.name == 'titulo' or field.name == 'descripcion' %}<div class="col-12">{% include 'agenda/_campo_compromiso.html' with field=field %}</div>{% endif %}{% endfor %}</div>
+        </section>
+        <section class="compromiso-seccion" aria-labelledby="compromiso-solicitante">
+            <h3 id="compromiso-solicitante" class="h5 fw-bold mb-1">Solicitante y apoyo</h3>
+            <p class="small text-muted">Agrega los datos disponibles de la persona solicitante y del área de apoyo.</p>
+            <div class="row g-2">{% for field in form %}{% if field.name == 'solicitante' or field.name == 'rut_solicitante' or field.name == 'telefono_solicitante' or field.name == 'area_apoyo' %}<div class="col-md-6">{% include 'agenda/_campo_compromiso.html' with field=field %}</div>{% endif %}{% endfor %}</div>
+        </section>
         {% endif %}
-        {% for field in form %}
-        <div class="mb-3">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        <section class="compromiso-seccion" aria-labelledby="compromiso-seguimiento">
+            <h3 id="compromiso-seguimiento" class="h5 fw-bold mb-1">Seguimiento y responsable</h3>
+            <p class="small text-muted">{% if es_edicion %}Actualiza los datos disponibles según tus permisos.{% else %}Define el plazo y quién estará a cargo.{% endif %} Los campos marcados con * son obligatorios.</p>
+            <div class="row g-2">{% for field in form %}{% if field.name == 'fecha_hora' or field.name == 'responsable' or field.name == 'estado' %}<div class="col-md-6">{% include 'agenda/_campo_compromiso.html' with field=field %}</div>{% elif field.name == 'motivo_cambio' or field.name == 'observaciones' or field.name == 'actividades' %}<div class="col-12">{% include 'agenda/_campo_compromiso.html' with field=field %}</div>{% endif %}{% endfor %}</div>
+            {% for field in form %}{% if field.is_hidden %}{{ field }}{% elif field.name != 'titulo' and field.name != 'descripcion' and field.name != 'solicitante' and field.name != 'rut_solicitante' and field.name != 'telefono_solicitante' and field.name != 'area_apoyo' and field.name != 'fecha_hora' and field.name != 'responsable' and field.name != 'estado' and field.name != 'motivo_cambio' and field.name != 'observaciones' and field.name != 'actividades' %}{% include 'agenda/_campo_compromiso.html' with field=field %}{% endif %}{% endfor %}
+        </section>
+        <div class="compromiso-acciones d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-custom-red">{% if es_edicion %}Guardar cambios{% else %}Registrar compromiso{% endif %}</button>
+            {% if actividad_origen %}<a href="{% url 'atenciones:detalle' actividad_origen.pk %}" class="btn btn-outline-secondary">Cancelar</a>{% elif es_edicion %}<a href="{% url 'agenda:detalle' compromiso.pk %}" class="btn btn-outline-secondary">Cancelar</a>{% else %}<a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Cancelar</a>{% endif %}
         </div>
-        {% endfor %}
-        <button type="submit" class="btn btn-custom-red">{% if actividad_origen %}Crear compromiso{% else %}Guardar cambios{% endif %}</button>
-        {% if actividad_origen %}
-        <a href="{% url 'atenciones:detalle' actividad_origen.pk %}" class="btn btn-outline-secondary">Cancelar</a>
-        {% else %}
-        <a href="{% url 'agenda:lista' %}" class="btn btn-outline-secondary">Cancelar</a>
-        {% endif %}
     </div>
 </form>
 {% endblock %}

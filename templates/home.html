@@ -2,7 +2,15 @@
 {% block title %}Dashboard SGR | Inicio{% endblock %}
 {% block extra_css %}
 <style>
-    .inicio-encabezado { border-left: 4px solid #c92a2a; padding: .25rem 0 .25rem 1.15rem; }
+    .inicio-portada { border: 1px solid #e9ecef; border-radius: .85rem; background: #fff; padding: 1.5rem; }
+    .inicio-encabezado { border-left: 4px solid #c92a2a; padding: .15rem 0 .15rem 1.15rem; }
+    .inicio-fecha { display: inline-flex; align-items: center; gap: .45rem; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: .5rem; padding: .55rem .75rem; }
+    .inicio-cifra-superior { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
+    .inicio-cifra-icono { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 2.6rem; height: 2.6rem; border-radius: .6rem; background: #fbeaea; color: #c92a2a; }
+    .inicio-cifra-icono .icono-nav { margin: 0; width: 1.2rem; height: 1.2rem; }
+    .inicio-seccion-titulo { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .5rem; }
+    .inicio-metas-individuales { border: 1px solid #e9ecef; border-radius: .75rem; overflow: hidden; }
+    @media (max-width: 575px) { .inicio-portada { padding: 1.15rem; } }
     .inicio-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .inicio-contexto { display: flex; flex-wrap: wrap; gap: .35rem 1.5rem; color: #6c757d; font-size: .9rem; }
     .inicio-cifra { position: relative; height: 100%; overflow: hidden; border: 1px solid #e9ecef !important; border-radius: .75rem; box-shadow: 0 .2rem .8rem rgba(0,0,0,.05); }
@@ -25,14 +33,12 @@
 </style>
 {% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+<div class="inicio-portada d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div class="inicio-encabezado">
         <div class="inicio-etiqueta mb-1">Resumen general</div>
-        <h2 class="h3 fw-bold mb-2">Dashboard SGR</h2>
-        <div class="inicio-contexto">
-            <span>Contexto territorial: <strong class="text-dark">{{ dashboard.contexto_territorial|default:"Sin delegación autorizada" }}</strong></span>
-            <span>Fecha de corte: <strong class="text-dark">{{ dashboard.fecha_corte|date:"d/m/Y" }}</strong></span>
-        </div>
+        <h2 class="h3 fw-bold mb-2">{% include 'includes/icono_titulo.html' with icono='inicio' %}Dashboard SGR</h2>
+        <p class="text-muted mb-2">Consulta las actividades y el avance de las metas de tu contexto.</p>
+        <div class="inicio-contexto"><span class="inicio-fecha">{% include "includes/icono_nav.html" with icono="agenda" %} Fecha de corte: <strong class="text-dark">{{ dashboard.fecha_corte|date:"d/m/Y" }}</strong></span></div>
     </div>
     {% if sesion_informes_sgr %}<a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Consultar informe SGR</a>{% endif %}
 </div>
@@ -40,7 +46,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small inicio-cifra-label mb-2">Usuarios activos</p>
+                <div class="inicio-cifra-superior"><p class="text-muted small inicio-cifra-label mb-2">Usuarios activos</p><span class="inicio-cifra-icono">{% include "includes/icono_nav.html" with icono="usuarios" %}</span></div>
                 <p class="h3 text-institucional mb-0">{{ total_usuarios }}</p>
             </div>
         </div>
@@ -48,7 +54,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small inicio-cifra-label mb-2">Actividades</p>
+                <div class="inicio-cifra-superior"><p class="text-muted small inicio-cifra-label mb-2">Actividades</p><span class="inicio-cifra-icono">{% include "includes/icono_nav.html" with icono="actividades" %}</span></div>
                 <p class="h3 text-institucional mb-0">{{ total_actividades }}</p>
             </div>
         </div>
@@ -56,7 +62,7 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small inicio-cifra-label mb-2">Evidencias pendientes</p>
+                <div class="inicio-cifra-superior"><p class="text-muted small inicio-cifra-label mb-2">Evidencias pendientes</p><span class="inicio-cifra-icono">{% include "includes/icono_nav.html" with icono="evidencias" %}</span></div>
                 <p class="h3 text-institucional mb-0">{{ evidencias_pendientes }}</p>
             </div>
         </div>
@@ -64,19 +70,34 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
             <div class="card-body">
-                <p class="text-muted small inicio-cifra-label mb-2">Compromisos próximos</p>
+                <div class="inicio-cifra-superior"><p class="text-muted small inicio-cifra-label mb-2">Compromisos próximos</p><span class="inicio-cifra-icono">{% include "includes/icono_nav.html" with icono="agenda" %}</span></div>
                 <p class="h3 text-institucional mb-0">{{ compromisos_proximos }}</p>
             </div>
         </div>
     </div>
 </div>
+{% if metas_individuales %}
+<section class="card shadow-sm inicio-metas-individuales mt-4 mb-4">
+    <div class="card-header bg-white p-3"><h3 class="h5 fw-bold mb-1">Mis metas del período</h3><p class="small text-muted mb-0">Consulta tus objetivos y resultados asignados.</p></div>
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Meta</th><th>Objetivo</th><th>Actividades</th><th>Cumplimiento</th><th>Ponderación obtenida</th><th>Estado</th></tr></thead>
+        <tbody>{% for fila in metas_individuales %}<tr>
+            <td><a href="{% url 'sgr:mi_asignacion' fila.resultado.asignacion.pk %}">{{ fila.resultado.asignacion.meta.nombre }}</a></td>
+            <td>{{ fila.resultado.asignacion.cantidad_objetivo }}</td><td>{{ fila.resultado.cantidad }}</td>
+            <td>{{ fila.resultado.cumplimiento_aplicable|floatformat:2 }} %</td>
+            <td>{{ fila.resultado.resultado_ponderado|floatformat:2 }} de {{ fila.resultado.asignacion.ponderacion }} %</td>
+            <td><span class="semaforo semaforo-{{ fila.semaforo.estado }}">{{ fila.semaforo.texto }}</span></td>
+        </tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+{% endif %}
 <section class="inicio-seccion" aria-labelledby="titulo-metas">
-    <div class="inicio-etiqueta mb-1">Resultados</div>
-    <h3 id="titulo-metas" class="h4 fw-bold mb-3">Seguimiento de metas</h3>
+    <div class="inicio-seccion-titulo mb-3"><div><div class="inicio-etiqueta mb-1">Resultados</div>
+    <h3 id="titulo-metas" class="h4 fw-bold mb-1">Seguimiento de metas</h3><p class="text-muted small mb-0">Revisa el avance y el estado de las metas del período.</p></div></div>
     {% if dashboard.mensaje %}
     <div class="alert alert-info" role="status">{{ dashboard.mensaje }}</div>
     {% else %}
-    <div class="inicio-periodo mb-3"><p class="mb-1">Período: <strong>{{ dashboard.periodo.nombre }}</strong>
+    <div class="inicio-periodo d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><p class="mb-0">Período: <strong>{{ dashboard.periodo.nombre }}</strong>
         · {{ dashboard.periodo.fecha_inicio|date:"d/m/Y" }} al {{ dashboard.periodo.fecha_fin|date:"d/m/Y" }}</p>
     <p class="mb-0">Avance esperado: <strong>{{ dashboard.esperado|floatformat:2 }}%</strong></p></div>
     <div class="row g-3 mb-3">
@@ -98,7 +119,7 @@
         <span class="semaforo semaforo-sin_datos">Sin datos calculables: {{ dashboard.conteos.sin_datos }}</span>
     </div>
     <div class="table-responsive inicio-tabla">
-        <table class="table table-striped align-middle">
+        <table class="table table-striped align-middle mb-0">
             <caption>Semáforo de metas del período vigente y contexto territorial indicado.</caption>
             <thead><tr>
                 <th scope="col">Meta</th><th scope="col">Delegación</th>

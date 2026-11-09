@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from atenciones.models import AtencionCiudadana
 from agenda.models import Compromiso, SolicitudAmpliacion
+from agenda.validaciones import validar_y_formatear_rut
 from usuarios.mixins import obtener_rol
 
 User = get_user_model()
@@ -44,6 +45,8 @@ class CompromisoForm(forms.ModelForm):
             'titulo',
             'descripcion',
             'solicitante',
+            'rut_solicitante',
+            'telefono_solicitante',
             'area_apoyo',
             'fecha_hora',
             'responsable',
@@ -55,6 +58,8 @@ class CompromisoForm(forms.ModelForm):
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
+            'rut_solicitante': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej.: 12.345.678-5'}),
+            'telefono_solicitante': forms.TextInput(attrs={'class': 'form-control'}),
             'area_apoyo': forms.TextInput(attrs={'class': 'form-control'}),
             'fecha_hora': forms.DateTimeInput(
                 attrs={'class': 'form-control', 'type': 'datetime-local'},
@@ -110,6 +115,10 @@ class CompromisoForm(forms.ModelForm):
                 delegacion__in=delegaciones,
                 activo=True,
             ).order_by('-fecha', 'titulo')
+            if user is not None and not manager:
+                self.fields['actividades'].queryset = self.fields['actividades'].queryset.filter(responsable=user)
+                if es_creacion:
+                    self.fields['responsable'].queryset = self.fields['responsable'].queryset.filter(pk=user.pk)
             if actividad_origen is not None:
                 self.fields['actividades'].queryset = (
                     self.fields['actividades'].queryset.exclude(
@@ -171,17 +180,20 @@ class CompromisoForm(forms.ModelForm):
     def clean_titulo(self):
         return self.cleaned_data['titulo'].strip()
 
+    def clean_rut_solicitante(self):
+        return validar_y_formatear_rut(self.cleaned_data['rut_solicitante'])
+
 
 class CompromisoFiltroForm(forms.Form):
     q = forms.CharField(
         label='Buscar',
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Título o solicitante'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Código, RUT, título o solicitante', 'autocomplete': 'off'}),
     )
     estado = forms.ChoiceField(
         label='Estado',
         required=False,
-        choices=[('', 'Todos')] + list(Compromiso.Estado.choices),
+        choices=[('', 'Todos')] + list(Compromiso.Estado.choices) + [('vencido', 'Vencido')],
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
     responsable = forms.ModelChoiceField(
@@ -200,6 +212,10 @@ class CompromisoFiltroForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
     )
+    ordenar = forms.ChoiceField(label='Ordenar por', required=False, choices=(
+        ('', 'Fecha más próxima'), ('fecha_desc', 'Fecha más lejana'),
+        ('reciente', 'Registro más reciente'), ('titulo', 'Título'),
+    ), widget=forms.Select(attrs={'class': 'form-select'}))
 
     def __init__(self, *args, responsables=None, **kwargs):
         super().__init__(*args, **kwargs)

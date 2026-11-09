@@ -2,7 +2,7 @@
 {% block title %}{{ periodo.nombre }} | SGR{% endblock %}
 {% block content %}
 {% include "sgr/_navegacion.html" %}
-<h2 class="h4 fw-bold mb-4">{{ periodo.nombre }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='metas' %}{{ periodo.nombre }}</h2></div>
 <div class="card shadow-sm">
     <div class="card-body">
         <p><strong>Fecha inicio:</strong> {{ periodo.fecha_inicio|date:"d/m/Y" }}</p>
@@ -17,6 +17,19 @@
         {% endif %}
     </div>
 </div>
+{% if revision_cierre %}
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white fw-semibold">Revisión para el cierre trimestral</div>
+    <div class="card-body">
+        <p class="text-muted">Esta revisión es informativa. El cierre y el congelamiento de resultados aún no están habilitados.</p>
+        <p>Metas activas: {{ revision_cierre.metas_activas }} · Sin asignación: {{ revision_cierre.metas_sin_asignacion }} · Asignaciones activas: {{ revision_cierre.asignaciones }} · Aportes pendientes o en corrección: {{ revision_cierre.pendientes }}</p>
+        <p>La suma de ponderaciones requerida está pendiente de confirmación.</p>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Funcionario</th><th>Asignaciones</th><th>Ponderación asignada</th></tr></thead><tbody>
+        {% for fila in revision_cierre.funcionarios %}<tr><td>{{ fila.funcionario__first_name }} {{ fila.funcionario__last_name }} ({{ fila.funcionario__username }})</td><td>{{ fila.cantidad }}</td><td>{{ fila.ponderacion }} %</td></tr>{% empty %}<tr><td colspan="3">No hay asignaciones activas.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+</section>
+{% endif %}
 <section class="card shadow-sm mt-4">
     <div class="card-header bg-white d-flex flex-wrap justify-content-between gap-2 align-items-center">
         <span class="fw-semibold">Metas</span>

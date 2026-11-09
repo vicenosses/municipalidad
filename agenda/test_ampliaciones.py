@@ -61,10 +61,14 @@ class AmpliacionesTests(TestCase):
         respuesta = self.client.post(reverse('atenciones:crear'), data)
         self.assertContains(respuesta, 'Indique el plazo para ingresar al tubo.')
         data['plazo_tubo'] = timezone.localtime(timezone.now() + timedelta(days=2)).strftime('%Y-%m-%dT%H:%M')
+        data['rut_tubo'] = '12345678-5'
+        data['telefono_tubo'] = '+56912345678'
         respuesta = self.client.post(reverse('atenciones:crear'), data)
         self.assertEqual(respuesta.status_code, 302)
         actividad = AtencionCiudadana.objects.get(titulo='Solicitud')
         self.assertTrue(actividad.va_al_tubo)
+        self.assertEqual(actividad.compromisos.get().rut_solicitante, '12.345.678-5')
+        self.assertEqual(actividad.compromisos.get().telefono_solicitante, '+56912345678')
         self.assertEqual(actividad.compromisos.count(), 1)
 
     def test_rechazo_conserva_plazo_y_otra_delegacion_no_puede_decidir(self):

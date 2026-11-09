@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Auditoría | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Historial de operaciones</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Auditoría</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='auditoria' %}Historial de operaciones</h2></div>
 <form method="get" class="card shadow-sm mb-4">
     <div class="card-body row g-3 align-items-end">
         {% for campo in form %}
@@ -31,7 +31,7 @@
         <tbody>
             {% for registro in registros %}
             <tr>
-                <td>{{ registro.timestamp }}</td>
+                <td class="text-nowrap">{{ registro.timestamp }}</td>
                 <td>{{ registro.usuario|default:"Sistema / usuario no disponible" }}</td>
                 <td>{{ registro.accion_legible }}</td>
                 <td>{{ registro.modulo_legible }}</td>

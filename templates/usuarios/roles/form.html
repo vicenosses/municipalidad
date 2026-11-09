@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Rol | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">{% if object %}Editar rol{% else %}Nuevo rol{% endif %}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Administración municipal</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='roles' %}{% if object %}Editar rol{% else %}Nuevo rol{% endif %}</h2></div>
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">

@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.http import FileResponse, Http404
@@ -314,33 +315,63 @@ class EvidenciaValidarView(RolRequiredMixin, View):
     def get_evidencia(self, request, pk):
         return get_object_or_404(evidencias_visibles(request), pk=pk)
 
+    def contexto(self, request, evidencia, form, aporte_form=None):
+        from sgr.aportes import pendientes_validacion
+        from sgr.forms_aportes import ValidacionAporteForm
+        aporte = pendientes_validacion(request).filter(actividad_id=evidencia.atencion_id).first() if evidencia.atencion_id else None
+        if aporte and aporte_form is None:
+            aporte_form = ValidacionAporteForm(prefix='aporte', initial={'version': aporte.version})
+        return {'evidencia': evidencia, 'form': form, 'aporte': aporte, 'aporte_form': aporte_form}
+
     def get(self, request, pk):
         evidencia = self.get_evidencia(request, pk)
         if not puede_validar_evidencia(request, evidencia):
             raise Http404
         form = ValidacionEvidenciaForm(initial={'comentario': evidencia.comentario_validacion})
-        return render(request, 'evidencias/validar.html', {'evidencia': evidencia, 'form': form})
+        return render(request, 'evidencias/validar.html', self.contexto(request, evidencia, form))
 
-    @transaction.atomic
     def post(self, request, pk):
+        from sgr.aportes import pendientes_validacion
+        from sgr.forms_aportes import ValidacionAporteForm
         evidencia = self.get_evidencia(request, pk)
         if not puede_validar_evidencia(request, evidencia):
             if evidencia.estado != Evidencia.Estado.PENDIENTE:
                 messages.error(request, 'Esta evidencia ya fue validada.')
                 return redirect('evidencias:lista')
             raise Http404
-        if evidencia.estado != Evidencia.Estado.PENDIENTE:
-            messages.error(request, 'Esta evidencia ya fue validada.')
-            return redirect('evidencias:lista')
         form = ValidacionEvidenciaForm(request.POST)
-        if not form.is_valid():
-            return render(request, 'evidencias/validar.html', {'evidencia': evidencia, 'form': form})
-
         accion = request.POST.get('accion')
         if accion not in ('aprobar', 'rechazar'):
             messages.error(request, 'Acción de validación no válida.')
             return redirect('evidencias:validar', pk=pk)
+        aporte_form = None
+        aporte = pendientes_validacion(request).filter(actividad_id=evidencia.atencion_id).first() if evidencia.atencion_id else None
+        if request.POST.get('evaluar_aporte'):
+            if not aporte:
+                messages.error(request, 'El aporte ya no está disponible para revisión. Recargue la página.')
+                return redirect('evidencias:validar', pk=pk)
+            aporte_form = ValidacionAporteForm(request.POST, prefix='aporte')
+        if not form.is_valid() or (aporte_form is not None and not aporte_form.is_valid()):
+            return render(request, 'evidencias/validar.html', self.contexto(request, evidencia, form, aporte_form))
+        try:
+            self.guardar_decisiones(request, evidencia, form, accion, aporte, aporte_form)
+        except ValidationError as error:
+            evidencia.refresh_from_db()
+            if evidencia.estado != Evidencia.Estado.PENDIENTE:
+                messages.error(request, 'Esta evidencia ya fue validada.')
+                return redirect('evidencias:lista')
+            form.add_error(None, ' '.join(error.messages))
+            return render(request, 'evidencias/validar.html', self.contexto(request, evidencia, form, aporte_form))
+        messages.success(request, 'Evidencia revisada.' + (' Aporte revisado.' if aporte_form else ''))
+        return redirect('evidencias:lista')
 
+    @transaction.atomic
+    def guardar_decisiones(self, request, evidencia, form, accion, aporte, aporte_form):
+        from sgr.aportes import validar_aporte
+        from sgr.models import AporteIndicador
+        if aporte_form and accion == 'rechazar' and aporte_form.cleaned_data['estado'] in (
+                AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA):
+            raise ValidationError('No puede aprobar el aporte al rechazar esta evidencia.')
         evidencia.comentario_validacion = form.cleaned_data.get('comentario', '')
         evidencia.validado_por = request.user
         evidencia.fecha_validacion = timezone.now()
@@ -354,8 +385,7 @@ class EvidenciaValidarView(RolRequiredMixin, View):
             estado=evidencia.estado,
         )
         if actualizadas != 1:
-            messages.error(request, 'Esta evidencia ya fue validada.')
-            return redirect('evidencias:lista')
+            raise ValidationError('Esta evidencia ya fue validada por otro usuario.')
         if evidencia.atencion_id:
             actividad = AtencionCiudadana.objects.select_for_update().get(pk=evidencia.atencion_id)
             puede_cerrar = actividad.puede_cerrar_por_evidencias()
@@ -373,11 +403,14 @@ class EvidenciaValidarView(RolRequiredMixin, View):
                     from sgr.aportes import reiniciar_por_reapertura
                     reiniciar_por_reapertura(request, actividad)
                 registrar_auditoria(request, 'cambiar_estado', actividad, f'Estado actualizado por evidencia: {actividad.get_estado_display()}')
+        if aporte_form:
+            estado = aporte_form.cleaned_data['estado']
+            if estado in (AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA) and not actividad.puede_cerrar_por_evidencias():
+                raise ValidationError('Antes de aprobar el aporte, corrija las evidencias rechazadas pendientes.')
+            validar_aporte(request, aporte.pk, **aporte_form.cleaned_data)
         registrar_auditoria(
             request,
             'validar',
             evidencia,
             f'Evidencia {evidencia.codigo_respaldo} {evidencia.get_estado_display().lower()}',
         )
-        messages.success(request, f'Evidencia {evidencia.get_estado_display().lower()}.')
-        return redirect('evidencias:lista')

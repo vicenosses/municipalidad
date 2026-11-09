@@ -15,7 +15,7 @@ from evidencias.models import Evidencia
 from sgr.aportes import (
     indicadores_para_actividad, pendientes_validacion, puede_proponer, proponer_aporte, validar_aporte,
 )
-from sgr.models import AporteIndicador, EventoAporte, HistorialObjetivoIndicador, Indicador
+from sgr.models import AporteIndicador, AsignacionMeta, EventoAporte, HistorialObjetivoIndicador, Indicador
 from sgr.plazos import dentro_plazo, limite_asociacion
 from sgr.test_indicadores import DatosIndicadoresMixin
 from usuarios.models import Perfil
@@ -40,6 +40,8 @@ class DatosAportesMixin(DatosIndicadoresMixin):
         segundo.refresh_from_db()
         segundo.perfil.delegaciones.add(cls.a)
         cls.usuarios['verificador_dos'] = segundo
+        AsignacionMeta.objects.create(meta=cls.meta_a, funcionario=cls.usuarios['funcionario'],
+                                      cantidad_objetivo=100, ponderacion=10)
 
     def setUp(self):
         self.fecha_patch = patch('sgr.plazos.timezone.localdate', return_value=date(2026, 10, 26))
@@ -317,9 +319,29 @@ class AportePermisosTests(DatosAportesMixin, TestCase):
         for rol in ('verificador', 'verificador_dos'):
             self.assertFalse(pendientes_validacion(self.request(rol)).exists())
 
-    def test_bandeja_excluye_propias_no_cerradas_y_sin_evidencia(self):
+    def test_solicitar_evidencia_exige_adjunto_nuevo_y_permite_reenvio(self):
         aporte = self.asociar()
-        self.assertFalse(pendientes_validacion(self.request('verificador')).exists())
+        aporte = self.decidir(aporte, estado=AporteIndicador.Estado.REQUIERE_CORRECCION,
+                             comentario='Adjunte evidencia de la actividad.', corregir_evidencia=True)
+        self.assertTrue(aporte.historial.get(accion='requerir_correccion_aporte').corregir_evidencia)
+        with self.assertRaises(ValidationError):
+            proponer_aporte(self.request(), self.actividad, self.indicador_a, Decimal('20'), aporte.version)
+        self.evidencia(Evidencia.Estado.PENDIENTE)
+        aporte = proponer_aporte(self.request(), self.actividad, self.indicador_a, Decimal('20'), aporte.version)
+        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
+        with self.assertRaises(ValidationError):
+            self.decidir(aporte)
+
+    def test_rechazar_sin_evidencia_requiere_motivo(self):
+        aporte = self.asociar()
+        with self.assertRaises(ValidationError):
+            self.decidir(aporte, estado=AporteIndicador.Estado.NO_CUMPLE)
+        aporte = self.decidir(aporte, estado=AporteIndicador.Estado.NO_CUMPLE, comentario='Faltan antecedentes.')
+        self.assertEqual(aporte.estado, AporteIndicador.Estado.NO_CUMPLE)
+
+    def test_bandeja_incluye_sin_evidencia_y_excluye_propias(self):
+        aporte = self.asociar()
+        self.assertIn(aporte, pendientes_validacion(self.request('verificador')))
         self.evidencia()
         self.actividad.creado_por = self.usuarios['verificador']
         self.actividad.save()
@@ -432,26 +454,19 @@ class AporteIntegracionTests(DatosAportesMixin, TestCase):
         aporte = AporteIndicador.objects.get(actividad=self.actividad)
         self.assertEqual(self.client.get(reverse('sgr:aporte_validar', args=[aporte.pk])).status_code, 404)
 
-    def test_reapertura_reinicia_y_requiere_cierre_sin_borrar_historial(self):
+    def test_actividad_aprobada_no_se_reabre_y_conserva_historial(self):
         aporte = self.asociar()
         self.evidencia()
         aporte = self.decidir(aporte)
         self.entrar('delegado')
         url = reverse('atenciones:cambiar_estado', args=[self.actividad.pk])
-        self.assertEqual(self.client.post(url, {'estado': 'en_proceso'}).status_code, 302)
+        self.assertEqual(self.client.post(url, {'estado': 'en_proceso'}).status_code, 404)
         aporte.refresh_from_db()
-        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
-        self.assertTrue(aporte.espera_cierre)
-        self.assertIsNone(aporte.valor_validado)
-        self.assertIsNone(aporte.validado_por)
-        self.assertTrue(aporte.historial.filter(estado_nuevo=AporteIndicador.Estado.CUMPLE).exists())
-        self.assertTrue(aporte.historial.filter(accion='reiniciar_aporte_reapertura').exists())
-        with self.assertRaises(ValidationError):
-            self.decidir(aporte)
-        self.assertEqual(self.client.post(url, {'estado': 'cerrada'}).status_code, 302)
-        aporte = self.decidir(aporte, rol='verificador_dos')
         self.assertEqual(aporte.estado, AporteIndicador.Estado.CUMPLE)
-        self.assertEqual(aporte.historial.filter(accion='validar_aporte').count(), 2)
+        self.assertFalse(aporte.espera_cierre)
+        self.assertIsNotNone(aporte.validado_por)
+        self.assertTrue(aporte.historial.filter(estado_nuevo=AporteIndicador.Estado.CUMPLE).exists())
+        self.assertFalse(aporte.historial.filter(accion='reiniciar_aporte_reapertura').exists())
 
     def test_auditoria_historial_actividad_y_territorialidad(self):
         aporte = self.asociar()

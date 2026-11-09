@@ -8,3 +8,5 @@ class UsuariosConfig(AppConfig):
 
     def ready(self):
         from usuarios import signals  # noqa: F401
+        from config.busqueda import registrar_busqueda
+        registrar_busqueda()

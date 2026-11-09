@@ -19,6 +19,8 @@ class Compromiso(models.Model):
     titulo = models.CharField('Título', max_length=200)
     descripcion = models.TextField('Descripción', blank=True)
     solicitante = models.CharField('Solicitante', max_length=180, blank=True)
+    rut_solicitante = models.CharField('RUT del solicitante', max_length=20, blank=True)
+    telefono_solicitante = models.CharField('Teléfono del solicitante', max_length=30, blank=True)
     area_apoyo = models.CharField('Área de apoyo', max_length=120, blank=True)
     observaciones = models.TextField('Observaciones', blank=True)
     fecha_hora = models.DateTimeField('Fecha y hora')
@@ -64,6 +66,10 @@ class Compromiso(models.Model):
 
     def __str__(self):
         return self.titulo
+
+    @property
+    def codigo(self):
+        return f'TUB-{self.pk:06d}' if self.pk else ''
 
     @property
     def esta_vencido(self):

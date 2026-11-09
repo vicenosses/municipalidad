@@ -24,7 +24,7 @@ class IndicadoresActividadView(RolRequiredMixin, View):
             fecha = forms.DateField().clean(request.GET.get('fecha'))
         except ValidationError:
             return JsonResponse({'indicadores': []}, status=400)
-        qs = indicadores_para_actividad(fecha, get_delegacion_activa(request))
+        qs = indicadores_para_actividad(fecha, get_delegacion_activa(request), request.user)
         return JsonResponse({'indicadores': [{'id': i.pk, 'nombre': f'{i.nombre} · {i.meta}'} for i in qs]})
 
 

@@ -134,6 +134,58 @@ class Meta(models.Model):
         return super().save(*args, **kwargs)
 
 
+class AsignacionMeta(models.Model):
+    """Objetivo y peso de una meta para una persona durante su período."""
+
+    meta = models.ForeignKey(Meta, on_delete=models.PROTECT, related_name='asignaciones')
+    funcionario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                    related_name='metas_asignadas')
+    cantidad_objetivo = models.DecimalField(max_digits=12, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))])
+    ponderacion = models.DecimalField(max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01')), MaxValueValidator(Decimal('100'))])
+    observacion = models.TextField(blank=True)
+    activa = models.BooleanField(default=True)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    actualizada_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-activa', 'funcionario__last_name', 'funcionario__username']
+        constraints = [models.UniqueConstraint(fields=['meta', 'funcionario'],
+                                               name='sgr_meta_funcionario_unica')]
+
+    def __str__(self):
+        return f'{self.meta} — {self.funcionario}'
+
+    def clean(self):
+        super().clean()
+        if not self.meta_id or not self.funcionario_id:
+            return
+        errores = {}
+        if not self.meta.activo or not self.meta.periodo.activo:
+            errores['meta'] = 'La meta y el período deben estar activos.'
+        if not self.funcionario.is_active or not getattr(self.funcionario, 'perfil', None):
+            errores['funcionario'] = 'Seleccione una cuenta activa con perfil.'
+        elif not self.funcionario.perfil.activo or not self.funcionario.perfil.delegaciones.filter(pk=self.meta.delegacion_id).exists():
+            errores['funcionario'] = 'El funcionario debe estar activo y autorizado en la delegación de la meta.'
+        if self.activa and self.ponderacion is not None:
+            otras = type(self).objects.filter(funcionario_id=self.funcionario_id,
+                meta__periodo_id=self.meta.periodo_id, activa=True).exclude(pk=self.pk)
+            total = otras.aggregate(total=models.Sum('ponderacion'))['total'] or Decimal('0')
+            if total + self.ponderacion > Decimal('100'):
+                errores['ponderacion'] = 'La suma de ponderaciones activas del funcionario supera 100% en este período.'
+        if errores:
+            raise ValidationError(errores)
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.funcionario_id:
+                from django.contrib.auth import get_user_model
+                get_user_model().objects.select_for_update().get(pk=self.funcionario_id)
+            self.full_clean()
+            return super().save(*args, **kwargs)
+
+
 class Indicador(models.Model):
     class Unidad(models.TextChoices):
         PORCENTAJE = 'porcentaje', 'Porcentaje'
@@ -330,7 +382,9 @@ class AporteIndicador(models.Model):
         PENDIENTE = 'pendiente', 'Pendiente'
         REQUIERE_CORRECCION = 'requiere_correccion', 'Requiere corrección'
         CUMPLE = 'cumple', 'Cumple'
+        APROBADA_NO_PONDERA = 'aprobada_no_pondera', 'Aprobada y no pondera'
         NO_CUMPLE = 'no_cumple', 'No cumple'
+        ANULADO = 'anulado', 'Anulado'
 
     actividad = models.OneToOneField('atenciones.AtencionCiudadana', on_delete=models.PROTECT,
                                      related_name='aporte_indicador', verbose_name='Actividad')
@@ -346,6 +400,7 @@ class AporteIndicador(models.Model):
     validado_en = models.DateTimeField(null=True, blank=True)
     corregir_indicador = models.BooleanField(default=False)
     corregir_valor = models.BooleanField(default=False)
+    corregir_evidencia = models.BooleanField(default=False)
     espera_cierre = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=1)
     creado_en = models.DateTimeField(auto_now_add=True)
@@ -354,7 +409,7 @@ class AporteIndicador(models.Model):
     class Meta:
         ordering = ['-actualizado_en', '-pk']
         constraints = [
-            models.CheckConstraint(condition=models.Q(estado__in=('pendiente', 'requiere_correccion', 'cumple', 'no_cumple')),
+            models.CheckConstraint(condition=models.Q(estado__in=('pendiente', 'requiere_correccion', 'cumple', 'aprobada_no_pondera', 'no_cumple', 'anulado')),
                                    name='sgr_aporte_estado_valido'),
             models.CheckConstraint(condition=models.Q(valor_declarado__isnull=True) | models.Q(valor_declarado__gte=0),
                                    name='sgr_aporte_declarado_no_negativo'),
@@ -376,11 +431,11 @@ class AporteIndicador(models.Model):
                 raise ValidationError('El Indicador, la Meta y el Período deben estar activos.')
             if indicador.unidad_medida == Indicador.Unidad.OTRA and self.valor_declarado is None:
                 raise ValidationError({'valor_declarado': 'Declare el aporte para esta unidad personalizada.'})
-        if self.estado in (self.Estado.REQUIERE_CORRECCION, self.Estado.NO_CUMPLE) and not self.comentario.strip():
+        if self.estado in (self.Estado.REQUIERE_CORRECCION, self.Estado.NO_CUMPLE, self.Estado.APROBADA_NO_PONDERA, self.Estado.ANULADO) and not self.comentario.strip():
             raise ValidationError({'comentario': 'Debe justificar la decisión.'})
         if self.estado == self.Estado.CUMPLE and self.valor_validado != self.valor_declarado and not self.comentario.strip():
             raise ValidationError({'comentario': 'Justifique la modificación del valor declarado.'})
-        if self.estado == self.Estado.REQUIERE_CORRECCION and not (self.corregir_indicador or self.corregir_valor):
+        if self.estado == self.Estado.REQUIERE_CORRECCION and not (self.corregir_indicador or self.corregir_valor or self.corregir_evidencia):
             raise ValidationError('Indique qué debe corregir el Funcionario.')
 
 
@@ -399,6 +454,7 @@ class EventoAporte(models.Model):
     comentario = models.TextField(blank=True)
     corregir_indicador = models.BooleanField(default=False)
     corregir_valor = models.BooleanField(default=False)
+    corregir_evidencia = models.BooleanField(default=False)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     version = models.PositiveIntegerField()

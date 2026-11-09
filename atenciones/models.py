@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
@@ -42,6 +43,9 @@ class AtencionCiudadana(models.Model):
         related_name='atenciones',
         verbose_name='Delegación',
     )
+    territorio = models.ForeignKey('usuarios.Territorio', on_delete=models.PROTECT,
+                                  related_name='actividades', null=True, blank=True,
+                                  verbose_name='Territorio')
     responsable = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -73,6 +77,10 @@ class AtencionCiudadana(models.Model):
             ).first()
             if original:
                 self.delegacion_id = original['delegacion_id']
+        if self.territorio_id:
+            from usuarios.models import Territorio
+            if not Territorio.objects.filter(pk=self.territorio_id, delegacion_id=self.delegacion_id).exists():
+                raise ValidationError({'territorio': 'El territorio debe pertenecer a la delegación de la actividad.'})
         return super().save(*args, **kwargs)
 
     @property

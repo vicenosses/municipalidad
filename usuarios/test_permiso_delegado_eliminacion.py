@@ -21,7 +21,7 @@ class DelegadoYEliminacionTests(TestCase):
         self.admin = User.objects.create_superuser('admin_prueba', 'admin@example.com', 'Password123!')
 
     def datos(self, rol, delegacion):
-        return {'username': 'creado', 'first_name': 'Persona', 'last_name': 'Prueba', 'email': 'creado@example.com', 'password1': 'ContraseñaSegura123!', 'password2': 'ContraseñaSegura123!', 'rol': rol.pk, 'delegaciones': [delegacion.pk], 'activo': 'on'}
+        return {'username': 'creado', 'first_name': 'Persona', 'last_name': 'Prueba', 'rut': '12345678-5', 'email': 'creado@example.com', 'password1': 'ContraseñaSegura123!', 'password2': 'ContraseñaSegura123!', 'rol': rol.pk, 'delegaciones': [delegacion.pk], 'activo': 'on'}
 
     def test_delegado_solo_crea_roles_inferiores_en_su_delegacion(self):
         self.client.force_login(self.delegado)

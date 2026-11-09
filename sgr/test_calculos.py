@@ -230,27 +230,21 @@ class AvanceIndicadorTests(DatosAvanceMixin, TestCase):
         self.assertEqual(self.calcular().cantidad_consideradas, 0)
         self.assertIsNone(self.calcular().porcentaje_avance)
 
-    def test_reapertura_real_cambia_uno_a_cero_y_cierre_devuelve_uno(self):
+    def test_revision_aprobada_no_permite_reapertura_y_conserva_avance(self):
         aporte = self.asociar()
         self.evidencia()
         self.decidir(aporte)
         self.assertEqual(self.calcular().puntos_ponderados, Decimal('1'))
         self.entrar('delegado')
         url = reverse('atenciones:cambiar_estado', args=[self.actividad.pk])
-        self.assertEqual(self.client.post(url, {'estado': 'en_proceso'}).status_code, 302)
+        self.assertEqual(self.client.post(url, {'estado': 'en_proceso'}).status_code, 404)
         avance = self.calcular()
-        self.assertEqual(avance.puntos_ponderados, Decimal('0'))
-        self.assertEqual(avance.porcentaje_avance, Decimal('0.00'))
-        self.assertEqual((avance.completas, avance.no_completas), (0, 1))
+        self.assertEqual(avance.puntos_ponderados, Decimal('1'))
+        self.assertEqual((avance.completas, avance.no_completas), (1, 0))
         aporte.refresh_from_db()
-        self.assertTrue(aporte.espera_cierre)
-        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
+        self.assertFalse(aporte.espera_cierre)
+        self.assertEqual(aporte.estado, AporteIndicador.Estado.CUMPLE)
         self.assertTrue(aporte.historial.filter(estado_nuevo=AporteIndicador.Estado.CUMPLE).exists())
-        self.assertEqual(self.client.post(url, {'estado': 'cerrada'}).status_code, 302)
-        self.assertEqual(self.calcular().puntos_ponderados, Decimal('1'))
-        aporte.refresh_from_db()
-        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
-        self.assertTrue(aporte.espera_cierre)
 
     def test_evidencia_actual_se_recalcula_sin_congelar_puntos(self):
         self.asociar()

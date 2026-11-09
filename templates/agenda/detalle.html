@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
-        <h2 class="h4 fw-bold mb-1">{{ compromiso.titulo }}</h2>
+        <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Agenda</div><h2 class="h4 fw-bold mb-1">{% include 'includes/icono_titulo.html' with icono='agenda' %}{{ compromiso.titulo }}</h2></div>
         <span class="badge {% if compromiso.esta_vencido %}bg-danger{% elif compromiso.estado == 'realizado' %}bg-success{% elif compromiso.proximo_a_vencer %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
             {% if compromiso.esta_vencido %}Vencido · {% endif %}{{ compromiso.get_estado_display }}
         </span>
@@ -22,6 +22,9 @@
         <section class="card shadow-sm mb-4">
             <div class="card-header bg-white fw-semibold">Datos del compromiso</div>
             <dl class="card-body row mb-0">
+                <dt class="col-sm-4">Código</dt><dd class="col-sm-8">{{ compromiso.codigo }}</dd>
+                <dt class="col-sm-4">RUT del solicitante</dt><dd class="col-sm-8">{{ compromiso.rut_solicitante|default:"No registrado" }}</dd>
+                <dt class="col-sm-4">Teléfono</dt><dd class="col-sm-8">{{ compromiso.telefono_solicitante|default:"No registrado" }}</dd>
                 <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ compromiso.fecha_hora|date:"d/m/Y H:i" }}</dd>
                 <dt class="col-sm-4">Delegación</dt><dd class="col-sm-8">{{ compromiso.delegacion }}</dd>
                 <dt class="col-sm-4">Responsable</dt><dd class="col-sm-8">{{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }}</dd>

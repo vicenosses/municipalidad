@@ -14,6 +14,11 @@ main .card-footer { padding: .9rem 1.4rem; }
 .table-responsive { border-radius: .65rem; }
 .table th, .table td { padding: .75rem; }
 .table thead th { white-space: nowrap; }
+/* Las celdas de acciones conservan sus botones legibles; la tabla puede desplazarse horizontalmente. */
+main .table td { overflow-wrap: normal; word-break: normal; }
+.table td:has(.btn) { white-space: nowrap; }
+.table td .btn { white-space: nowrap; margin: .125rem; }
+.table td form.d-inline { display: inline-block !important; }
 .form-label { font-weight: 600; margin-bottom: .35rem; }
 .form-text { line-height: 1.5; }
 .barra-listado { background: #fff; border: 1px solid #e9ecef; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 .125rem .25rem rgba(0, 0, 0, .075); }
@@ -36,3 +41,23 @@ nav .btn[aria-current="page"] { background-color: #6c757d; border-color: #6c757d
   main .card-header, main .card-footer { padding: .8rem 1rem; }
   .barra-listado { padding: 1rem; }
 }
+
+/* Iconos decorativos en los títulos principales. */
+.icono-titulo { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; margin-right: .65rem; vertical-align: -.4rem; border-radius: .5rem; background: #fbeaea; color: #c92a2a; }
+.icono-titulo svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Presentación uniforme de encabezados y secciones en el área municipal. */
+.pagina-cabecera { border-left: 4px solid #c92a2a; padding-left: 1.15rem; min-width: 0; }
+.pagina-cabecera-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: .25rem; }
+main .pagina-cabecera h2, main .compromiso-cabecera h2, main .actividad-detalle-cabecera h2 { border-left: 0; padding-left: 0; }
+body.con-panel-lateral main .card-header { border-bottom-color: #e9ecef; }
+body.con-panel-lateral main .card-header.bg-white { font-weight: 600; }
+body.con-panel-lateral main .card-body > :last-child:not(.row):not(form) { margin-bottom: 0; }
+@media (max-width: 575.98px) {
+  .pagina-cabecera { padding-left: .85rem; }
+  .pagina-cabecera h2 { overflow-wrap: anywhere; }
+}
+
+/* Presentación de recuperación y activación de cuentas. */
+body:not(.con-panel-lateral) main .card:not(.acceso-tarjeta) { overflow: hidden; border-radius: .85rem; border-color: #e9ecef; }
+body:not(.con-panel-lateral) main .card:not(.acceso-tarjeta)::before { content: ""; display: block; height: 4px; flex: 0 0 4px; background: #c92a2a; }

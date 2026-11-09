@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Mi meta | SGR{% endblock %}
+{% block content %}
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-3">{% include 'includes/icono_titulo.html' with icono='metas' %}{{ resultado.asignacion.meta.nombre }}</h2></div>
+<p>Período: <strong>{{ resultado.asignacion.meta.periodo }}</strong></p>
+<p>Objetivo: {{ resultado.asignacion.cantidad_objetivo }} · Actividades que ponderan: {{ resultado.cantidad }} · Cumplimiento aplicable: {{ resultado.cumplimiento_aplicable|floatformat:2 }} %</p>
+<div class="table-responsive"><table class="table table-hover align-middle">
+<thead><tr><th>Fecha</th><th>Actividad</th><th>Indicador</th></tr></thead>
+<tbody>{% for aporte in aportes %}<tr><td class="text-nowrap">{{ aporte.actividad.fecha|date:'d/m/Y' }}</td><td><a href="{% url 'atenciones:detalle' aporte.actividad.pk %}">{{ aporte.actividad.titulo }}</a></td><td>{{ aporte.indicador.nombre }}</td></tr>{% empty %}<tr><td colspan="3">No hay actividades aprobadas que ponderen para esta meta.</td></tr>{% endfor %}</tbody>
+</table></div>
+<a href="{% url 'home' %}" class="btn btn-outline-secondary">Volver a Inicio</a>
+{% endblock %}

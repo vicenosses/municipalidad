@@ -3,7 +3,7 @@
 {% block content %}
 {% include "catalogos/_navegacion.html" %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Tipos de Atención</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Catálogos</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='tipos' %}Tipos de Atención</h2></div>
     <div class="d-flex gap-2">
         {% if sesion_rol_codigo == 'administrador' %}
         <a href="{% url 'catalogos:tipo_crear' %}" class="btn btn-custom-red">Nuevo Tipo de Atención</a>

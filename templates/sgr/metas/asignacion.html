@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Asignar meta | SGR{% endblock %}
+{% block content %}
+{% include "sgr/_navegacion.html" %}
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-3">{% include 'includes/icono_titulo.html' with icono='metas' %}Asignar meta a un funcionario</h2></div>
+<p><strong>Meta:</strong> {{ meta.nombre }} · <strong>Período:</strong> {{ meta.periodo }} · <strong>Delegación:</strong> {{ meta.delegacion }}</p>
+<form method="post" class="card shadow-sm">{% csrf_token %}<div class="card-body">
+    {{ form.non_field_errors }}
+    {% for campo in form %}<div class="mb-3"><label class="form-label" for="{{ campo.id_for_label }}">{{ campo.label }}</label> {{ campo }}
+    {% if campo.errors %}<div class="text-danger small">{{ campo.errors }}</div>{% endif %}</div>{% endfor %}
+    <button type="submit" class="btn btn-custom-red">Guardar</button>
+    <a href="{{ meta.get_absolute_url }}" class="btn btn-outline-secondary">Volver</a>
+</div></form>
+{% endblock %}

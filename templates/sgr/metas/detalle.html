@@ -2,7 +2,7 @@
 {% block title %}{{ meta.nombre }} | SGR{% endblock %}
 {% block content %}
 {% include "sgr/_navegacion.html" %}
-<h2 class="h4 fw-bold mb-4">{{ meta.nombre }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='metas' %}{{ meta.nombre }}</h2></div>
 <div class="card shadow-sm"><div class="card-body">
     <p><strong>Descripción:</strong> {{ meta.descripcion|default:"Sin descripción"|linebreaksbr }}</p>
     <p><strong>Período:</strong> <a href="{{ meta.periodo.get_absolute_url }}">{{ meta.periodo }}</a></p>
@@ -22,6 +22,24 @@
         {% if puede_crear_indicador %}<a href="{% url 'sgr:indicador_desde_meta' meta.pk %}" class="btn btn-sm btn-custom-red">Nuevo Indicador</a>{% endif %}
     </div>
     {% include "sgr/metas/_resultados.html" %}
+</section>
+<section class="card shadow-sm mt-4">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="fw-semibold">Metas asignadas a funcionarios</span>
+        {% if meta.activo and meta.periodo.activo %}<a href="{% url 'sgr:asignacion_crear' meta.pk %}" class="btn btn-sm btn-custom-red">Asignar funcionario</a>{% endif %}
+    </div>
+    <div class="card-body">
+        <p class="text-muted">El cumplimiento individual considera aportes revisados como «Cumple». El dashboard general mantiene su cálculo anterior.</p>
+        <div class="table-responsive"><table class="table align-middle">
+            <thead><tr><th>Funcionario</th><th>Objetivo</th><th>Revisadas</th><th>Cumplimiento</th><th>Ponderación</th><th>Estado</th><th>Acción</th></tr></thead>
+            <tbody>{% for resultado in resultados_asignaciones %}{% with asignacion=resultado.asignacion %}<tr>
+                <td>{{ asignacion.funcionario.get_full_name|default:asignacion.funcionario.username }}</td>
+                <td>{{ asignacion.cantidad_objetivo }}</td><td>{{ resultado.cantidad }}</td><td>{{ resultado.cumplimiento|floatformat:2 }} % (aplicable: {{ resultado.cumplimiento_aplicable|floatformat:2 }} %)</td><td>{{ asignacion.ponderacion }} %</td>
+                <td>{% if asignacion.activa %}<span class="badge bg-success">Activa</span>{% else %}<span class="badge bg-danger">Inactiva</span>{% endif %}</td>
+                <td>{% if meta.activo and meta.periodo.activo %}<a class="btn btn-sm btn-outline-primary" href="{% url 'sgr:asignacion_editar' meta.pk asignacion.pk %}">Editar</a>{% endif %}</td>
+            </tr>{% endwith %}{% empty %}<tr><td colspan="7">Todavía no hay asignaciones.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div>
 </section>
 <a href="{% url 'sgr:meta_lista' %}" class="btn btn-outline-secondary mt-3">Volver</a>
 {% endblock %}

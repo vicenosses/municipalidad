@@ -1,10 +1,21 @@
 from django.urls import path
 
 from usuarios import views
+from usuarios.territorios import TerritoriosView, TerritorioGuardarView
+from usuarios.comunidad import ComunidadView, ComunidadGuardarView, ComunidadDetalleView, ComunidadEstadoView
 
 app_name = 'usuarios'
 
 urlpatterns = [
+    path('<int:pk>/reenviar-activacion/', views.ReenviarActivacionView.as_view(), name='reenviar_activacion'),
+    path('comunidad/<str:tipo>/', ComunidadView.as_view(), name='comunidad_lista'),
+    path('comunidad/<str:tipo>/nuevo/', ComunidadGuardarView.as_view(), name='comunidad_crear'),
+    path('comunidad/<str:tipo>/<int:pk>/editar/', ComunidadGuardarView.as_view(), name='comunidad_editar'),
+    path('comunidad/<str:tipo>/<int:pk>/', ComunidadDetalleView.as_view(), name='comunidad_detalle'),
+    path('comunidad/<str:tipo>/<int:pk>/estado/', ComunidadEstadoView.as_view(), name='comunidad_estado'),
+    path('territorios/', TerritoriosView.as_view(), name='territorio_lista'),
+    path('territorios/nuevo/', TerritorioGuardarView.as_view(), name='territorio_crear'),
+    path('territorios/<int:pk>/editar/', TerritorioGuardarView.as_view(), name='territorio_editar'),
     path('', views.UsuarioListView.as_view(), name='lista'),
     path('nuevo/', views.UsuarioCreateView.as_view(), name='crear'),
     path('<int:pk>/', views.UsuarioDetailView.as_view(), name='detalle'),

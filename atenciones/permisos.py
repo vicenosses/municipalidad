@@ -7,8 +7,19 @@ ROLES_GESTORES_ESTADO = ('administrador', 'delegado', 'coordinador')
 ROLES_OPERATIVOS_ESTADO = ('funcionario', 'verificador')
 
 
+def actividad_aprobada(atencion):
+    """Una revisión positiva congela la actividad, incluso si no pondera."""
+    from sgr.models import AporteIndicador
+    return AporteIndicador.objects.filter(
+        actividad_id=atencion.pk,
+        estado__in=(AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA),
+    ).exists()
+
+
 def puede_cambiar_estado(request, atencion, nuevo_estado):
     if not atencion.activo:
+        return False
+    if actividad_aprobada(atencion) and nuevo_estado != AtencionCiudadana.Estado.CERRADA:
         return False
     if nuevo_estado == AtencionCiudadana.Estado.CERRADA:
         if not atencion.puede_cerrar_por_evidencias():
@@ -32,5 +43,5 @@ def puede_cambiar_estado(request, atencion, nuevo_estado):
 
 
 def queryset_atenciones(request):
-    qs = AtencionCiudadana.objects.select_related('tipo', 'subatencion', 'delegacion', 'responsable')
+    qs = AtencionCiudadana.objects.select_related('tipo', 'subatencion', 'delegacion', 'responsable', 'territorio')
     return filtrar_contexto_territorial(qs, request)

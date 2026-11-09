@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}Activar cuenta | SGR{% endblock %}
+{% block content %}<div class="row justify-content-center"><div class="col-md-6"><div class="card shadow-sm"><div class="card-body p-4">
+{% if validlink %}<h2 class="h4 fw-bold">Activar cuenta</h2><p>Establezca una contraseña para activar su cuenta.</p><form method="post">{% csrf_token %}{% include "includes/form_campos.html" %}<button class="btn btn-custom-red">Activar cuenta</button></form>
+{% else %}<h2 class="h4 fw-bold">Enlace no válido</h2><p>El enlace expiró, ya se utilizó o la cuenta no está habilitada. Solicite otro al administrador o delegado.</p><a href="{% url 'login' %}" class="btn btn-outline-secondary">Volver</a>{% endif %}
+</div></div></div></div>{% endblock %}

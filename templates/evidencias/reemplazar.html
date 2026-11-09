@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Reemplazar evidencia | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-3">Reemplazar evidencia rechazada</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-3">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Reemplazar evidencia rechazada</h2></div>
 <p>La evidencia anterior se conservará en el historial. Selecciona un archivo corregido.</p>
 {% if evidencia.comentario_validacion %}<p>Motivo del rechazo: {{ evidencia.comentario_validacion }}</p>{% endif %}
 <form method="post" enctype="multipart/form-data" class="card shadow-sm"><div class="card-body">{% csrf_token %}{% include 'includes/form_campos.html' %}<button class="btn btn-custom-red" type="submit">Enviar reemplazo</button> <a class="btn btn-outline-secondary" href="{% url 'evidencias:detalle' evidencia.pk %}">Cancelar</a></div></form>

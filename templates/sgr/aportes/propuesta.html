@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Proponer aporte | SGR{% endblock %}
 {% block content %}
-<h2 class="h4">Aporte de {{ actividad.titulo }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4">{% include 'includes/icono_titulo.html' with icono='validar' %}Aporte de {{ actividad.titulo }}</h2></div>
 <p>Fecha: {{ actividad.fecha|date:"d/m/Y" }} · Delegación: {{ actividad.delegacion }}</p>
 <p class="text-muted">Solo se ofrecen Indicadores activos del período que contiene esta fecha y de la misma Delegación. Si no hay opciones válidas, la Actividad puede continuar normalmente sin Indicador.</p>
 {% if aporte.comentario %}<div class="alert alert-info">Corrección solicitada: {{ aporte.comentario }}</div>{% endif %}
+{% if aporte.corregir_evidencia %}<div class="alert alert-warning">Debe subir una nueva evidencia en la actividad antes de reenviar el aporte. Si la actividad está cerrada, debe solicitar su reapertura.</div>{% endif %}
 <form method="post" class="card card-body shadow-sm">
     {% csrf_token %}
     {% include "includes/form_campos.html" %}

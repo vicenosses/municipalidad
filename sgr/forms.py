@@ -1,9 +1,32 @@
 from django import forms
 
-from sgr.models import Indicador, Meta, Periodo
+from sgr.models import AsignacionMeta, Indicador, Meta, Periodo
 from sgr.permisos import metas_visibles
 from usuarios.mixins import obtener_rol
 from usuarios.models import Delegacion
+
+
+class AsignacionMetaForm(forms.ModelForm):
+    class Meta:
+        model = AsignacionMeta
+        fields = ('funcionario', 'cantidad_objetivo', 'ponderacion', 'observacion', 'activa')
+        widgets = {
+            'funcionario': forms.Select(attrs={'class': 'form-select'}),
+            'cantidad_objetivo': forms.NumberInput(attrs={'class': 'form-control', 'min': '0.01', 'step': '0.01'}),
+            'ponderacion': forms.NumberInput(attrs={'class': 'form-control', 'min': '0.01', 'max': '100', 'step': '0.01'}),
+            'observacion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'activa': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, meta, **kwargs):
+        from django.contrib.auth import get_user_model
+        super().__init__(*args, **kwargs)
+        self.instance.meta = meta
+        self.fields['funcionario'].queryset = get_user_model().objects.filter(
+            is_active=True, perfil__activo=True, perfil__delegaciones=meta.delegacion,
+        ).distinct().order_by('last_name', 'first_name', 'username')
+        if self.instance.pk:
+            self.fields['funcionario'].disabled = True
 from usuarios.sesion import get_delegacion_activa
 
 

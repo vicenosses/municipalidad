@@ -32,7 +32,27 @@ class RecuperacionEnlaceTests(TestCase):
         self.assertRedirects(response, reverse('login'))
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('NuevaContraseñaSegura123!'))
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, [self.user.email])
+        self.assertIn('Confirmación de cambio', mail.outbox[1].subject)
         self.assertContains(self.client.get(path), 'Enlace no válido')
+
+    def test_solicitud_mediante_nombre_de_usuario(self):
+        self.solicitar('persona')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['persona@example.com'])
+
+    def test_identificacion_ambigua_no_envia_a_cuenta_equivocada(self):
+        User.objects.create_user(username='persona@example.com', email='otro@example.com', password='ClaveSegura123!')
+        self.solicitar('persona@example.com')
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_sin_correo_no_envia_ni_revela_cuenta(self):
+        self.user.email = ''
+        self.user.save(update_fields=['email'])
+        response = self.solicitar('persona')
+        self.assertRedirects(response, reverse('recuperacion_solicitar'))
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_correo_desconocido_no_revela_cuentas(self):
         response = self.solicitar('desconocido@example.com')

@@ -237,18 +237,15 @@ class ResultadoNumericoTests(DatosMetricasMixin, TestCase):
         self.assertEqual(actual.resultado, metrica.resultado)
         self.assertEqual(actual.cumplimiento, metrica.cumplimiento)
 
-    def test_reapertura_real_retira_cumple_hasta_nueva_validacion(self):
+    def test_revision_aprobada_conserva_resultado_al_intentar_reabrir(self):
         self.configurar()
         aporte = self.asociar()
         self.evidencia()
         self.decidir(aporte)
         self.assertEqual(self.calcular().resultado, Decimal('1'))
-        cambiar_estado_actividad(self.request('delegado'), self.actividad.pk, 'en_proceso')
-        self.assertEqual(self.calcular().resultado, Decimal('0'))
-        cambiar_estado_actividad(self.request(), self.actividad.pk, 'cerrada')
-        self.assertEqual(self.calcular().resultado, Decimal('0'))
-        aporte.refresh_from_db()
-        self.decidir(aporte)
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            cambiar_estado_actividad(self.request('delegado'), self.actividad.pk, 'en_proceso')
         self.assertEqual(self.calcular().resultado, Decimal('1'))
 
 

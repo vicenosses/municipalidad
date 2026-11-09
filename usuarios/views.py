@@ -1,4 +1,6 @@
 from django.contrib import messages
+from django.conf import settings
+import logging
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -35,6 +37,22 @@ from usuarios.transferencias import (
     contar_compromisos_activos,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def notificar_activacion(request, user):
+    from usuarios.auth_views import enviar_activacion
+    if settings.EMAIL_BACKEND == 'django.core.mail.backends.console.EmailBackend':
+        messages.warning(request, 'La cuenta quedó pendiente. Configure el correo SMTP y reenvíe el enlace de activación.')
+        return
+    try:
+        enviar_activacion(request, user)
+    except Exception:
+        logger.exception('No se pudo enviar el enlace de activación.')
+        messages.warning(request, 'La cuenta quedó pendiente, pero no se pudo enviar el correo. Revise SMTP y reenvíe el enlace.')
+    else:
+        messages.success(request, 'Cuenta pendiente de activación. Se envió el enlace al correo registrado.')
+
 
 def perfiles_en_contexto(request):
     return filtrar_contexto_territorial(Perfil.objects.select_related(
@@ -48,6 +66,7 @@ class UsuarioListView(FiltroExportMixin, RolRequiredMixin, ListView):
     context_object_name = 'perfiles'
     roles_permitidos = ('administrador', 'delegado')
     search_fields = (
+        'rut',
         'usuario__username',
         'usuario__first_name',
         'usuario__last_name',
@@ -110,8 +129,22 @@ class UsuarioCreateView(RolRequiredMixin, CreateView):
                 form.instance,
                 f'Alta de usuario {form.instance.username}',
             )
-        messages.success(self.request, 'Usuario creado correctamente.')
+        notificar_activacion(self.request, form.instance)
         return response
+
+
+class ReenviarActivacionView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador', 'delegado')
+
+    def post(self, request, pk):
+        perfil = get_object_or_404(perfiles_en_contexto(request).select_related('usuario', 'rol'), pk=pk)
+        if obtener_rol(request.user) == 'delegado' and (not perfil.rol or perfil.rol.codigo not in ('coordinador', 'verificador', 'funcionario')):
+            raise PermissionDenied
+        if not perfil.activo or perfil.usuario.is_active or perfil.usuario.has_usable_password() or not perfil.usuario.email:
+            messages.error(request, 'La cuenta no está pendiente de activación o no tiene correo registrado.')
+        else:
+            notificar_activacion(request, perfil.usuario)
+        return redirect('usuarios:lista')
 
 
 class UsuarioDetailView(RolRequiredMixin, DetailView):
@@ -154,10 +187,13 @@ class UsuarioDesactivarView(RolRequiredMixin, View):
         perfil = get_object_or_404(perfiles_en_contexto(request), pk=pk)
         perfil.activo = request.POST.get('activo') == 'true'
         perfil.save(update_fields=['activo'])
-        perfil.usuario.is_active = perfil.activo
+        perfil.usuario.is_active = perfil.activo and perfil.usuario.has_usable_password()
         perfil.usuario.save(update_fields=['is_active'])
         registrar_auditoria(request, 'activar' if perfil.activo else 'desactivar', perfil.usuario, f'Cambio de estado de {perfil.usuario.username}')
-        messages.success(request, 'Usuario activado.' if perfil.activo else 'Usuario desactivado.')
+        if perfil.activo and not perfil.usuario.has_usable_password():
+            messages.info(request, 'Cuenta habilitada y pendiente de activación por correo.')
+        else:
+            messages.success(request, 'Usuario activado.' if perfil.activo else 'Usuario desactivado.')
         return redirect('usuarios:lista')
 
 

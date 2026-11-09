@@ -284,7 +284,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         self.assertTrue(respuesta.context['historial_estados_incompleto'])
         self.assertContains(respuesta, 'sin reconstruir fechas anteriores')
 
-    def test_reapertura_conserva_9d_y_avance_9e(self):
+    def test_actividad_aprobada_conserva_historial_y_avance(self):
         actividad = self.crear(indicador=self.indicador_a.pk, valor_declarado='20')
         Evidencia.objects.create(atencion=actividad, estado=Evidencia.Estado.APROBADA,
             subido_por=self.usuarios['funcionario'], archivo='historia.jpg')
@@ -293,19 +293,15 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         aporte = AporteIndicador.objects.get(actividad=actividad)
         self.decidir(aporte)
         self.assertEqual(calcular_avance_indicador(self.indicador_a).puntos_ponderados, 1)
-        self.cambiar(actividad, 'en_proceso', 'delegado')
+        self.assertEqual(self.cambiar(actividad, 'en_proceso', 'delegado').status_code, 404)
         aporte.refresh_from_db()
-        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
-        self.assertTrue(aporte.espera_cierre)
-        self.assertIsNone(aporte.validado_por)
-        self.assertEqual(aporte.historial.filter(accion='reiniciar_aporte_reapertura').count(), 1)
+        self.assertEqual(aporte.estado, AporteIndicador.Estado.CUMPLE)
+        self.assertFalse(aporte.espera_cierre)
+        self.assertIsNotNone(aporte.validado_por)
+        self.assertEqual(aporte.historial.filter(accion='reiniciar_aporte_reapertura').count(), 0)
         self.assertEqual(aporte.historial.filter(accion='validar_aporte').count(), 1)
-        self.assertEqual(calcular_avance_indicador(self.indicador_a).puntos_ponderados, Decimal('0'))
-        self.cambiar(actividad, 'cerrada')
-        self.assertEqual(actividad.historial_estados.count(), 5)
+        self.assertEqual(actividad.historial_estados.count(), 3)
         self.assertEqual(calcular_avance_indicador(self.indicador_a).puntos_ponderados, 1)
-        aporte.refresh_from_db()
-        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
 
     def test_error_al_crear_evento_revierte_estado_y_auditoria(self):
         actividad = self.crear()

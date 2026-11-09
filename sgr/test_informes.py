@@ -186,7 +186,7 @@ class InformeSGRTests(DatosPonderacionesMixin, TestCase):
         fila = next(f for f in informe['filas'] if f.meta.pk == self.meta_a.pk)
         self.assertEqual(fila.resultado.cumplimiento_normalizado, Decimal('120'))
         self.assertContains(respuesta, 'no reconstruye estados')
-        self.assertContains(respuesta, 'Período inactivo')
+        self.assertContains(respuesta, '<span class="badge bg-danger">inactivo</span>', html=True)
 
     def test_periodo_futuro_se_consulta_sin_asignar_color(self):
         self.crear_meta(periodo=self.otro_periodo, nombre='Meta de 2027')

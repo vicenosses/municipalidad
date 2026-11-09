@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Ítem | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">{% if object %}Editar ítem{% else %}Nuevo ítem / meta{% endif %}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Catálogos</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='tipos' %}{% if object %}Editar ítem{% else %}Nuevo ítem / meta{% endif %}</h2></div>
 <form method="post" class="card shadow-sm">
     {% csrf_token %}
     <div class="card-body">

@@ -2,7 +2,7 @@
 {% block title %}Evidencias | SGR{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Evidencias</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Evidencias</h2></div>
     {% if puede_subir %}<a href="{% url 'evidencias:crear' %}" class="btn btn-custom-red">Subir evidencia</a>{% endif %}
 </div>
 <form method="get" class="card shadow-sm mb-4">

@@ -16,13 +16,17 @@ from usuarios.sesion import get_delegacion_activa, en_contexto_delegacion
 ROLES_VALIDACION = ('administrador', 'delegado', 'verificador')
 
 
-def indicadores_para_actividad(fecha, delegacion):
+def indicadores_para_actividad(fecha, delegacion, funcionario=None):
     if not fecha or not delegacion:
         return Indicador.objects.none()
-    return Indicador.objects.filter(
+    consulta = Indicador.objects.filter(
         activo=True, meta__activo=True, meta__delegacion=delegacion, meta__periodo__activo=True,
         meta__periodo__fecha_inicio__lte=fecha, meta__periodo__fecha_fin__gte=fecha,
     ).select_related('meta__periodo', 'meta__delegacion')
+    if funcionario is not None:
+        consulta = consulta.filter(meta__asignaciones__funcionario=funcionario,
+                                   meta__asignaciones__activa=True)
+    return consulta
 
 
 def aportes_visibles(request):
@@ -68,9 +72,7 @@ def pendientes_validacion(request):
         return AporteIndicador.objects.none()
     return aportes_visibles(request).filter(
         estado=AporteIndicador.Estado.PENDIENTE, actividad__activo=True,
-        actividad__evidencias__estado=Evidencia.Estado.APROBADA,
         indicador__activo=True, indicador__meta__activo=True, indicador__meta__periodo__activo=True,
-    ).filter(Q(espera_cierre=False) | Q(actividad__estado=AtencionCiudadana.Estado.CERRADA)
     ).exclude(actividad__creado_por=request.user).distinct()
 
 
@@ -88,6 +90,7 @@ def registrar_evento(request, aporte, accion, anterior=None, comentario=None):
         declarado_nuevo=aporte.valor_declarado, validado_anterior=anterior.get('valor_validado'),
         validado_nuevo=aporte.valor_validado, comentario=aporte.comentario if comentario is None else comentario,
         corregir_indicador=aporte.corregir_indicador, corregir_valor=aporte.corregir_valor,
+        corregir_evidencia=aporte.corregir_evidencia,
         usuario=request.user, version=aporte.version,
     )
     registrar_auditoria(request, accion, aporte,
@@ -98,7 +101,7 @@ def registrar_evento(request, aporte, accion, anterior=None, comentario=None):
 def guardar_version(aporte, version):
     aporte.full_clean()
     campos = ('indicador_id', 'estado', 'valor_declarado', 'valor_validado', 'comentario',
-              'validado_por_id', 'validado_en', 'corregir_indicador', 'corregir_valor', 'espera_cierre')
+              'validado_por_id', 'validado_en', 'corregir_indicador', 'corregir_valor', 'corregir_evidencia', 'espera_cierre')
     cambios = {campo: getattr(aporte, campo) for campo in campos}
     cambios.update(version=F('version') + 1, actualizado_en=timezone.now())
     if AporteIndicador.objects.filter(pk=aporte.pk, version=version).update(**cambios) != 1:
@@ -115,8 +118,8 @@ def proponer_aporte(request, actividad, indicador, valor_declarado, version=0):
         raise PermissionDenied('No puede cambiar el aporte: revise el plazo, estado y responsable.')
     if aporte and aporte.version != version:
         raise ValidationError('El aporte cambió. Recargue la página antes de reenviar.')
-    if not indicadores_para_actividad(actividad.fecha, actividad.delegacion).filter(pk=indicador.pk).exists():
-        raise ValidationError('El Indicador no es válido para la fecha y Delegación de la Actividad.')
+    if not indicadores_para_actividad(actividad.fecha, actividad.delegacion, actividad.responsable).filter(pk=indicador.pk).exists():
+        raise ValidationError('El indicador debe pertenecer a una meta asignada al responsable en el período de la actividad.')
     if aporte is None:
         if version != 0:
             raise ValidationError('La asociación cambió. Recargue la página.')
@@ -133,16 +136,21 @@ def proponer_aporte(request, actividad, indicador, valor_declarado, version=0):
             raise ValidationError('La revisión no autorizó cambiar el Indicador.')
         if valor != aporte.valor_declarado and not aporte.corregir_valor:
             raise ValidationError('La revisión no autorizó cambiar el valor declarado.')
+    if correccion and aporte.corregir_evidencia and not aporte.actividad.evidencias.filter(
+        fecha_subida__gte=aporte.validado_en, estado__in=(Evidencia.Estado.PENDIENTE, Evidencia.Estado.APROBADA)
+    ).exists():
+        raise ValidationError('Debe subir la nueva evidencia solicitada antes de reenviar el aporte.')
     if indicador.pk == aporte.indicador_id and valor == aporte.valor_declarado:
-        if correccion:
+        if correccion and not aporte.corregir_evidencia:
             raise ValidationError('Realice la corrección solicitada antes de reenviar.')
-        return aporte
+        if not correccion:
+            return aporte
     aporte.indicador = indicador
     aporte.valor_declarado = valor
     aporte.estado = AporteIndicador.Estado.PENDIENTE
     aporte.valor_validado = aporte.validado_por = aporte.validado_en = None
     aporte.comentario = ''
-    aporte.corregir_indicador = aporte.corregir_valor = aporte.espera_cierre = False
+    aporte.corregir_indicador = aporte.corregir_valor = aporte.corregir_evidencia = False
     guardar_version(aporte, version)
     registrar_evento(request, aporte, 'corregir_aporte' if correccion else 'cambiar_indicador', anterior)
     registrar_evento(request, aporte, 'reenviar_aporte', instantanea(aporte))
@@ -151,7 +159,7 @@ def proponer_aporte(request, actividad, indicador, valor_declarado, version=0):
 
 @transaction.atomic
 def validar_aporte(request, pk, version, estado, valor_validado=None, comentario='',
-                   corregir_indicador=False, corregir_valor=False):
+                   corregir_indicador=False, corregir_valor=False, corregir_evidencia=False):
     actividad_id = AporteIndicador.objects.values_list('actividad_id', flat=True).get(pk=pk)
     AtencionCiudadana.objects.select_for_update().get(pk=actividad_id)
     aporte = AporteIndicador.objects.select_for_update().get(pk=pk)
@@ -161,13 +169,14 @@ def validar_aporte(request, pk, version, estado, valor_validado=None, comentario
         raise ValidationError('El aporte ya fue revisado o cambió. Recargue la página.')
     if not aporte.actividad.activo:
         raise ValidationError('La Actividad debe estar habilitada para validar su aporte.')
-    if aporte.espera_cierre and aporte.actividad.estado != AtencionCiudadana.Estado.CERRADA:
-        raise ValidationError('La Actividad reabierta debe cerrarse antes de una nueva validación.')
-    if not tiene_evidencia_aprobada(aporte.actividad):
-        raise ValidationError('La Actividad necesita al menos una evidencia aprobada.')
-    if estado not in (AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.NO_CUMPLE,
+    if estado not in (AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA, AporteIndicador.Estado.NO_CUMPLE, AporteIndicador.Estado.ANULADO,
                       AporteIndicador.Estado.REQUIERE_CORRECCION):
         raise ValidationError('Seleccione una decisión válida.')
+    if estado in (AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA):
+        if aporte.espera_cierre and aporte.actividad.estado != AtencionCiudadana.Estado.CERRADA:
+            raise ValidationError('La Actividad reabierta debe cerrarse antes de una nueva validación.')
+        if not tiene_evidencia_aprobada(aporte.actividad):
+            raise ValidationError('La Actividad necesita al menos una evidencia aprobada.')
     anterior = instantanea(aporte)
     aporte.estado = estado
     aporte.comentario = comentario.strip()
@@ -179,9 +188,13 @@ def validar_aporte(request, pk, version, estado, valor_validado=None, comentario
     aporte.validado_en = timezone.now()
     aporte.corregir_indicador = corregir_indicador if estado == AporteIndicador.Estado.REQUIERE_CORRECCION else False
     aporte.corregir_valor = corregir_valor if estado == AporteIndicador.Estado.REQUIERE_CORRECCION else False
-    aporte.espera_cierre = False
+    aporte.corregir_evidencia = corregir_evidencia if estado == AporteIndicador.Estado.REQUIERE_CORRECCION else False
+    if estado != AporteIndicador.Estado.REQUIERE_CORRECCION:
+        aporte.espera_cierre = False
     guardar_version(aporte, version)
     accion = {AporteIndicador.Estado.CUMPLE: 'validar_aporte',
+              AporteIndicador.Estado.APROBADA_NO_PONDERA: 'aprobar_sin_ponderar',
+              AporteIndicador.Estado.ANULADO: 'anular_aporte',
               AporteIndicador.Estado.REQUIERE_CORRECCION: 'requerir_correccion_aporte',
               AporteIndicador.Estado.NO_CUMPLE: 'no_cumple_aporte'}[estado]
     registrar_evento(request, aporte, accion, anterior)
@@ -191,7 +204,8 @@ def validar_aporte(request, pk, version, estado, valor_validado=None, comentario
 @transaction.atomic
 def reiniciar_por_reapertura(request, actividad):
     aporte = AporteIndicador.objects.select_for_update().filter(
-        actividad=actividad, estado=AporteIndicador.Estado.CUMPLE).first()
+        actividad=actividad, estado__in=(AporteIndicador.Estado.CUMPLE,
+                                        AporteIndicador.Estado.APROBADA_NO_PONDERA)).first()
     if aporte:
         anterior = instantanea(aporte)
         version = aporte.version

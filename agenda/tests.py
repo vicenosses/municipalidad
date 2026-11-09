@@ -925,6 +925,8 @@ class CompromisoDesdeActividadTests(TestCase):
         for rol, user in self.users.items():
             with self.subTest(rol=rol):
                 actividad = self.actividad_b if rol == 'administrador' else self.actividad_a
+                if rol == 'verificador':
+                    actividad = self.crear_actividad('Actividad propia de verificador', self.delegacion_a, creador=user)
                 responsable = self.responsable_b if rol == 'administrador' else user
                 self.activar(user, actividad.delegacion)
                 respuesta = self.client.post(
@@ -945,7 +947,7 @@ class CompromisoDesdeActividadTests(TestCase):
                 self.assertTrue(actividad.va_al_tubo)
                 self.assertEqual(
                     actividad.creado_por,
-                    self.responsable_b if rol == 'administrador' else self.users['funcionario'],
+                    self.responsable_b if rol == 'administrador' else (user if rol == 'verificador' else self.users['funcionario']),
                 )
 
     def test_admin_requiere_contexto_de_actividad_o_global_para_crear_compromiso(self):

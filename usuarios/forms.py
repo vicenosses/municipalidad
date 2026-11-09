@@ -3,6 +3,7 @@ from django.contrib.auth.forms import AuthenticationForm, SetPasswordForm, UserC
 from django.contrib.auth.models import User
 
 from usuarios.models import Cargo, Delegacion, Perfil, Rol
+from agenda.validaciones import validar_y_formatear_rut
 
 
 class LoginUsuarioCorreoForm(AuthenticationForm):
@@ -23,9 +24,9 @@ class LoginUsuarioCorreoForm(AuthenticationForm):
 
 
 class SolicitudRecuperacionForm(forms.Form):
-    email = forms.EmailField(
-        label='Correo asociado',
-        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+    email = forms.CharField(
+        label='Correo o nombre de usuario', max_length=254,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'autocomplete': 'username'}),
     )
 
 
@@ -212,7 +213,24 @@ class CargoUsuarioMixin:
         return data
 
 
-class UsuarioMunicipalForm(CargoUsuarioMixin, UserCreationForm):
+class RutPerfilMixin:
+    rut = forms.CharField(label='RUT', max_length=20, required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ej.: 12.345.678-5'}))
+
+    def clean_rut(self):
+        rut = validar_y_formatear_rut(self.cleaned_data.get('rut', ''))
+        if not rut:
+            return None
+        perfiles = Perfil.objects.filter(rut__iexact=rut)
+        if self.instance.pk:
+            perfiles = perfiles.exclude(usuario=self.instance)
+        if perfiles.exists():
+            raise forms.ValidationError('Ya existe un usuario con este RUT.')
+        return rut
+
+
+class UsuarioMunicipalForm(RutPerfilMixin, CargoUsuarioMixin, forms.ModelForm):
+    rut = RutPerfilMixin.rut
     first_name = forms.CharField(
         label='Nombre',
         required=True,
@@ -244,24 +262,18 @@ class UsuarioMunicipalForm(CargoUsuarioMixin, UserCreationForm):
         required=False,
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
-    activo = forms.BooleanField(
-        label='Activo',
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-    )
-
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'password1', 'password2']
+        fields = ['username', 'first_name', 'last_name', 'email']
         widgets = {
             'username': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['password1'].widget.attrs['class'] = 'form-control'
-        self.fields['password2'].widget.attrs['class'] = 'form-control'
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip()
+        if User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('Ya existe un usuario con ese nombre.')
+        return username
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip()
@@ -273,14 +285,18 @@ class UsuarioMunicipalForm(CargoUsuarioMixin, UserCreationForm):
         return email
 
     def save(self, commit=True):
-        user = super().save(commit=commit)
+        user = super().save(commit=False)
         user.email = self.cleaned_data['email']
-        user.is_active = self.cleaned_data.get('activo', True)
+        user.is_active = False
+        user.set_unusable_password()
+        if not commit:
+            return user
         user.save()
         perfil, _ = Perfil.objects.get_or_create(usuario=user)
+        perfil.rut = self.cleaned_data['rut']
         perfil.rol = self.cleaned_data['rol']
         perfil.cargo = str(self.cleaned_data['cargo']) if self.cleaned_data.get('cargo') else ''
-        perfil.activo = self.cleaned_data.get('activo', True)
+        perfil.activo = True
         delegaciones = list(self.cleaned_data['delegaciones'])
         perfil.delegacion = delegaciones[0] if delegaciones else None
         perfil.save()
@@ -288,7 +304,8 @@ class UsuarioMunicipalForm(CargoUsuarioMixin, UserCreationForm):
         return user
 
 
-class UsuarioEditarForm(CargoUsuarioMixin, forms.ModelForm):
+class UsuarioEditarForm(RutPerfilMixin, CargoUsuarioMixin, forms.ModelForm):
+    rut = RutPerfilMixin.rut
     rol = forms.ModelChoiceField(
         label='Rol',
         queryset=Rol.objects.filter(activo=True),
@@ -331,6 +348,8 @@ class UsuarioEditarForm(CargoUsuarioMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         perfil = getattr(self.instance, 'perfil', None)
         if perfil:
+            self.fields['rut'].initial = perfil.rut
+            self.fields['rut'].required = bool(perfil.rut)
             self.fields['rol'].initial = perfil.rol_id
             self.fields['delegaciones'].initial = perfil.delegaciones.values_list('id', flat=True)
             cargo_actual = Cargo.objects.filter(nombre=perfil.cargo).first()
@@ -349,9 +368,10 @@ class UsuarioEditarForm(CargoUsuarioMixin, forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=commit)
         activo = self.cleaned_data.get('activo', True)
-        user.is_active = activo
+        user.is_active = activo and user.has_usable_password()
         user.save()
         perfil, _ = Perfil.objects.get_or_create(usuario=user)
+        perfil.rut = self.cleaned_data.get('rut')
         perfil.rol = self.cleaned_data['rol']
         if perfil.rol.codigo == 'funcionario':
             perfil.cargo = str(self.cleaned_data['cargo']) if self.cleaned_data.get('cargo') else ''

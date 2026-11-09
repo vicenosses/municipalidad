@@ -16,7 +16,7 @@ from atenciones.forms import (
 from atenciones.models import AtencionCiudadana
 from atenciones.estados import cambiar_estado_actividad, registrar_creacion_actividad
 from atenciones.permisos import (
-    ROLES_GESTORES_ESTADO, ROLES_OPERATIVOS_ESTADO, puede_cambiar_estado, queryset_atenciones,
+    ROLES_GESTORES_ESTADO, ROLES_OPERATIVOS_ESTADO, actividad_aprobada, puede_cambiar_estado, queryset_atenciones,
 )
 from agenda.views import puede_crear_compromiso_desde_actividad
 from auditoria.utils import registrar_auditoria
@@ -34,6 +34,8 @@ from usuarios.sesion import (
 )
 
 def puede_cambiar_disponibilidad(request, atencion):
+    if actividad_aprobada(atencion):
+        return False
     rol = obtener_rol(request.user)
     if rol == 'administrador':
         return en_contexto_delegacion(request, atencion.delegacion)
@@ -46,7 +48,7 @@ def puede_cambiar_disponibilidad(request, atencion):
 
 def puede_cambiar_va_al_tubo(request, atencion):
     if (
-        not atencion.activo
+        not atencion.activo or actividad_aprobada(atencion)
         or atencion.estado == AtencionCiudadana.Estado.CERRADA
     ):
         return False
@@ -344,6 +346,8 @@ class AtencionCreateView(RolRequiredMixin, CreateView):
                     compromiso = Compromiso.objects.create(
                         titulo=form.instance.titulo, descripcion=form.instance.descripcion,
                         solicitante=form.instance.solicitante, fecha_hora=form.cleaned_data['plazo_tubo'],
+                        rut_solicitante=form.cleaned_data.get('rut_tubo', ''),
+                        telefono_solicitante=form.cleaned_data.get('telefono_tubo', ''),
                         responsable=self.request.user, creado_por=self.request.user, delegacion=delegacion,
                     )
                     compromiso.actividades.add(form.instance)

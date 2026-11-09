@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Confirmar transferencia | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-2">Transferir usuario</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Administración municipal</div><h2 class="h4 fw-bold mb-2">{% include 'includes/icono_titulo.html' with icono='transferencias' %}Transferir usuario</h2></div>
 <p>Usuario: <strong>{{ usuario_transferido.get_full_name|default:usuario_transferido.username }}</strong></p>
 <p>Delegación de origen: <strong>{{ delegacion_origen.nombre }}</strong></p>
 {% if compromisos_activos %}

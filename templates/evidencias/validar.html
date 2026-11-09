@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Validar evidencia | SGR{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Validación de jefatura</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Evidencias</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='evidencias' %}Validación de jefatura</h2></div>
 <div class="row g-4">
     <div class="col-md-6">
         {% if evidencia.tipo_archivo == 'video' %}
@@ -30,6 +30,20 @@
                     <label class="form-label" for="{{ form.comentario.id_for_label }}">{{ form.comentario.label }}</label>
                     {{ form.comentario }}
                 </div>
+                {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+                {% if aporte %}
+                <hr>
+                <h3 class="h5">Aporte a la meta</h3>
+                <p><strong>Meta:</strong> {{ aporte.indicador.meta }}<br><strong>Indicador:</strong> {{ aporte.indicador }}<br><strong>Aporte declarado:</strong> {{ aporte.valor_declarado|default_if_none:"No corresponde" }}</p>
+                <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="evaluar_aporte" id="evaluar-aporte" {% if request.POST.evaluar_aporte %}checked{% endif %}><label class="form-check-label" for="evaluar-aporte">Revisar también el aporte SGR</label></div>
+                <div id="campos-aporte">
+                    {% for field in aporte_form %}
+                        {% if field.is_hidden %}{{ field }}{% else %}<div class="mb-3">{{ field.label_tag }} {{ field }} {% for error in field.errors %}<div class="text-danger">{{ error }}</div>{% endfor %}</div>{% endif %}
+                    {% endfor %}
+                    {{ aporte_form.non_field_errors }}
+                    <p class="small text-muted">Para solicitar correcciones o rechazar el aporte, indique el motivo. También puede revisar solo la evidencia y decidir el aporte más tarde.</p>
+                </div>
+                {% endif %}
                 <button type="submit" name="accion" value="aprobar" class="btn btn-success">Aprobar</button>
                 <button type="submit" name="accion" value="rechazar" class="btn btn-custom-red">Rechazar</button>
                 <a href="{% url 'evidencias:lista' %}" class="btn btn-outline-secondary">Volver</a>
@@ -38,3 +52,7 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}<script>
+(function () { const control = document.getElementById('evaluar-aporte'); const campos = document.getElementById('campos-aporte'); if (!control || !campos) return; function actualizar() { campos.hidden = !control.checked; } control.addEventListener('change', actualizar); actualizar(); })();
+</script>{% endblock %}

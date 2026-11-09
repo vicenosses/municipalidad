@@ -13,7 +13,7 @@
 {% block content %}
 <div class="actividad-form-cabecera mb-4">
     <div class="actividad-form-etiqueta mb-1">Actividades</div>
-    <h2 class="h3 fw-bold mb-1">Registrar actividad</h2>
+    <h2 class="h3 fw-bold mb-1">{% include 'includes/icono_titulo.html' with icono='actividades' %}Registrar actividad</h2>
     <p class="text-muted small mb-0">Completa los datos y, si corresponde, agrega un plazo para el tubo.</p>
 </div>
 <form method="post" class="card shadow-sm actividad-form-tarjeta">
@@ -41,12 +41,12 @@
         <section class="actividad-form-seccion" aria-labelledby="actividad-datos">
             <h3 id="actividad-datos" class="h5 fw-bold mb-1">Datos de la actividad</h3>
             <p class="small text-muted">Describe la actividad y su clasificación. Los campos marcados con * son obligatorios.</p>
-            {% for field in form %}{% if field.name == 'titulo' or field.name == 'fecha' or field.name == 'solicitante' or field.name == 'tipo' or field.name == 'subatencion' or field.name == 'descripcion' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+            {% for field in form %}{% if field.name == 'titulo' or field.name == 'fecha' or field.name == 'solicitante' or field.name == 'territorio' or field.name == 'tipo' or field.name == 'subatencion' or field.name == 'descripcion' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
         </section>
         <section class="actividad-form-seccion" aria-labelledby="actividad-tubo">
             <h3 id="actividad-tubo" class="h5 fw-bold mb-1">Seguimiento en el tubo</h3>
             <p class="small text-muted">Si requiere seguimiento, indica la fecha y hora límite.</p>
-            {% for field in form %}{% if field.name == 'va_al_tubo' or field.name == 'plazo_tubo' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+            {% for field in form %}{% if field.name == 'va_al_tubo' or field.name == 'plazo_tubo' or field.name == 'rut_tubo' or field.name == 'telefono_tubo' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
         </section>
         <section class="actividad-form-seccion" aria-labelledby="actividad-sgr">
             <h3 id="actividad-sgr" class="h5 fw-bold mb-1">Vinculación con SGR</h3>
@@ -66,7 +66,14 @@
     const plazoTubo = document.getElementById('id_plazo_tubo');
     if (vaAlTubo && plazoTubo) {
         const contenedorPlazo = plazoTubo.closest('.mb-3');
-        function actualizarPlazo() { contenedorPlazo.hidden = !vaAlTubo.checked; plazoTubo.required = vaAlTubo.checked; }
+        function actualizarPlazo() {
+            contenedorPlazo.hidden = !vaAlTubo.checked;
+            plazoTubo.required = vaAlTubo.checked;
+            ['id_rut_tubo', 'id_telefono_tubo'].forEach(function (id) {
+                const campo = document.getElementById(id);
+                if (campo) campo.closest('.mb-3').hidden = !vaAlTubo.checked;
+            });
+        }
         vaAlTubo.addEventListener('change', actualizarPlazo);
         actualizarPlazo();
     }

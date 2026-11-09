@@ -3,7 +3,7 @@
 {% block content %}
 {% include "sgr/_navegacion.html" %}
 <div class="d-flex flex-wrap justify-content-between gap-2 mb-4">
-    <h2 class="h4 fw-bold mb-0">Metas</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='metas' %}Metas</h2></div>
     {% if puede_crear_meta %}<a href="{% url 'sgr:meta_crear' %}" class="btn btn-custom-red">Nueva Meta</a>{% endif %}
 </div>
 <form method="get" class="card shadow-sm mb-4">

@@ -2,7 +2,7 @@
 {% block title %}Usuarios | SGR{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="h4 fw-bold mb-0">Gestión de usuarios y roles</h2>
+    <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Administración municipal</div><h2 class="h4 fw-bold mb-0">{% include 'includes/icono_titulo.html' with icono='usuarios' %}Gestión de usuarios y roles</h2></div>
     <a href="{% url 'usuarios:crear' %}" class="btn btn-custom-red">Nuevo usuario</a>
 </div>
 
@@ -28,6 +28,7 @@
         <thead class="table-light">
             <tr>
                 <th>Usuario</th>
+                <th>RUT</th>
                 <th>Nombre</th>
                 <th>Correo</th>
                 <th>Rol</th>
@@ -40,12 +41,16 @@
             {% for perfil in perfiles %}
             <tr>
                 <td>{{ perfil.usuario.username }}</td>
+                <td>{{ perfil.rut|default:"No registrado" }}</td>
                 <td>{{ perfil.usuario.get_full_name|default:"—" }}</td>
                 <td>{{ perfil.usuario.email|default:"—" }}</td>
                 <td><span class="badge badge-rol">{{ perfil.rol.nombre|default:"—" }}</span></td>
                 <td>{{ perfil.delegaciones_display|default:"—" }}</td>
-                <td><span class="badge {% if perfil.activo %}bg-success{% else %}bg-danger{% endif %}">{{ perfil.estado_display }}</span></td>
+                <td><span class="badge {% if perfil.pendiente_activacion %}bg-warning text-dark{% elif perfil.activo %}bg-success{% else %}bg-danger{% endif %}">{{ perfil.estado_display }}</span></td>
                 <td class="text-end">
+                    {% if perfil.pendiente_activacion %}
+                    <form method="post" action="{% url 'usuarios:reenviar_activacion' perfil.pk %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-secondary">Reenviar activación</button></form>
+                    {% endif %}
                     {% if sesion_rol_codigo == 'administrador' %}
                     <a href="{% url 'usuarios:detalle' perfil.pk %}" class="btn btn-sm btn-outline-secondary">Ver</a>
                     <a href="{% url 'usuarios:editar' perfil.pk %}" class="btn btn-sm btn-custom-red">Editar</a>
@@ -59,7 +64,7 @@
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" class="text-center text-muted py-4">No hay usuarios.</td></tr>
+            <tr><td colspan="8" class="text-center text-muted py-4">No hay usuarios.</td></tr>
             {% endfor %}
         </tbody>
     </table>

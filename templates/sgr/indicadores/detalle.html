@@ -2,7 +2,7 @@
 {% block title %}{{ indicador.nombre }} | SGR{% endblock %}
 {% block content %}
 {% include "sgr/_navegacion.html" %}
-<h2 class="h4 fw-bold mb-4">{{ indicador.nombre }}</h2>
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='informes' %}{{ indicador.nombre }}</h2></div>
 <div class="card shadow-sm"><div class="card-body">
     <p><strong>Descripción:</strong> {{ indicador.descripcion|default:"Sin descripción"|linebreaksbr }}</p>
     <p><strong>Meta:</strong> <a href="{{ indicador.meta.get_absolute_url }}">{{ indicador.meta }}</a></p>

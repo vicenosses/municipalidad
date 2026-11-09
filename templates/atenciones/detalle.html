@@ -1,75 +1,76 @@
 {% extends "base.html" %}
 {% block title %}Detalle actividad | SGR{% endblock %}
+{% block extra_css %}
+<style>
+    .actividad-detalle-cabecera { border-left: 4px solid #c92a2a; padding-left: 1.15rem; }
+    .actividad-detalle-etiqueta { color: #c92a2a; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .actividad-detalle-tarjeta { border: 1px solid #e9ecef; border-radius: .75rem; overflow: hidden; }
+    .actividad-detalle-dato { height: 100%; padding: .9rem 1rem; background: #f8f9fa; border-radius: .5rem; overflow-wrap: anywhere; }
+    .actividad-detalle-dato dt { color: #6c757d; font-size: .8rem; font-weight: 600; margin-bottom: .35rem; }
+    .actividad-detalle-dato dd { margin: 0; font-weight: 500; }
+    .actividad-detalle-acciones { border-top: 1px solid #e9ecef; }
+    .actividad-detalle-descripcion { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+{% endblock %}
 {% block content %}
-<h2 class="h4 fw-bold mb-4">Actividad de {{ atencion.solicitante }}</h2>
-{% if cierre_bloqueado_evidencias %}<div class="alert alert-info" role="status">Para cerrar la actividad debe existir al menos una evidencia aprobada y no puede quedar ninguna evidencia rechazada sin un reemplazo aprobado.</div>{% endif %}
-{% include "sgr/aportes/_actividad.html" %}
-<div class="card shadow-sm">
-    <div class="card-body">
-        <p><strong>Título:</strong> {{ atencion.titulo }}</p>
-        <p><strong>Fecha de actividad:</strong> {{ atencion.fecha|date:"d/m/Y" }}</p>
-        <p><strong>Estado:</strong> {{ atencion.get_estado_display }}</p>
-        <p><strong>Disponibilidad:</strong>
-            {% if atencion.activo %}
-            <span class="badge bg-success">Habilitada</span>
-            {% else %}
-            <span class="badge bg-danger">Deshabilitada</span>
-            {% endif %}
-        </p>
-        <p><strong>Fecha de registro:</strong> {{ atencion.fecha_registro }}</p>
-        <p><strong>Tipo:</strong> {{ atencion.tipo }}</p>
-        <p><strong>Subatención:</strong> {{ atencion.subatencion }}</p>
-        <p><strong>Va al tubo:</strong>
-            {% if atencion.va_al_tubo %}<span class="badge bg-success">Sí</span>
-            {% else %}<span class="badge bg-secondary">No</span>{% endif %}
-        </p>
-        <p><strong>Delegación:</strong> {{ atencion.delegacion }}</p>
-        <p><strong>Creada por:</strong> {{ atencion.creador_historico_display }}</p>
-        <p><strong>Responsable:</strong> {{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</p>
-        <p class="mb-0"><strong>Descripción:</strong> {{ atencion.descripcion }}</p>
+<div class="actividad-detalle-cabecera mb-4">
+    <div class="actividad-detalle-etiqueta mb-1">Gestión municipal · Actividades</div>
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+        <div>
+            <h2 class="h3 fw-bold mb-1">{% include 'includes/icono_titulo.html' with icono='actividades' %}{{ atencion.titulo }}</h2>
+            <p class="text-muted small mb-0">Detalle y seguimiento de la actividad de {{ atencion.solicitante }}</p>
+        </div>
+        <a href="{% url 'atenciones:lista' %}" class="btn btn-outline-secondary">Volver a actividades</a>
     </div>
-    {% if puede_agregar_a_agenda %}
-    <div class="card-footer bg-white">
-        <a href="{% url 'atenciones:agregar_a_agenda' atencion.pk %}" class="btn btn-custom-red">Agregar a Agenda</a>
-    </div>
-    {% endif %}
-    {% if estados_disponibles %}
-    <div class="card-footer bg-white d-flex flex-wrap gap-2">
-        {% for estado, etiqueta in estados_disponibles %}
-        <form method="post" action="{% url 'atenciones:cambiar_estado' atencion.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="estado" value="{{ estado }}">
-            <button type="submit" class="btn btn-outline-primary">Pasar a {{ etiqueta }}</button>
-        </form>
-        {% endfor %}
-    </div>
-    {% endif %}
-    {% if puede_cambiar_disponibilidad %}
-    <div class="card-footer bg-white">
-        <form method="post" action="{% url 'atenciones:cambiar_disponibilidad' atencion.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="activo" value="{% if atencion.activo %}false{% else %}true{% endif %}">
-            <button type="submit" class="btn {% if atencion.activo %}btn-danger{% else %}btn-success{% endif %}">
-                {% if atencion.activo %}Desactivar{% else %}Activar{% endif %}
-            </button>
-        </form>
-    </div>
-    {% endif %}
-    {% if puede_cambiar_va_al_tubo %}
-    <div class="card-footer bg-white">
-        <form method="post" action="{% url 'atenciones:cambiar_va_al_tubo' atencion.pk %}" class="row g-2 align-items-end">
-            {% csrf_token %}
-            <div class="col-auto">
-                <label class="form-label" for="{{ form_va_al_tubo.va_al_tubo.id_for_label }}">¿Va al tubo?</label>
-                {{ form_va_al_tubo.va_al_tubo }}
-            </div>
-            <div class="col-auto">
-                <button type="submit" class="btn btn-outline-success">Actualizar clasificación</button>
-            </div>
-        </form>
-    </div>
-    {% endif %}
 </div>
+{% if cierre_bloqueado_evidencias %}<div class="alert alert-info" role="status">Para cerrar la actividad debe existir al menos una evidencia aprobada y no puede quedar ninguna evidencia rechazada sin un reemplazo aprobado.</div>{% endif %}
+<section class="card shadow-sm actividad-detalle-tarjeta mb-4" aria-labelledby="datos-actividad">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-4">
+            <div><h3 id="datos-actividad" class="h5 fw-bold mb-1">Información de la actividad</h3><p class="small text-muted mb-0">Datos generales y responsables del registro.</p></div>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge {% if atencion.estado == 'cerrada' %}bg-success{% elif atencion.estado == 'en_proceso' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ atencion.get_estado_display }}</span>
+                {% if atencion.activo %}<span class="badge bg-success">Habilitada</span>{% else %}<span class="badge bg-danger">Deshabilitada</span>{% endif %}
+            </div>
+        </div>
+        <dl class="row g-3 mb-0">
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Fecha de actividad</dt><dd>{{ atencion.fecha|date:"d/m/Y" }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Fecha de registro</dt><dd>{{ atencion.fecha_registro|date:"d/m/Y H:i" }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Solicitante</dt><dd>{{ atencion.solicitante }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Va al tubo</dt><dd>{% if atencion.va_al_tubo %}<span class="badge bg-success">Sí</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Tipo</dt><dd>{{ atencion.tipo }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Subatención</dt><dd>{{ atencion.subatencion }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Delegación</dt><dd>{{ atencion.delegacion }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Territorio</dt><dd>{{ atencion.territorio|default:'No registrado' }}</dd></div></div>
+            <div class="col-sm-6"><div class="actividad-detalle-dato"><dt>Creada por</dt><dd>{{ atencion.creador_historico_display }}</dd></div></div>
+            <div class="col-sm-6"><div class="actividad-detalle-dato"><dt>Responsable</dt><dd>{{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</dd></div></div>
+            <div class="col-12"><div class="actividad-detalle-dato"><dt>Descripción</dt><dd class="actividad-detalle-descripcion">{{ atencion.descripcion }}</dd></div></div>
+        </dl>
+    </div>
+    {% if puede_agregar_a_agenda or estados_disponibles or puede_cambiar_disponibilidad or puede_cambiar_va_al_tubo %}
+    <div class="card-body p-4 actividad-detalle-acciones">
+        <h3 class="h6 fw-bold mb-1">Acciones y seguimiento</h3>
+        <p class="small text-muted mb-3">Actualiza el estado o la clasificación de esta actividad.</p>
+        <div class="d-flex flex-wrap align-items-end gap-2">
+            {% if puede_agregar_a_agenda %}<a href="{% url 'atenciones:agregar_a_agenda' atencion.pk %}" class="btn btn-custom-red">Agregar a Agenda</a>{% endif %}
+            {% for estado, etiqueta in estados_disponibles %}
+            <form method="post" action="{% url 'atenciones:cambiar_estado' atencion.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="{{ estado }}"><button type="submit" class="btn btn-outline-primary">Pasar a {{ etiqueta }}</button></form>
+            {% endfor %}
+            {% if puede_cambiar_disponibilidad %}
+            <form method="post" action="{% url 'atenciones:cambiar_disponibilidad' atencion.pk %}">{% csrf_token %}<input type="hidden" name="activo" value="{% if atencion.activo %}false{% else %}true{% endif %}"><button type="submit" class="btn {% if atencion.activo %}btn-danger{% else %}btn-success{% endif %}">{% if atencion.activo %}Desactivar{% else %}Activar{% endif %}</button></form>
+            {% endif %}
+        </div>
+        {% if puede_cambiar_va_al_tubo %}
+        <form method="post" action="{% url 'atenciones:cambiar_va_al_tubo' atencion.pk %}" class="d-flex flex-wrap gap-2 align-items-end mt-3">
+            {% csrf_token %}
+            <div><label class="form-label small mb-1" for="{{ form_va_al_tubo.va_al_tubo.id_for_label }}">¿Va al tubo?</label>{{ form_va_al_tubo.va_al_tubo }}</div>
+            <button type="submit" class="btn btn-outline-success">Actualizar clasificación</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% include "sgr/aportes/_actividad.html" %}
 {% include "atenciones/_historial_estados.html" %}
 <section class="card shadow-sm mt-4">
     <div class="card-header bg-white fw-semibold">Agenda / Compromisos relacionados</div>

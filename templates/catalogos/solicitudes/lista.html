@@ -2,9 +2,9 @@
 {% block title %}Solicitudes generales | SGR{% endblock %}
 {% block content %}
 {% include "catalogos/_navegacion.html" %}
-<h2 class="h4 fw-bold mb-4">
+<div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Catálogos</div><h2 class="h4 fw-bold mb-4">{% include 'includes/icono_titulo.html' with icono='tipos' %}
     {% if es_administrador %}Solicitudes generales{% else %}Mis solicitudes generales{% endif %}
-</h2>
+</h2></div>
 <div class="table-responsive shadow-sm">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
@@ -23,7 +23,7 @@
         <tbody>
             {% for solicitud in solicitudes %}
             <tr>
-                <td>{{ solicitud.creado|date:"d/m/Y H:i" }}</td>
+                <td class="text-nowrap">{{ solicitud.creado|date:"d/m/Y H:i" }}</td>
                 {% if es_administrador %}
                 <td>{{ solicitud.solicitante.get_full_name|default:solicitud.solicitante.username }}</td>
                 <td>{{ solicitud.delegacion_solicitante.nombre }}</td>
