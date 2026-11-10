@@ -16,6 +16,7 @@
             min-height: 100vh;
         }
         .navbar-custom { background-color: #c92a2a; }
+        .navbar-brand .marca-logo { display: block; width: 12rem; max-width: 100%; height: auto; }
         .panel-lateral .navbar-brand { white-space: normal; max-width: calc(100% - 4rem); }
         .ubicacion-actual { display: flex; align-items: flex-start; font-size: .8rem; line-height: 1.35; }
         .ubicacion-actual .icono-nav { margin-right: .4rem; margin-top: .05rem; }
@@ -30,9 +31,15 @@
             .panel-lateral.navbar {
                 position: fixed; inset: 0 auto 0 0; z-index: 1030;
                 width: 15.5rem; overflow-y: auto; align-items: flex-start;
+                padding-top: .2rem; padding-bottom: .2rem;
             }
             .panel-lateral > .container-fluid { min-height: 100%; align-items: stretch; flex-direction: column; }
-            .panel-lateral .navbar-brand { max-width: none; margin: .5rem 0 1rem; padding: .6rem .35rem; border-bottom: 1px solid rgba(255,255,255,.3); white-space: normal; }
+            .panel-lateral .navbar-brand {
+                display: flex; flex-direction: column; align-items: center;
+                max-width: none; margin: .1rem 0 .5rem; padding: .3rem .35rem .65rem;
+                border-bottom: 1px solid rgba(255,255,255,.3); white-space: normal;
+            }
+            .panel-lateral .marca-logo { width: 100%; }
             .panel-lateral .navbar-collapse { flex: 1; flex-direction: column; align-items: stretch; }
             .panel-lateral .navbar-nav { flex-direction: column; width: 100%; gap: .15rem; }
             .panel-lateral .navbar-nav.me-auto { margin-bottom: 1rem; }
@@ -77,7 +84,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm{% if user.is_authenticated %} panel-lateral{% endif %}" aria-label="Navegación principal">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="{% url 'home' %}">
-                <span class="text-white">SGR</span> <small class="text-light fs-6">La Serena</small>
+                <img class="marca-logo" src="{% static 'icons/iconoprincipal.png' %}" alt="SGR - Municipalidad de La Serena">
                 {% if user.is_authenticated %}<span class="ubicacion-actual fw-normal text-white mt-1">{% include 'includes/icono_nav.html' with icono='ubicacion' %}<span><span class="visually-hidden">Delegación activa: </span>{% if sesion_delegacion %}{{ sesion_delegacion.nombre }}{% elif sesion_rol_codigo == 'administrador' %}Todas las delegaciones{% else %}Sin delegación autorizada{% endif %}</span></span>{% endif %}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Mostrar navegación">
