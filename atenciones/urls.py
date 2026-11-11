@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from agenda.views import CompromisoDesdeActividadView
 from atenciones import views
@@ -6,6 +6,10 @@ from atenciones import views
 app_name = 'atenciones'
 
 urlpatterns = [
+    path(
+        'gestiones-sociales/',
+        include(('operaciones.urls_gestion_social', 'gestion_social'), namespace='gestion_social'),
+    ),
     path('', views.AtencionListView.as_view(), name='lista'),
     path('nueva/', views.AtencionCreateView.as_view(), name='crear'),
     path(

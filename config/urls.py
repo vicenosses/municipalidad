@@ -16,6 +16,7 @@ from usuarios.auth_views import (
 )
 
 urlpatterns = [
+    path('api/v1/', include('api.urls')),
     path('eliminar/<str:tipo>/<int:pk>/', EliminarRegistroView.as_view(), name='eliminar_registro'),
     path('admin/', admin.site.urls),
     path('login/', LoginSGRView.as_view(), name='login'),

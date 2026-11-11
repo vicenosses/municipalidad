@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Editar hito{% else %}Programar hito{% endif %} | SGR{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_agenda.html' with activa='hitos' %}
+<div class="mb-4"><div class="small text-uppercase text-institucional fw-bold">Planificación</div><h2 class="h3 fw-bold">{% if object %}Editar hito{% else %}Programar hito{% endif %}</h2><p class="text-muted">Asocia el hito a un único registro existente y asigna una persona responsable.</p></div>
+<form method="post" class="card shadow-sm"><div class="card-body p-4">{% csrf_token %}{% include 'operaciones/_form.html' %}<div class="d-flex gap-2 mt-4"><button class="btn btn-custom-red" type="submit">Guardar hito</button><a class="btn btn-outline-secondary" href="{% if object %}{% url 'agenda:hitos:detalle' object.pk %}{% else %}{% url 'agenda:hitos:lista' %}{% endif %}">Cancelar</a></div></div></form>
+{% endblock %}

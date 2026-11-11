@@ -144,6 +144,74 @@ Entre las entidades principales se encuentran:
 - Períodos, metas e indicadores.
 - Registros de auditoría.
 
+## API REST v1
+
+La API JSON está disponible en `/api/v1/`. Al abrir esa dirección con una sesión válida se muestra el índice navegable de Django REST Framework. Las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
+
+### Autenticación
+
+Salvo la obtención de token y la solicitud de recuperación, los endpoints requieren una sesión autenticada o un token JWT:
+
+1. Solicita tokens con `POST /api/v1/auth/token/` y un JSON con `username` y `password`. El valor de `username` también puede ser el correo registrado.
+2. Envía el token de acceso en cada solicitud protegida: `Authorization: Bearer <access>`.
+3. Renueva con `POST /api/v1/auth/token/refresh/` y `{"refresh": "<refresh>"}`. El refresh se rota y el anterior queda invalidado.
+4. Cierra la sesión del token con `POST /api/v1/auth/logout/`, el mismo encabezado Bearer y `{"refresh": "<refresh>"}`.
+5. Solicita recuperación con `POST /api/v1/auth/recuperacion/` y `{"identificador": "<correo o usuario>"}`. La respuesta es igual exista o no la cuenta.
+
+Los access tokens vencen en 15 minutos y los refresh en 24 horas. Los intentos fallidos comparten el bloqueo de acceso existente y los endpoints de autenticación tienen límites de solicitudes.
+
+### Recursos
+
+| Endpoint | Uso |
+|---|---|
+| `/yo/` | Perfil autenticado, rol y delegaciones autorizadas. |
+| `/delegaciones/`, `/territorios/` | Catálogos acotados a las delegaciones permitidas. |
+| `/cargos/`, `/roles/` | Catálogos administrativos; nunca se exponen las reglas internas de permisos. |
+| `/tipos-atencion/`, `/subatenciones/`, `/vecinos/?q=...` | Catálogos y búsqueda/autocompletado de vecinos. |
+| `/periodos/`, `/metas/`, `/asignaciones/`, `/indicadores/` | Estructura y asignaciones del SGR. |
+| `/actividades/`, `/compromisos/`, `/ampliaciones/` | Actividades, tubo de compromisos y solicitudes de ampliación. |
+| `/evidencias/`, `/aportes/` | Evidencias y propuestas/revisiones de aportes a indicadores. |
+| `/gestiones-sociales/`, `/cartas/`, `/hitos/` | Seguimiento social, cartas y etapas de seguimiento. |
+| `/tubo/` | Vista unificada de actividades, compromisos, gestiones sociales y cartas. |
+| `/dashboard/` | Indicadores agregados y semáforo del período vigente. |
+| `/auditoria/` | Bitácora, disponible solo para administración. |
+
+Los listados están paginados (50 elementos como máximo por página). El tubo acepta `tipo`, `estado`, `q`, `desde` y `hasta`; las fechas usan `AAAA-MM-DD`. La búsqueda de vecinos requiere `q` y devuelve solo el nombre abreviado, el RUT enmascarado y el territorio.
+
+### Operaciones de escritura principales
+
+- `POST /actividades/` registra una actividad usando las mismas validaciones de tipos, subtipos, territorio, indicadores y evidencias que el formulario web. Acepta los campos del formulario `AtencionCiudadanaForm`; si `va_al_tubo` es verdadero, también requiere `plazo_tubo`.
+- `POST /actividades/{id}/estado/`, `/tubo/` y `/disponibilidad/` ejecutan las transiciones autorizadas.
+- `POST /compromisos/` registra compromisos y sus relaciones con actividades. `POST /compromisos/{id}/solicitar-ampliacion/` crea una solicitud; `POST /ampliaciones/{id}/decision/` recibe `{"accion": "aprobar"}` o `{"accion": "rechazar"}`.
+- `POST /evidencias/` carga una evidencia `multipart/form-data` vinculada a exactamente una actividad o compromiso. El archivo se entrega solo por `GET /evidencias/{id}/archivo/` después de comprobar el acceso. La validación se efectúa en `POST /evidencias/{id}/validar/`.
+- `POST /aportes/proponer/` recibe `actividad`, `indicador`, `valor_declarado` y `version`; `POST /aportes/{id}/validar/` aplica la revisión del SGR con control de concurrencia.
+- Gestión Social, Cartas e Hitos aceptan creación y edición sin borrado físico. Sus estados solo cambian mediante `POST /{id}/estado/`; cada transición permitida se registra en auditoría.
+
+Ejemplo mínimo de gestión social:
+
+```json
+{
+  "titulo": "Orientación vecinal",
+  "tipo": "orientacion",
+  "descripcion": "Antecedentes de la gestión",
+  "delegacion": 1,
+  "territorio": 1,
+  "ingresa_al_tubo": true
+}
+```
+
+Los códigos de Gestión Social, Cartas e Hitos se generan automáticamente. Un Hito debe estar asociado a exactamente una actividad, gestión social o compromiso.
+
+### Pantallas web de operación
+
+Gestión Social se encuentra dentro de **Actividades**, en la navegación secundaria de esa sección. El Tubo de cartas y los Hitos se encuentran dentro de **Agenda**, junto a Compromisos; no agregan opciones al panel lateral. Los listados y detalles aplican el contexto territorial, y los funcionarios solo ven los registros propios o a su cargo. Administradores, delegados y coordinadores pueden consultar la información de sus ámbitos autorizados. La creación de Hitos está limitada a administradores y delegados.
+
+### Acceso y datos personales
+
+La API requiere roles activos y filtra los registros por las delegaciones autorizadas en el servidor; nunca confía en un ID de delegación enviado por el cliente sin validarlo. Los funcionarios y verificadores solo gestionan sus registros sensibles. Los listados omiten contenido de gestión/carta, descripciones de actividad y datos del solicitante; los detalles sensibles quedan limitados a responsables, verificadores y gestores autorizados. Los RUT que devuelve la búsqueda están enmascarados, y los archivos de evidencia no son públicos. No se registra el contenido de gestiones, cartas ni RUT en la nueva bitácora.
+
+Para permitir acceso desde un cliente web de otro origen, agregue sus orígenes HTTPS a `CORS_ALLOWED_ORIGINS`, separados por coma. La lista está vacía de forma predeterminada. No se habilita CORS indiscriminadamente.
+
 ## Despliegue
 
 La aplicación cuenta con una instalación desplegada en una instancia Amazon EC2. La configuración utilizada en AWS se encuentra separada de la configuración destinada al desarrollo local.

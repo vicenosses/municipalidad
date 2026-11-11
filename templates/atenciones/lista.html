@@ -23,6 +23,9 @@
     </div>
     <a href="{% url 'atenciones:crear' %}" class="btn btn-custom-red">Registrar actividad</a>
 </div>
+{% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' or sesion_rol_codigo == 'funcionario' %}
+{% include 'operaciones/_nav_actividades.html' with activa='actividades' %}
+{% endif %}
 <section class="actividades-filtros shadow-sm mb-4" aria-label="Búsqueda y filtros de actividades">
 {% include "includes/toolbar_listado.html" %}
 <form method="get" class="row g-2 align-items-end mb-3">

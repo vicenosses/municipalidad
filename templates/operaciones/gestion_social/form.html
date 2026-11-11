@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Editar gestión social{% else %}Nueva gestión social{% endif %} | SGR{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_actividades.html' with activa='gestion_social' %}
+<div class="mb-4"><div class="small text-uppercase text-institucional fw-bold">Atención ciudadana</div><h2 class="h3 fw-bold">{% if object %}Editar gestión social{% else %}Registrar gestión social{% endif %}</h2><p class="text-muted">Registra la atención y su responsable. Los datos del beneficiario solo estarán disponibles para usuarios autorizados.</p></div>
+<form method="post" class="card shadow-sm"><div class="card-body p-4">{% csrf_token %}{% include 'operaciones/_form.html' %}<div class="d-flex gap-2 mt-4"><button class="btn btn-custom-red" type="submit">Guardar</button><a class="btn btn-outline-secondary" href="{% if object %}{% url 'atenciones:gestion_social:detalle' object.pk %}{% else %}{% url 'atenciones:gestion_social:lista' %}{% endif %}">Cancelar</a></div></div></form>
+{% endblock %}

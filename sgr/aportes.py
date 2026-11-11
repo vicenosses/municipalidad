@@ -95,7 +95,7 @@ def registrar_evento(request, aporte, accion, anterior=None, comentario=None):
     )
     registrar_auditoria(request, accion, aporte,
                         f'Actividad {aporte.actividad_id}; Indicador {aporte.indicador_id}; '
-                        f'{aporte.get_estado_display()}. {aporte.comentario}')
+                        f'{aporte.get_estado_display()}.')
 
 
 def guardar_version(aporte, version):

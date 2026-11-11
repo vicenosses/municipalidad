@@ -1,0 +1,23 @@
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="busqueda-registros">Buscar por código, nombre o asunto</label>
+                <input id="busqueda-registros" class="form-control" type="search" name="q" value="{{ q }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label" for="estado-registros">Estado</label>
+                <select id="estado-registros" class="form-select" name="estado">
+                    <option value="">Todos los estados</option>
+                    {% for valor, etiqueta in estados %}
+                    <option value="{{ valor }}" {% if estado == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-custom-red" type="submit">Filtrar</button>
+                <a class="btn btn-outline-secondary" href="{{ request.path }}">Limpiar</a>
+            </div>
+        </div>
+    </div>
+</form>

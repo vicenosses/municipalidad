@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Gestión social | SGR{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_actividades.html' with activa='gestion_social' %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div><div class="small text-uppercase text-institucional fw-bold">Atención ciudadana</div><h2 class="h3 fw-bold mb-1">Gestiones sociales</h2><p class="text-muted mb-0">Atención, seguimiento y derivación de casos sociales.</p></div>
+    {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'atenciones:gestion_social:crear' %}">Registrar gestión social</a>{% endif %}
+</div>
+{% include 'operaciones/_lista_filtros.html' %}
+<p class="text-muted small">{{ page_obj.paginator.count }} registro{{ page_obj.paginator.count|pluralize }}</p>
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Ingreso</th><th>Código</th><th>Gestión</th><th>Delegación / territorio</th><th>Responsable</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for registro in registros %}
+        <tr>
+            <td>{{ registro.fecha_ingreso|date:'d/m/Y' }}</td>
+            <td>{{ registro.codigo }}</td>
+            <td><a href="{% url 'atenciones:gestion_social:detalle' registro.pk %}">{{ registro.titulo }}</a><div class="small text-muted">{{ registro.get_tipo_display }}{% if registro.ingresa_al_tubo %} · En Tubo{% endif %}</div></td>
+            <td>{{ registro.delegacion.nombre }}{% if registro.territorio %}<div class="small text-muted">{{ registro.territorio.nombre }}</div>{% endif %}</td>
+            <td>{{ registro.responsable.get_full_name|default:registro.responsable.username }}</td>
+            <td><span class="badge bg-secondary">{{ registro.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm btn-outline-secondary" href="{% url 'atenciones:gestion_social:detalle' registro.pk %}">Ver</a></td>
+        </tr>
+        {% empty %}<tr><td class="text-center text-muted py-4" colspan="7">No hay gestiones sociales para estos filtros.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include 'operaciones/_paginacion.html' %}
+{% endblock %}

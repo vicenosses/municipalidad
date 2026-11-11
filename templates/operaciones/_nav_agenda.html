@@ -1,0 +1,8 @@
+<nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Secciones de agenda">
+    <a class="btn {% if activa == 'compromisos' %}btn-custom-red{% else %}btn-outline-secondary{% endif %}"
+       href="{% url 'agenda:lista' %}"{% if activa == 'compromisos' %} aria-current="page"{% endif %}>Compromisos</a>
+    <a class="btn {% if activa == 'cartas' %}btn-custom-red{% else %}btn-outline-secondary{% endif %}"
+       href="{% url 'agenda:cartas:lista' %}"{% if activa == 'cartas' %} aria-current="page"{% endif %}>Tubo de cartas</a>
+    <a class="btn {% if activa == 'hitos' %}btn-custom-red{% else %}btn-outline-secondary{% endif %}"
+       href="{% url 'agenda:hitos:lista' %}"{% if activa == 'hitos' %} aria-current="page"{% endif %}>Hitos</a>
+</nav>
