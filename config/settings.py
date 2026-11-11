@@ -86,7 +86,7 @@ REST_FRAMEWORK = {
         'anon': '100/day',
         'user': '2000/day',
         'login': '10/hour',
-        'password_reset': '5/hour',
+        'solicitud_recuperacion': '5/hour',
     },
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

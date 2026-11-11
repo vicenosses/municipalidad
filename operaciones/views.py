@@ -30,6 +30,11 @@ from usuarios.sesion import (
 )
 
 ROLES_VALIDOS = (*ROLES_GESTORES, 'funcionario', 'verificador')
+URL_GESTION_SOCIAL_DETALLE = 'atenciones:gestion_social:detalle'
+URL_CARTA_DETALLE = 'agenda:cartas:detalle'
+URL_HITO_DETALLE = 'agenda:hitos:detalle'
+ETIQUETA_GESTION_SOCIAL = 'Gestión social'
+ETIQUETA_EN_PROCESO = 'En proceso'
 
 
 def _puede_editar(user, objeto):
@@ -54,6 +59,22 @@ def _filtrar_propios(queryset, request):
     if obtener_rol(request.user) not in ROLES_GESTORES:
         return queryset.filter(Q(responsable=request.user) | Q(creado_por=request.user))
     return queryset
+
+
+def _queryset_accesible(model, request):
+    if model is Hito:
+        queryset = _filtro_hitos(request)
+    else:
+        queryset = filtrar_contexto_territorial(model.objects.all(), request)
+    return _filtrar_propios(queryset, request)
+
+
+def _excluir_estados_terminales(queryset, model):
+    if model is Hito:
+        return queryset.exclude(
+            estado__in=(Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO),
+        )
+    return queryset.exclude(estado=model.Estado.CERRADA)
 
 
 def _filtro_hitos(request):
@@ -201,7 +222,7 @@ class CrearGestionSocial(CrearModulo):
     template_name = 'operaciones/gestion_social/form.html'
     success_url_name = 'atenciones:gestion_social:lista'
     audit_modelo = 'gestion_social'
-    audit_etiqueta = 'Gestión social'
+    audit_etiqueta = ETIQUETA_GESTION_SOCIAL
 
 
 class CrearCarta(CrearModulo):
@@ -225,22 +246,8 @@ class CrearHito(CrearModulo):
 
 class EditarModulo(LoginRequiredMixin, UpdateView):
     def get_queryset(self):
-        if self.model is Hito:
-            queryset = _filtro_hitos(self.request)
-        else:
-            queryset = filtrar_contexto_territorial(self.model.objects.all(), self.request)
-        queryset = _filtrar_propios(queryset, self.request)
-        if self.model is Hito:
-            queryset = queryset.exclude(
-                estado__in=(Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO),
-            )
-        else:
-            queryset = queryset.exclude(
-                estado__in=(
-                    self.model.Estado.CERRADA,
-                )
-            )
-        return queryset
+        queryset = _queryset_accesible(self.model, self.request)
+        return _excluir_estados_terminales(queryset, self.model)
 
     def dispatch(self, request, *args, **kwargs):
         response = super().dispatch(request, *args, **kwargs)
@@ -273,16 +280,16 @@ class EditarGestionSocial(EditarModulo):
     model = GestionSocial
     form_class = GestionSocialForm
     template_name = 'operaciones/gestion_social/form.html'
-    success_url_name = 'atenciones:gestion_social:detalle'
+    success_url_name = URL_GESTION_SOCIAL_DETALLE
     audit_modelo = 'gestion_social'
-    audit_etiqueta = 'Gestión social'
+    audit_etiqueta = ETIQUETA_GESTION_SOCIAL
 
 
 class EditarCarta(EditarModulo):
     model = Carta
     form_class = CartaForm
     template_name = 'operaciones/cartas/form.html'
-    success_url_name = 'agenda:cartas:detalle'
+    success_url_name = URL_CARTA_DETALLE
     audit_modelo = 'carta'
     audit_etiqueta = 'Carta'
 
@@ -291,7 +298,7 @@ class EditarHito(EditarModulo):
     model = Hito
     form_class = HitoForm
     template_name = 'operaciones/hitos/form.html'
-    success_url_name = 'agenda:hitos:detalle'
+    success_url_name = URL_HITO_DETALLE
     audit_modelo = 'hito'
     audit_etiqueta = 'Hito'
     roles_creacion = ROLES_GESTORES
@@ -309,13 +316,46 @@ class DetalleModulo(LoginRequiredMixin, View):
     transiciones = {}
 
     def get_queryset(self):
-        if self.model is Hito:
-            queryset = _filtro_hitos(self.request)
-        else:
-            queryset = filtrar_contexto_territorial(self.model.objects.all(), self.request)
-        return _filtrar_propios(queryset, self.request).select_related(
+        return _queryset_accesible(self.model, self.request).select_related(
             'responsable', 'creado_por',
         )
+
+    def _render_formulario_estado(self, request, objeto, form, estado, puede_editar):
+        return render(request, self.template_name, {
+            'registro': objeto,
+            'puede_editar': puede_editar,
+            'transiciones': self.transiciones.get(estado, ()),
+            'form_estado': form,
+            'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
+        }, status=400)
+
+    @staticmethod
+    def _actualizar_estado_carta(objeto, estado, form):
+        if estado == Carta.Estado.RESPONDIDA:
+            objeto.respuesta = form.cleaned_data['respuesta'].strip()
+            objeto.fecha_respuesta = timezone.localdate()
+        elif estado == Carta.Estado.EN_PROCESO:
+            objeto.fecha_respuesta = None
+
+    @staticmethod
+    def _actualizar_estado_hito(objeto, estado, form):
+        if estado == Hito.Estado.COMPLETADO:
+            objeto.fecha_completada = form.cleaned_data['fecha_completada']
+            if not objeto.fecha_completada:
+                form.add_error('fecha_completada', 'Indique la fecha de término.')
+        elif estado == Hito.Estado.CANCELADO:
+            objeto.motivo_cambio = form.cleaned_data['motivo'].strip()
+            if not objeto.motivo_cambio:
+                form.add_error('motivo', 'Indique el motivo de cancelación.')
+        else:
+            objeto.fecha_completada = None
+
+    def _actualizar_campos_estado(self, objeto, estado, form):
+        objeto.estado = estado
+        if isinstance(objeto, Carta):
+            self._actualizar_estado_carta(objeto, estado, form)
+        elif isinstance(objeto, Hito):
+            self._actualizar_estado_hito(objeto, estado, form)
 
     def get(self, request, pk):
         if obtener_rol(request.user) not in ROLES_VALIDOS:
@@ -340,40 +380,15 @@ class DetalleModulo(LoginRequiredMixin, View):
             request.POST, choices=self.transiciones.get(objeto.estado, ()),
         )
         if not form.is_valid():
-            return render(request, self.template_name, {
-                'registro': objeto,
-                'puede_editar': _puede_editar_formulario(request.user, objeto),
-                'transiciones': self.transiciones.get(objeto.estado, ()),
-                'form_estado': form,
-                'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
-            }, status=400)
+            return self._render_formulario_estado(
+                request, objeto, form, objeto.estado,
+                _puede_editar_formulario(request.user, objeto),
+            )
         anterior = objeto.estado
         estado = form.cleaned_data['estado']
-        objeto.estado = estado
-        if isinstance(objeto, Carta) and estado == Carta.Estado.RESPONDIDA:
-            objeto.respuesta = form.cleaned_data['respuesta'].strip()
-            objeto.fecha_respuesta = timezone.localdate()
-        elif isinstance(objeto, Carta) and estado == Carta.Estado.EN_PROCESO:
-            objeto.fecha_respuesta = None
-        if isinstance(objeto, Hito):
-            if estado == Hito.Estado.COMPLETADO:
-                objeto.fecha_completada = form.cleaned_data['fecha_completada']
-                if not objeto.fecha_completada:
-                    form.add_error('fecha_completada', 'Indique la fecha de término.')
-            elif estado == Hito.Estado.CANCELADO:
-                objeto.motivo_cambio = form.cleaned_data['motivo'].strip()
-                if not objeto.motivo_cambio:
-                    form.add_error('motivo', 'Indique el motivo de cancelación.')
-            else:
-                objeto.fecha_completada = None
+        self._actualizar_campos_estado(objeto, estado, form)
         if form.errors:
-            return render(request, self.template_name, {
-                'registro': objeto,
-                'puede_editar': True,
-                'transiciones': self.transiciones.get(anterior, ()),
-                'form_estado': form,
-                'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
-            }, status=400)
+            return self._render_formulario_estado(request, objeto, form, anterior, True)
         with transaction.atomic():
             objeto.save()
             registrar_auditoria(
@@ -387,12 +402,12 @@ class DetalleModulo(LoginRequiredMixin, View):
 class DetalleGestionSocial(DetalleModulo):
     model = GestionSocial
     template_name = 'operaciones/gestion_social/detalle.html'
-    success_url_name = 'atenciones:gestion_social:detalle'
+    success_url_name = URL_GESTION_SOCIAL_DETALLE
     audit_modelo = 'gestion_social'
-    audit_etiqueta = 'Gestión social'
+    audit_etiqueta = ETIQUETA_GESTION_SOCIAL
     transiciones = {
         GestionSocial.Estado.REGISTRADA: (
-            (GestionSocial.Estado.EN_PROCESO, 'En proceso'),
+            (GestionSocial.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
             (GestionSocial.Estado.DERIVADA, 'Derivada'),
         ),
         GestionSocial.Estado.EN_PROCESO: (
@@ -401,11 +416,11 @@ class DetalleGestionSocial(DetalleModulo):
             (GestionSocial.Estado.CERRADA, 'Cerrada'),
         ),
         GestionSocial.Estado.PENDIENTE_ANTECEDENTES: (
-            (GestionSocial.Estado.EN_PROCESO, 'En proceso'),
+            (GestionSocial.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
             (GestionSocial.Estado.CERRADA, 'Cerrada'),
         ),
         GestionSocial.Estado.DERIVADA: (
-            (GestionSocial.Estado.EN_PROCESO, 'En proceso'),
+            (GestionSocial.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
             (GestionSocial.Estado.CERRADA, 'Cerrada'),
         ),
     }
@@ -414,15 +429,15 @@ class DetalleGestionSocial(DetalleModulo):
 class DetalleCarta(DetalleModulo):
     model = Carta
     template_name = 'operaciones/cartas/detalle.html'
-    success_url_name = 'agenda:cartas:detalle'
+    success_url_name = URL_CARTA_DETALLE
     audit_modelo = 'carta'
     audit_etiqueta = 'Carta'
     transiciones = {
         Carta.Estado.INGRESADA: (
             (Carta.Estado.ASIGNADA, 'Asignada'),
-            (Carta.Estado.EN_PROCESO, 'En proceso'),
+            (Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
         ),
-        Carta.Estado.ASIGNADA: ((Carta.Estado.EN_PROCESO, 'En proceso'),),
+        Carta.Estado.ASIGNADA: ((Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),),
         Carta.Estado.EN_PROCESO: ((Carta.Estado.RESPONDIDA, 'Respondida'),),
         Carta.Estado.RESPONDIDA: (
             (Carta.Estado.CERRADA, 'Cerrada'),
@@ -434,12 +449,12 @@ class DetalleCarta(DetalleModulo):
 class DetalleHito(DetalleModulo):
     model = Hito
     template_name = 'operaciones/hitos/detalle.html'
-    success_url_name = 'agenda:hitos:detalle'
+    success_url_name = URL_HITO_DETALLE
     audit_modelo = 'hito'
     audit_etiqueta = 'Hito'
     transiciones = {
         Hito.Estado.PENDIENTE: (
-            (Hito.Estado.EN_PROCESO, 'En proceso'),
+            (Hito.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
             (Hito.Estado.CANCELADO, 'Cancelar'),
         ),
         Hito.Estado.EN_PROCESO: (
@@ -476,20 +491,20 @@ class DesactivarModulo(LoginRequiredMixin, View):
 
 class DesactivarGestionSocial(DesactivarModulo):
     model = GestionSocial
-    detail_url_name = 'atenciones:gestion_social:detalle'
+    detail_url_name = URL_GESTION_SOCIAL_DETALLE
     audit_modelo = 'gestion_social'
-    audit_etiqueta = 'Gestión social'
+    audit_etiqueta = ETIQUETA_GESTION_SOCIAL
 
 
 class DesactivarCarta(DesactivarModulo):
     model = Carta
-    detail_url_name = 'agenda:cartas:detalle'
+    detail_url_name = URL_CARTA_DETALLE
     audit_modelo = 'carta'
     audit_etiqueta = 'Carta'
 
 
 class DesactivarHito(DesactivarModulo):
     model = Hito
-    detail_url_name = 'agenda:hitos:detalle'
+    detail_url_name = URL_HITO_DETALLE
     audit_modelo = 'hito'
     audit_etiqueta = 'Hito'

@@ -75,6 +75,11 @@ from api.serializers import (
     ValidarAporteSerializer,
 )
 
+THROTTLE_SCOPE_RECUPERACION = 'solicitud_recuperacion'
+MENSAJE_BOOLEANO_INVALIDO = 'Use true o false.'
+MENSAJE_TRANSICION_INVALIDA = 'La transición de estado no está permitida.'
+ETIQUETA_GESTION_SOCIAL = 'Gestión social'
+
 
 class AccesoTokenSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
@@ -109,7 +114,7 @@ class RecuperacionAPIView(APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
     throttle_classes = (AnonRateThrottle, ScopedRateThrottle)
-    throttle_scope = 'password_reset'
+    throttle_scope = THROTTLE_SCOPE_RECUPERACION
 
     def post(self, request):
         identificador = (request.data.get('identificador') or '').strip()
@@ -373,7 +378,7 @@ class AtencionViewSet(
             raise PermissionDenied('No puede cambiar la inclusión de esta actividad en el tubo.')
         valor = request.data.get('va_al_tubo')
         if not isinstance(valor, bool):
-            raise ValidationError({'va_al_tubo': 'Use true o false.'})
+            raise ValidationError({'va_al_tubo': MENSAJE_BOOLEANO_INVALIDO})
         if valor and not atencion.compromisos.exists():
             raise ValidationError('Cree un compromiso con plazo antes de incluir la actividad en el tubo.')
         if not valor and atencion.compromisos.exists():
@@ -392,7 +397,7 @@ class AtencionViewSet(
             raise PermissionDenied('No puede cambiar la disponibilidad de esta actividad.')
         valor = request.data.get('activo')
         if not isinstance(valor, bool):
-            raise ValidationError({'activo': 'Use true o false.'})
+            raise ValidationError({'activo': MENSAJE_BOOLEANO_INVALIDO})
         atencion.activo = valor
         atencion.save(update_fields=['activo'])
         registrar_auditoria(
@@ -654,7 +659,7 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
         instance = serializer.save()
         registrar_auditoria(
             self.request, 'crear_gestion_social', instance,
-            f'Gestión social {instance.codigo} creada.',
+            f'{ETIQUETA_GESTION_SOCIAL} {instance.codigo} creada.',
         )
 
     def perform_update(self, serializer):
@@ -664,7 +669,7 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
         instance = serializer.save()
         registrar_auditoria(
             self.request, 'actualizar_gestion_social', instance,
-            f'Gestión social {instance.codigo} actualizada.',
+            f'{ETIQUETA_GESTION_SOCIAL} {instance.codigo} actualizada.',
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -688,14 +693,13 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
             GestionSocial.Estado.DERIVADA: {GestionSocial.Estado.EN_PROCESO, GestionSocial.Estado.CERRADA},
             GestionSocial.Estado.CERRADA: set(),
         }
-        if nuevo not in transiciones.get(instance.estado, set()):
-            raise ValidationError({'estado': 'La transición de estado no está permitida.'})
+        _validar_transicion_estado(instance, nuevo, transiciones)
         anterior = instance.estado
         instance.estado = nuevo
         instance.save(update_fields=['estado', 'actualizado_en'])
         registrar_auditoria(
             request, 'cambiar_estado_gestion_social', instance,
-            f'Gestión social {instance.codigo}: {anterior} → {nuevo}.',
+            f'{ETIQUETA_GESTION_SOCIAL} {instance.codigo}: {anterior} → {nuevo}.',
         )
         return Response(self.get_serializer(instance).data)
 
@@ -706,12 +710,12 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
             raise PermissionDenied('Solo un gestor puede desactivar una gestión social.')
         valor = request.data.get('activo')
         if not isinstance(valor, bool):
-            raise ValidationError({'activo': 'Use true o false.'})
+            raise ValidationError({'activo': MENSAJE_BOOLEANO_INVALIDO})
         instance.activo = valor
         instance.save(update_fields=['activo', 'actualizado_en'])
         registrar_auditoria(
             request, 'cambiar_disponibilidad_gestion_social', instance,
-            f'Gestión social {instance.codigo}: activo={valor}.',
+            f'{ETIQUETA_GESTION_SOCIAL} {instance.codigo}: activo={valor}.',
         )
         return Response(self.get_serializer(instance).data)
 
@@ -767,8 +771,7 @@ class CartaViewSet(BaseViewSet, viewsets.ModelViewSet):
             Carta.Estado.RESPONDIDA: {Carta.Estado.CERRADA, Carta.Estado.EN_PROCESO},
             Carta.Estado.CERRADA: set(),
         }
-        if nuevo not in transiciones.get(instance.estado, set()):
-            raise ValidationError({'estado': 'La transición de estado no está permitida.'})
+        _validar_transicion_estado(instance, nuevo, transiciones)
         anterior = instance.estado
         instance.estado = nuevo
         if nuevo == Carta.Estado.RESPONDIDA:
@@ -793,7 +796,7 @@ class CartaViewSet(BaseViewSet, viewsets.ModelViewSet):
             raise PermissionDenied('Solo un gestor puede desactivar una carta.')
         valor = request.data.get('activo')
         if not isinstance(valor, bool):
-            raise ValidationError({'activo': 'Use true o false.'})
+            raise ValidationError({'activo': MENSAJE_BOOLEANO_INVALIDO})
         instance.activo = valor
         instance.save(update_fields=['activo', 'actualizado_en'])
         registrar_auditoria(request, 'cambiar_disponibilidad_carta', instance,
@@ -854,8 +857,7 @@ class HitoViewSet(BaseViewSet, viewsets.ModelViewSet):
             Hito.Estado.COMPLETADO: set(),
             Hito.Estado.CANCELADO: set(),
         }
-        if nuevo not in transiciones.get(instance.estado, set()):
-            raise ValidationError({'estado': 'La transición de estado no está permitida.'})
+        _validar_transicion_estado(instance, nuevo, transiciones)
         anterior = instance.estado
         instance.estado = nuevo
         if nuevo == Hito.Estado.COMPLETADO:
@@ -878,7 +880,7 @@ class HitoViewSet(BaseViewSet, viewsets.ModelViewSet):
             raise PermissionDenied('Solo un gestor puede desactivar un hito.')
         valor = request.data.get('activo')
         if not isinstance(valor, bool):
-            raise ValidationError({'activo': 'Use true o false.'})
+            raise ValidationError({'activo': MENSAJE_BOOLEANO_INVALIDO})
         instance.activo = valor
         instance.save(update_fields=['activo', 'actualizado_en'])
         registrar_auditoria(request, 'cambiar_disponibilidad_hito', instance,
@@ -953,22 +955,119 @@ class AuditoriaViewSet(ReadOnlyViewSet):
         return RegistroAuditoria.objects.select_related('usuario').order_by('-timestamp')
 
 
+def _validar_transicion_estado(instance, nuevo, transiciones):
+    if nuevo not in transiciones.get(instance.estado, set()):
+        raise ValidationError({'estado': MENSAJE_TRANSICION_INVALIDA})
+
+
+TIPOS_TUBO = ('actividad', 'compromiso', 'gestion_social', 'carta')
+
+
+def _filtrar_delegacion_tubo(delegaciones, delegacion_id):
+    if not delegacion_id:
+        return delegaciones
+    try:
+        delegacion_id = int(delegacion_id)
+    except ValueError as error:
+        raise ValidationError({'delegacion': 'Seleccione una delegación válida.'}) from error
+    delegaciones = delegaciones.filter(pk=delegacion_id)
+    if not delegaciones.exists():
+        raise NotFound()
+    return delegaciones
+
+
+def _agregar_actividades_tubo(registros, delegaciones, desde, hasta):
+    actividades = AtencionCiudadana.objects.filter(
+        va_al_tubo=True, activo=True, delegacion__in=delegaciones,
+    ).select_related('responsable').only(
+        'id', 'titulo', 'fecha', 'estado', 'delegacion_id',
+        'responsable__id', 'responsable__first_name', 'responsable__last_name',
+    )
+    for item in _filtrar_fecha(actividades, 'fecha', desde, hasta):
+        registros.append(_registro_tubo(
+            'actividad', f'ACT-{item.pk:06d}', item.pk, item.titulo, item.estado,
+            item.fecha, None, item.delegacion_id, item.responsable,
+        ))
+
+
+def _agregar_compromisos_tubo(registros, delegaciones, desde, hasta):
+    compromisos = Compromiso.objects.filter(delegacion__in=delegaciones).select_related(
+        'responsable',
+    ).only(
+        'id', 'fecha_hora', 'titulo', 'estado', 'delegacion_id',
+        'responsable__id', 'responsable__first_name', 'responsable__last_name',
+    )
+    for item in _filtrar_fecha(compromisos, 'fecha_hora__date', desde, hasta):
+        registros.append(_registro_tubo(
+            'compromiso', item.codigo, item.pk, item.titulo, item.estado,
+            item.fecha_hora.date(), item.fecha_hora.date(), item.delegacion_id, item.responsable,
+        ))
+
+
+def _agregar_gestiones_tubo(registros, delegaciones, desde, hasta):
+    gestiones = GestionSocial.objects.filter(
+        ingresa_al_tubo=True, activo=True, delegacion__in=delegaciones,
+    ).select_related('responsable').only(
+        'id', 'codigo', 'titulo', 'estado', 'fecha_ingreso', 'fecha_compromiso',
+        'delegacion_id', 'responsable__id', 'responsable__first_name', 'responsable__last_name',
+    )
+    for item in _filtrar_fecha(gestiones, 'fecha_ingreso', desde, hasta):
+        registros.append(_registro_tubo(
+            'gestion_social', item.codigo, item.pk, item.titulo, item.estado,
+            item.fecha_ingreso, item.fecha_compromiso, item.delegacion_id, item.responsable,
+        ))
+
+
+def _agregar_cartas_tubo(registros, delegaciones, desde, hasta):
+    cartas = Carta.objects.filter(
+        ingresa_al_tubo=True, activo=True, delegacion__in=delegaciones,
+    ).select_related('responsable').only(
+        'id', 'codigo', 'asunto', 'estado', 'fecha_ingreso', 'fecha_compromiso',
+        'delegacion_id', 'responsable__id', 'responsable__first_name', 'responsable__last_name',
+    )
+    for item in _filtrar_fecha(cartas, 'fecha_ingreso', desde, hasta):
+        registros.append(_registro_tubo(
+            'carta', item.codigo, item.pk, item.asunto, item.estado,
+            item.fecha_ingreso, item.fecha_compromiso, item.delegacion_id, item.responsable,
+        ))
+
+
+def _construir_registros_tubo(filtro_tipo, delegaciones, desde, hasta):
+    agregadores = {
+        'actividad': _agregar_actividades_tubo,
+        'compromiso': _agregar_compromisos_tubo,
+        'gestion_social': _agregar_gestiones_tubo,
+        'carta': _agregar_cartas_tubo,
+    }
+    registros = []
+    for tipo, agregar in agregadores.items():
+        if filtro_tipo in (None, tipo):
+            agregar(registros, delegaciones, desde, hasta)
+    return registros
+
+
+def _filtrar_registros_tubo(registros, estado, busqueda):
+    if estado:
+        registros = [item for item in registros if item['estado'] == estado]
+    if busqueda:
+        consulta = busqueda.casefold()
+        registros = [
+            item for item in registros
+            if consulta in item['codigo'].casefold() or consulta in item['titulo'].casefold()
+        ]
+    return registros
+
+
 class TuboView(APIView):
     def get(self, request):
         delegaciones = delegaciones_autorizadas(request.user)
         if rol_usuario(request.user) not in ROLES_VALIDOS or not delegaciones.exists():
             return Response({'count': 0, 'results': []})
-        delegacion_id = request.query_params.get('delegacion')
-        if delegacion_id:
-            try:
-                delegacion_id = int(delegacion_id)
-            except ValueError as error:
-                raise ValidationError({'delegacion': 'Seleccione una delegación válida.'}) from error
-            delegaciones = delegaciones.filter(pk=delegacion_id)
-            if not delegaciones.exists():
-                raise NotFound()
+        delegaciones = _filtrar_delegacion_tubo(
+            delegaciones, request.query_params.get('delegacion'),
+        )
         filtro_tipo = request.query_params.get('tipo')
-        if filtro_tipo not in (None, 'actividad', 'compromiso', 'gestion_social', 'carta'):
+        if filtro_tipo not in (None, *TIPOS_TUBO):
             raise ValidationError({'tipo': 'Tipo de registro no válido.'})
         estado = request.query_params.get('estado')
         busqueda = (request.query_params.get('q') or '').strip()
@@ -978,64 +1077,10 @@ class TuboView(APIView):
         )
         if len(busqueda) > 100:
             raise ValidationError({'q': 'La búsqueda no puede superar 100 caracteres.'})
-        registros = []
-
-        if filtro_tipo in (None, 'actividad'):
-            actividades = AtencionCiudadana.objects.filter(
-                va_al_tubo=True, activo=True, delegacion__in=delegaciones,
-            ).select_related('responsable').only(
-                'id', 'titulo', 'fecha', 'estado', 'delegacion_id',
-                'responsable__id', 'responsable__first_name', 'responsable__last_name',
-            )
-            for item in _filtrar_fecha(actividades, 'fecha', fecha_desde, fecha_hasta):
-                registros.append(_registro_tubo(
-                    'actividad', f'ACT-{item.pk:06d}', item.pk, item.titulo, item.estado,
-                    item.fecha, None, item.delegacion_id, item.responsable,
-                ))
-        if filtro_tipo in (None, 'compromiso'):
-            compromisos = Compromiso.objects.filter(delegacion__in=delegaciones).select_related(
-                'responsable',
-            ).only(
-                'id', 'fecha_hora', 'titulo', 'estado', 'delegacion_id',
-                'responsable__id', 'responsable__first_name', 'responsable__last_name',
-            )
-            for item in _filtrar_fecha(compromisos, 'fecha_hora__date', fecha_desde, fecha_hasta):
-                registros.append(_registro_tubo(
-                    'compromiso', item.codigo, item.pk, item.titulo, item.estado,
-                    item.fecha_hora.date(), item.fecha_hora.date(), item.delegacion_id, item.responsable,
-                ))
-        if filtro_tipo in (None, 'gestion_social'):
-            gestiones = GestionSocial.objects.filter(
-                ingresa_al_tubo=True, activo=True, delegacion__in=delegaciones,
-            ).select_related('responsable').only(
-                'id', 'codigo', 'titulo', 'estado', 'fecha_ingreso', 'fecha_compromiso',
-                'delegacion_id', 'responsable__id', 'responsable__first_name', 'responsable__last_name',
-            )
-            for item in _filtrar_fecha(gestiones, 'fecha_ingreso', fecha_desde, fecha_hasta):
-                registros.append(_registro_tubo(
-                    'gestion_social', item.codigo, item.pk, item.titulo, item.estado,
-                    item.fecha_ingreso, item.fecha_compromiso, item.delegacion_id, item.responsable,
-                ))
-        if filtro_tipo in (None, 'carta'):
-            cartas = Carta.objects.filter(
-                ingresa_al_tubo=True, activo=True, delegacion__in=delegaciones,
-            ).select_related('responsable').only(
-                'id', 'codigo', 'asunto', 'estado', 'fecha_ingreso', 'fecha_compromiso',
-                'delegacion_id', 'responsable__id', 'responsable__first_name', 'responsable__last_name',
-            )
-            for item in _filtrar_fecha(cartas, 'fecha_ingreso', fecha_desde, fecha_hasta):
-                registros.append(_registro_tubo(
-                    'carta', item.codigo, item.pk, item.asunto, item.estado,
-                    item.fecha_ingreso, item.fecha_compromiso, item.delegacion_id, item.responsable,
-                ))
-        if estado:
-            registros = [item for item in registros if item['estado'] == estado]
-        if busqueda:
-            consulta = busqueda.casefold()
-            registros = [
-                item for item in registros
-                if consulta in item['codigo'].casefold() or consulta in item['titulo'].casefold()
-            ]
+        registros = _construir_registros_tubo(
+            filtro_tipo, delegaciones, fecha_desde, fecha_hasta,
+        )
+        registros = _filtrar_registros_tubo(registros, estado, busqueda)
         registros.sort(key=lambda item: (item['fecha'], item['codigo']), reverse=True)
         page = self.paginate_queryset(registros)
         return self.get_paginated_response(page)
