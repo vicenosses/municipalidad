@@ -69,8 +69,8 @@ class PuntajeActividadTests(DatosAvanceMixin, TestCase):
     def test_cerrada_aprobada_uno(self):
         self.assertEqual(self.puntaje(AtencionCiudadana.Estado.CERRADA, ('aprobada',)), Decimal('1'))
 
-    def test_cerrada_aprobada_y_rechazada_uno(self):
-        self.assertEqual(self.puntaje(AtencionCiudadana.Estado.CERRADA, ('aprobada', 'rechazada')), Decimal('1'))
+    def test_cerrada_aprobada_y_rechazada_cero(self):
+        self.assertEqual(self.puntaje(AtencionCiudadana.Estado.CERRADA, ('aprobada', 'rechazada')), Decimal('0'))
 
     def test_cerrada_aprobada_y_pendiente_uno(self):
         self.assertEqual(self.puntaje(AtencionCiudadana.Estado.CERRADA, ('aprobada', 'pendiente')), Decimal('1'))

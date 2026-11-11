@@ -11,6 +11,7 @@ from atenciones.models import AtencionCiudadana
 from auditoria.models import RegistroAuditoria
 from catalogos.models import SubAtencion, TipoAtencion
 from evidencias.models import Evidencia
+from sgr.models import Periodo
 from usuarios.models import Delegacion, Perfil, Rol
 
 User = get_user_model()
@@ -93,6 +94,31 @@ class CompromisoFormTests(TestCase):
 
         form = CompromisoForm(
             data={'responsable': self.responsable.pk, 'actividades': [actividad.pk]},
+            delegacion=self.delegacion,
+            es_creacion=True,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('actividades', form.errors)
+
+    def test_post_no_puede_asociar_actividad_de_periodo_cerrado(self):
+        actividad = self.crear_actividad('Actividad cerrada', self.delegacion)
+        periodo = Periodo.objects.create(
+            nombre='Período cerrado',
+            fecha_inicio='2026-01-01',
+            fecha_fin='2026-12-31',
+        )
+        periodo.cerrado = True
+        periodo.activo = False
+        periodo.save()
+
+        form = CompromisoForm(
+            data={
+                'titulo': 'Compromiso de prueba',
+                'fecha_hora': '2027-01-01T10:00',
+                'responsable': self.responsable.pk,
+                'actividades': [actividad.pk],
+            },
             delegacion=self.delegacion,
             es_creacion=True,
         )
@@ -924,9 +950,17 @@ class CompromisoDesdeActividadTests(TestCase):
     def test_todos_los_roles_agenda_crean_y_origen_ingresa_al_tubo(self):
         for rol, user in self.users.items():
             with self.subTest(rol=rol):
-                actividad = self.actividad_b if rol == 'administrador' else self.actividad_a
-                if rol == 'verificador':
-                    actividad = self.crear_actividad('Actividad propia de verificador', self.delegacion_a, creador=user)
+                delegacion = self.delegacion_b if rol == 'administrador' else self.delegacion_a
+                actividad = self.crear_actividad(
+                    f'Actividad para {rol}',
+                    delegacion,
+                    creador=(
+                        self.responsable_b
+                        if rol == 'administrador'
+                        else user if rol == 'verificador'
+                        else self.users['funcionario']
+                    ),
+                )
                 responsable = self.responsable_b if rol == 'administrador' else user
                 self.activar(user, actividad.delegacion)
                 respuesta = self.client.post(
@@ -1048,9 +1082,14 @@ class CompromisoDesdeActividadTests(TestCase):
         compromiso = Compromiso.objects.get(titulo='Dos actividades')
         self.assertSetEqual(set(compromiso.actividades.all()), {self.actividad_a, otra_local})
 
+        otra_fuente = self.crear_actividad(
+            'Fuente para actividad cruzada',
+            self.delegacion_a,
+            creador=self.users['funcionario'],
+        )
         self.activar(self.users['coordinador'])
         cruzada = self.client.post(
-            reverse('atenciones:agregar_a_agenda', args=[self.actividad_a.pk]),
+            reverse('atenciones:agregar_a_agenda', args=[otra_fuente.pk]),
             self.datos_compromiso(
                 'Actividad cruzada',
                 self.users['coordinador'],

@@ -58,6 +58,15 @@ def puede_validar_evidencia(request, evidencia):
     registro = _registro_padre(evidencia)
     if registro is None or not en_contexto_delegacion(request, registro.delegacion):
         return False
+    from sgr.periodos import periodo_cerrado_para_fecha
+
+    fecha = (
+        registro.fecha
+        if isinstance(registro, AtencionCiudadana)
+        else registro.fecha_hora
+    )
+    if periodo_cerrado_para_fecha(fecha):
+        return False
     if rol in ('administrador', 'verificador') and registro.creado_por_id == request.user.pk:
         return False
     if rol == 'administrador':

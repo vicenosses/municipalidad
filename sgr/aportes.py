@@ -7,7 +7,7 @@ from django.utils import timezone
 from atenciones.models import AtencionCiudadana
 from auditoria.utils import registrar_auditoria
 from evidencias.models import Evidencia
-from evidencias.consultas import tiene_evidencia_aprobada
+from evidencias.consultas import puede_cerrar_actividad_por_evidencias
 from sgr.models import AporteIndicador, EventoAporte, Indicador
 from sgr.plazos import dentro_plazo
 from usuarios.mixins import obtener_rol
@@ -175,8 +175,10 @@ def validar_aporte(request, pk, version, estado, valor_validado=None, comentario
     if estado in (AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA):
         if aporte.espera_cierre and aporte.actividad.estado != AtencionCiudadana.Estado.CERRADA:
             raise ValidationError('La Actividad reabierta debe cerrarse antes de una nueva validación.')
-        if not tiene_evidencia_aprobada(aporte.actividad):
-            raise ValidationError('La Actividad necesita al menos una evidencia aprobada.')
+        if not puede_cerrar_actividad_por_evidencias(aporte.actividad_id):
+            raise ValidationError(
+                'Se requiere una evidencia aprobada sin rechazos pendientes ni una corrección de evidencia en revisión.'
+            )
     anterior = instantanea(aporte)
     aporte.estado = estado
     aporte.comentario = comentario.strip()

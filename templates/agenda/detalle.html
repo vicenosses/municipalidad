@@ -4,7 +4,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div>
         <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Agenda</div><h2 class="h4 fw-bold mb-1">{% include 'includes/icono_titulo.html' with icono='agenda' %}{{ compromiso.titulo }}</h2></div>
-        <span class="badge {% if compromiso.esta_vencido %}bg-danger{% elif compromiso.estado == 'realizado' %}bg-success{% elif compromiso.proximo_a_vencer %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+        <span class="badge {% if compromiso.esta_vencido %}bg-danger{% elif compromiso.es_terminal %}bg-success{% elif compromiso.proximo_a_vencer %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
             {% if compromiso.esta_vencido %}Vencido · {% endif %}{{ compromiso.get_estado_display }}
         </span>
         {% if compromiso.realizado_fuera_de_plazo %}<span class="badge bg-warning text-dark">Realizado fuera de plazo</span>{% endif %}
@@ -33,6 +33,7 @@
                 <dt class="col-sm-4">Descripción</dt><dd class="col-sm-8">{{ compromiso.descripcion|default:"—"|linebreaksbr }}</dd>
                 <dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ compromiso.observaciones|default:"—"|linebreaksbr }}</dd>
                 {% if compromiso.fecha_realizacion %}<dt class="col-sm-4">Realizado el</dt><dd class="col-sm-8">{{ compromiso.fecha_realizacion|date:"d/m/Y H:i" }}</dd>{% endif %}
+                {% if compromiso.fecha_cierre %}<dt class="col-sm-4">Cerrado el</dt><dd class="col-sm-8">{{ compromiso.fecha_cierre|date:"d/m/Y H:i" }}</dd>{% endif %}
             </dl>
         </section>
 

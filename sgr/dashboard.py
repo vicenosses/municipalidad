@@ -9,11 +9,11 @@ from decimal import Decimal
 from django.db.models import F, Q
 from django.utils import timezone
 
-from sgr.models import Meta, Periodo
+from sgr.models import Periodo
 from sgr.permisos import ROLES_METAS
-from sgr.ponderaciones import ResultadoMeta, calcular_resultados_metas
+from sgr.ponderaciones import ResultadoMeta
 from usuarios.mixins import obtener_rol
-from usuarios.sesion import get_delegacion_activa, filtrar_contexto_territorial
+from usuarios.sesion import get_delegacion_activa
 
 
 @dataclass(frozen=True)
@@ -68,40 +68,35 @@ class FilaMeta:
     semaforo: Semaforo
 
 
-def construir_dashboard(request, hoy=None):
+def construir_dashboard(
+    request, hoy=None, periodo=None, delegacion=None, funcionario=None, meta=None,
+):
     hoy = hoy if hoy is not None else timezone.localdate()
     rol = obtener_rol(request.user)
-    delegacion = get_delegacion_activa(request)
     contexto = {
         'fecha_corte': hoy,
-        'contexto_territorial': 'Global: todas las delegaciones' if rol == 'administrador' and delegacion is None else delegacion,
+        'contexto_territorial': 'Global: todas las delegaciones',
         'puede_ver_detalle': rol in ROLES_METAS,
         'periodo': None, 'mensaje': '', 'esperado': None, 'filas': [],
         'total_metas': 0, 'metas_calculables': 0, 'metas_incompletas': 0,
         'conteos': dict(verde=0, naranjo=0, rojo=0, sin_datos=0),
+        'asignaciones': [], 'actividades': [], 'compromisos': [], 'evidencias': [],
+        'cartas': [], 'gestiones_sociales': [], 'hitos': [],
+        'funcionario': funcionario, 'meta_seleccionada': meta,
     }
     if rol not in (*ROLES_METAS, 'funcionario', 'verificador'):
         contexto['mensaje'] = 'No tiene un rol habilitado para consultar el Dashboard SGR.'
         return contexto
-    if rol != 'administrador' and delegacion is None:
+    if rol != 'administrador' and get_delegacion_activa(request) is None:
         contexto['mensaje'] = 'No tiene una delegación autorizada activa. No se muestran datos territoriales.'
         return contexto
-    periodo, mensaje = obtener_periodo_vigente(hoy)
-    contexto.update(periodo=periodo, mensaje=mensaje)
-    if periodo is None:
-        return contexto
-    metas = filtrar_contexto_territorial(Meta.objects.filter(
-        periodo=periodo, activo=True).select_related('periodo', 'delegacion'), request)
-    metas = list(metas)
-    resultados = calcular_resultados_metas(metas)
-    esperado = calcular_avance_esperado(periodo, hoy)
-    contexto['esperado'] = esperado
-    for meta in metas:
-        resultado = resultados[meta.pk]
-        semaforo = calcular_semaforo(resultado.cumplimiento_normalizado, esperado)
-        contexto['filas'].append(FilaMeta(meta, resultado, semaforo))
-        contexto['conteos'][semaforo.estado] += 1
-        contexto['metas_calculables'] += resultado.cumplimiento_normalizado is not None
-        contexto['metas_incompletas'] += not resultado.configuracion_completa
-    contexto['total_metas'] = len(metas)
+    from sgr.informes import construir_informe
+
+    informe = construir_informe(
+        request, periodo=periodo, hoy=hoy, delegacion=delegacion,
+        funcionario=funcionario, meta=meta,
+    )
+    contexto.update(informe)
+    for fila in contexto['filas']:
+        contexto['conteos'][fila.semaforo.estado] += 1
     return contexto

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from sgr.periodos import validar_periodo_abierto
 from usuarios.models import Delegacion
 
 
@@ -15,6 +16,8 @@ class Compromiso(models.Model):
         PENDIENTE = 'pendiente', 'Pendiente'
         EN_PROCESO = 'en_proceso', 'En proceso'
         REALIZADO = 'realizado', 'Realizado'
+        CERRADO = 'cerrado', 'Cerrado'
+        NO_APLICA = 'no_aplica', 'No aplica'
 
     titulo = models.CharField('Título', max_length=200)
     descripcion = models.TextField('Descripción', blank=True)
@@ -25,6 +28,7 @@ class Compromiso(models.Model):
     observaciones = models.TextField('Observaciones', blank=True)
     fecha_hora = models.DateTimeField('Fecha y hora')
     fecha_realizacion = models.DateTimeField('Fecha de realización', null=True, blank=True)
+    fecha_cierre = models.DateTimeField('Fecha de cierre', null=True, blank=True)
     responsable = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -64,6 +68,30 @@ class Compromiso(models.Model):
         verbose_name_plural = 'Compromisos'
         ordering = ['fecha_hora']
 
+    def clean(self):
+        super().clean()
+        validar_periodo_abierto(
+            self.fecha_hora,
+            'No se puede crear ni modificar un compromiso de un período cerrado.',
+        )
+        if self.pk:
+            for fecha in self.actividades.values_list('fecha', flat=True):
+                validar_periodo_abierto(
+                    fecha,
+                    'No se puede asociar ni modificar un compromiso vinculado a un período cerrado.',
+                )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        validar_periodo_abierto(
+            self.fecha_hora,
+            'No se puede eliminar un compromiso de un período cerrado.',
+        )
+        return super().delete(*args, **kwargs)
+
     def __str__(self):
         return self.titulo
 
@@ -73,14 +101,14 @@ class Compromiso(models.Model):
 
     @property
     def esta_vencido(self):
-        return self.estado != self.Estado.REALIZADO and self.fecha_hora < timezone.now()
+        return not self.es_terminal and self.fecha_hora < timezone.now()
 
     @property
     def proximo_a_vencer(self):
         ahora = timezone.now()
         limite = ahora + timedelta(days=7)
         return (
-            self.estado != self.Estado.REALIZADO
+            not self.es_terminal
             and ahora <= self.fecha_hora <= limite
         )
 
@@ -89,6 +117,16 @@ class Compromiso(models.Model):
         return bool(
             self.fecha_realizacion
             and self.fecha_realizacion > self.fecha_hora
+        )
+
+    @property
+    def esta_cerrado(self):
+        return self.estado in (self.Estado.CERRADO, self.Estado.NO_APLICA)
+
+    @property
+    def es_terminal(self):
+        return self.estado in (
+            self.Estado.REALIZADO, self.Estado.CERRADO, self.Estado.NO_APLICA,
         )
 
 
@@ -123,6 +161,13 @@ class HistorialCompromiso(models.Model):
     def __str__(self):
         return f'{self.compromiso}: {self.campo} ({self.creado:%Y-%m-%d %H:%M})'
 
+    def save(self, *args, **kwargs):
+        validar_periodo_abierto(
+            self.compromiso.fecha_hora,
+            'No se puede agregar ni modificar seguimiento de un período cerrado.',
+        )
+        return super().save(*args, **kwargs)
+
 
 class SolicitudAmpliacion(models.Model):
     class Estado(models.TextChoices):
@@ -143,3 +188,10 @@ class SolicitudAmpliacion(models.Model):
     class Meta:
         ordering = ['-creado']
         constraints = [models.UniqueConstraint(fields=['compromiso'], condition=models.Q(estado='pendiente'), name='una_ampliacion_pendiente_por_compromiso')]
+
+    def save(self, *args, **kwargs):
+        validar_periodo_abierto(
+            self.compromiso.fecha_hora,
+            'No se puede ampliar un compromiso de un período cerrado.',
+        )
+        return super().save(*args, **kwargs)

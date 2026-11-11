@@ -19,7 +19,10 @@ def actividad_aprobada(atencion):
 def puede_cambiar_estado(request, atencion, nuevo_estado):
     if not atencion.activo:
         return False
-    if actividad_aprobada(atencion) and nuevo_estado != AtencionCiudadana.Estado.CERRADA:
+    if actividad_aprobada(atencion) and not (
+        atencion.estado == AtencionCiudadana.Estado.EN_PROCESO
+        and nuevo_estado == AtencionCiudadana.Estado.COMPLETADA
+    ) and nuevo_estado != AtencionCiudadana.Estado.CERRADA:
         return False
     if nuevo_estado == AtencionCiudadana.Estado.CERRADA:
         if not atencion.puede_cerrar_por_evidencias():
@@ -33,11 +36,19 @@ def puede_cambiar_estado(request, atencion, nuevo_estado):
     if rol in ROLES_OPERATIVOS_ESTADO and atencion.creado_por_id != request.user.pk:
         return False
     transiciones = {
-        AtencionCiudadana.Estado.REGISTRADA: {AtencionCiudadana.Estado.EN_PROCESO},
-        AtencionCiudadana.Estado.EN_PROCESO: {AtencionCiudadana.Estado.CERRADA},
+        AtencionCiudadana.Estado.REGISTRADA: {
+            AtencionCiudadana.Estado.EN_PROCESO,
+            AtencionCiudadana.Estado.NO_APLICA,
+        },
+        AtencionCiudadana.Estado.EN_PROCESO: {
+            AtencionCiudadana.Estado.COMPLETADA,
+            AtencionCiudadana.Estado.NO_APLICA,
+        },
+        AtencionCiudadana.Estado.COMPLETADA: {AtencionCiudadana.Estado.CERRADA},
         AtencionCiudadana.Estado.CERRADA: (
             {AtencionCiudadana.Estado.EN_PROCESO} if rol in ROLES_GESTORES_ESTADO else set()
         ),
+        AtencionCiudadana.Estado.NO_APLICA: set(),
     }
     return nuevo_estado in transiciones.get(atencion.estado, set())
 

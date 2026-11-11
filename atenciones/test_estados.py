@@ -94,32 +94,36 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         actividad = self.crear()
         Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.assertEqual(self.cambiar(actividad, 'en_proceso').status_code, 302)
+        self.assertEqual(self.cambiar(actividad, 'completada').status_code, 302)
         self.assertEqual(self.cambiar(actividad, 'cerrada').status_code, 302)
-        self.assertEqual(actividad.historial_estados.count(), 3)
+        self.assertEqual(actividad.historial_estados.count(), 4)
         cierre = actividad.historial_estados.first()
-        self.assertEqual((cierre.estado_anterior, cierre.estado_nuevo), ('en_proceso', 'cerrada'))
-        self.assertEqual(RegistroAuditoria.objects.filter(accion='cambiar_estado', objeto_id=str(actividad.pk)).count(), 2)
+        self.assertEqual((cierre.estado_anterior, cierre.estado_nuevo), ('completada', 'cerrada'))
+        self.assertEqual(RegistroAuditoria.objects.filter(accion='cambiar_estado', objeto_id=str(actividad.pk)).count(), 3)
 
-    def test_cinco_eventos_con_reapertura_y_segundo_cierre_orden_determinista(self):
+    def test_siete_eventos_con_reapertura_y_segundo_cierre_orden_determinista(self):
         actividad = self.crear()
         Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         instante = timezone.now()
         with patch('atenciones.estados.timezone.now', return_value=instante):
-            for estado, rol in (('en_proceso', 'funcionario'), ('cerrada', 'funcionario'),
-                                ('en_proceso', 'delegado'), ('cerrada', 'funcionario')):
+            for estado, rol in (('en_proceso', 'funcionario'), ('completada', 'funcionario'),
+                                ('cerrada', 'funcionario'), ('en_proceso', 'delegado'),
+                                ('completada', 'funcionario'), ('cerrada', 'funcionario')):
                 self.assertEqual(self.cambiar(actividad, estado, rol).status_code, 302)
         eventos = list(actividad.historial_estados.all())
-        self.assertEqual(len(eventos), 5)
+        self.assertEqual(len(eventos), 7)
         self.assertEqual([e.estado_nuevo for e in reversed(eventos)],
-                         ['registrada', 'en_proceso', 'cerrada', 'en_proceso', 'cerrada'])
+                         ['registrada', 'en_proceso', 'completada', 'cerrada',
+                          'en_proceso', 'completada', 'cerrada'])
         self.assertEqual([e.pk for e in eventos], sorted([e.pk for e in eventos], reverse=True))
-        self.assertEqual(eventos[1].actor, self.usuarios['delegado'])
+        self.assertEqual(eventos[2].actor, self.usuarios['delegado'])
 
     def test_motivo_opcional_conservado_sin_obligarlo_en_reapertura(self):
         actividad = self.crear()
         Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.cambiar(actividad, 'en_proceso', motivo='  Inicio territorial  ')
         self.assertEqual(actividad.historial_estados.first().motivo, 'Inicio territorial')
+        self.cambiar(actividad, 'completada')
         self.cambiar(actividad, 'cerrada')
         self.assertEqual(self.cambiar(actividad, 'en_proceso', 'delegado').status_code, 302)
         self.assertEqual(actividad.historial_estados.first().motivo, '')
@@ -164,9 +168,10 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.usuarios['funcionario'], archivo='aprobada.jpg')
         self.assertEqual(self.cambiar(actividad, 'en_proceso', 'verificador').status_code, 404)
         self.cambiar(actividad, 'en_proceso')
+        self.cambiar(actividad, 'completada')
         self.cambiar(actividad, 'cerrada')
         self.assertEqual(self.cambiar(actividad, 'en_proceso').status_code, 404)
-        self.assertEqual(actividad.historial_estados.count(), 3)
+        self.assertEqual(actividad.historial_estados.count(), 4)
 
     def test_deshabilitada_no_cambia_estado_ni_agrega_eventos(self):
         actividad = self.crear()
@@ -289,6 +294,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         Evidencia.objects.create(atencion=actividad, estado=Evidencia.Estado.APROBADA,
             subido_por=self.usuarios['funcionario'], archivo='historia.jpg')
         self.cambiar(actividad, 'en_proceso')
+        self.cambiar(actividad, 'completada')
         self.cambiar(actividad, 'cerrada')
         aporte = AporteIndicador.objects.get(actividad=actividad)
         self.decidir(aporte)
@@ -300,7 +306,7 @@ class HistorialEstadoTests(DatosAportesMixin, TestCase):
         self.assertIsNotNone(aporte.validado_por)
         self.assertEqual(aporte.historial.filter(accion='reiniciar_aporte_reapertura').count(), 0)
         self.assertEqual(aporte.historial.filter(accion='validar_aporte').count(), 1)
-        self.assertEqual(actividad.historial_estados.count(), 3)
+        self.assertEqual(actividad.historial_estados.count(), 4)
         self.assertEqual(calcular_avance_indicador(self.indicador_a).puntos_ponderados, 1)
 
     def test_error_al_crear_evento_revierte_estado_y_auditoria(self):

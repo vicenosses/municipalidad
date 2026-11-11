@@ -49,7 +49,11 @@ def puede_cambiar_disponibilidad(request, atencion):
 def puede_cambiar_va_al_tubo(request, atencion):
     if (
         not atencion.activo or actividad_aprobada(atencion)
-        or atencion.estado == AtencionCiudadana.Estado.CERRADA
+        or atencion.estado in (
+            AtencionCiudadana.Estado.CERRADA,
+            AtencionCiudadana.Estado.COMPLETADA,
+            AtencionCiudadana.Estado.NO_APLICA,
+        )
     ):
         return False
 
@@ -91,6 +95,9 @@ class AtencionListView(FiltroExportMixin, LoginRequiredMixin, ListView):
         'titulo',
         'solicitante',
         'descripcion',
+        'origen',
+        'resultado',
+        'apoyo_requerido',
         'tipo__nombre',
         'subatencion__nombre',
         'delegacion__nombre',
@@ -105,6 +112,10 @@ class AtencionListView(FiltroExportMixin, LoginRequiredMixin, ListView):
         'Delegación',
         'Estado',
         'Va al tubo',
+        'Origen',
+        'Avance (%)',
+        'Apoyo requerido',
+        'Resultado',
     )
     export_fields = (
         'fecha',
@@ -114,6 +125,10 @@ class AtencionListView(FiltroExportMixin, LoginRequiredMixin, ListView):
         'delegacion.nombre',
         'get_estado_display',
         'va_al_tubo',
+        'origen',
+        'avance',
+        'apoyo_requerido',
+        'resultado',
     )
 
     def get_queryset(self):

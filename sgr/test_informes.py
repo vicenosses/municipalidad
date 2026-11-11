@@ -109,6 +109,25 @@ class InformeSGRTests(DatosPonderacionesMixin, TestCase):
         self.assertEqual({f.meta.pk for f in informe['filas']}, {self.meta_a.pk, self.meta_b.pk})
         self.assertEqual(informe['contexto_territorial'], 'Global: todas las delegaciones')
 
+    def test_informe_incluye_actividades_sin_aporte_y_filtra_por_meta_y_funcionario(self):
+        informe = self.informe()
+        self.assertIn(self.actividad, informe['actividades'])
+
+        indicador = self.evaluado('100', '120')
+        informe_meta = self.informe(meta=self.meta_a.pk)
+        self.assertEqual(
+            [actividad.aporte_indicador.indicador_id for actividad in informe_meta['actividades']],
+            [indicador.pk],
+        )
+
+        funcionario = self.usuarios['funcionario']
+        informe_funcionario = self.informe(funcionario=funcionario.pk)
+        self.assertEqual(informe_funcionario['funcionario'], funcionario)
+        self.assertTrue(all(
+            actividad.responsable_id == funcionario.pk
+            for actividad in informe_funcionario['actividades']
+        ))
+
     def test_superusuario_ve_global_sin_delegacion_de_perfil(self):
         usuario = get_user_model().objects.create_superuser('super-informe', 'a@example.com', 'clave')
         self.client.force_login(usuario)
@@ -346,7 +365,10 @@ class InformeSGRTests(DatosPonderacionesMixin, TestCase):
     def test_excel_tiene_metadatos_y_valores_coherentes_con_html(self):
         self.evaluado('100', '231')
         libro = self.libro()
-        self.assertEqual(libro.sheetnames, ['Metas', 'Indicadores'])
+        self.assertEqual(libro.sheetnames, [
+            'Metas', 'Indicadores', 'Funcionarios', 'Actividades', 'Tubo',
+            'Evidencias', 'Cartas', 'Gestion social', 'Hitos',
+        ])
         hoja = libro['Metas']
         self.assertEqual(hoja['B1'].value, self.periodo.nombre)
         self.assertEqual(hoja['B3'].value, 'Global: todas las delegaciones')

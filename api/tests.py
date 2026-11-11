@@ -16,6 +16,12 @@ class APIPruebas(APITestCase):
         self.territorio = Territorio.objects.create(
             nombre='Centro', delegacion=self.delegacion,
         )
+        self.vecino = Vecino.objects.create(
+            rut='98.765.432-1',
+            nombres='Vecino',
+            apellidos='De prueba',
+            territorio=self.territorio,
+        )
         self.usuario = self._crear_usuario('funcionario', self.delegacion, 'funcionario')
         self.otro_usuario = self._crear_usuario('funcionario', self.otra_delegacion, 'otro')
         self.tipo = TipoAtencion.objects.create(codigo='GEN', nombre='General')
@@ -110,6 +116,7 @@ class APIPruebas(APITestCase):
             'descripcion': 'Antecedentes privados de la atención.',
             'delegacion': self.delegacion.pk,
             'territorio': self.territorio.pk,
+            'vecino': self.vecino.pk,
             'fecha_ingreso': '2026-10-01',
             'ingresa_al_tubo': True,
         }, format='json')
@@ -130,6 +137,7 @@ class APIPruebas(APITestCase):
             descripcion='Información privada.',
             delegacion=self.delegacion,
             territorio=self.territorio,
+            vecino=self.vecino,
             responsable=self.usuario,
             creado_por=self.usuario,
         )

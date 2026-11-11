@@ -10,4 +10,6 @@ urlpatterns = [
     path('<int:pk>/', views.DetalleCarta.as_view(), name='detalle'),
     path('<int:pk>/editar/', views.EditarCarta.as_view(), name='editar'),
     path('<int:pk>/desactivar/', views.DesactivarCarta.as_view(), name='desactivar'),
+    path('<int:pk>/documentos/', views.AgregarDocumentoCarta.as_view(), name='documento_agregar'),
+    path('documentos/<int:pk>/descargar/', views.DescargarDocumentoCarta.as_view(), name='documento_descargar'),
 ]

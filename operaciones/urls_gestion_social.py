@@ -10,4 +10,6 @@ urlpatterns = [
     path('<int:pk>/', views.DetalleGestionSocial.as_view(), name='detalle'),
     path('<int:pk>/editar/', views.EditarGestionSocial.as_view(), name='editar'),
     path('<int:pk>/desactivar/', views.DesactivarGestionSocial.as_view(), name='desactivar'),
+    path('<int:pk>/seguimientos/', views.RegistrarSeguimientoGestionSocial.as_view(), name='seguimiento_crear'),
+    path('seguimientos/<int:pk>/documento/', views.DescargarEvidenciaSocial.as_view(), name='seguimiento_documento'),
 ]

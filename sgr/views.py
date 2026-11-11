@@ -6,15 +6,19 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from auditoria.utils import registrar_auditoria
-from sgr.forms import AsignacionMetaForm, MetaFiltroForm, MetaForm, PeriodoFiltroForm, PeriodoForm
+from sgr.forms import (
+    AsignacionMetaForm, CierrePeriodoForm, MetaFiltroForm, MetaForm,
+    PeriodoFiltroForm, PeriodoForm,
+)
 from sgr.asignaciones import aportes_asignacion, calcular_resultado_asignacion
-from sgr.models import AsignacionMeta, Meta, Periodo
+from sgr.models import AsignacionMeta, HistorialCierrePeriodo, Meta, Periodo
 from sgr.ponderaciones import calcular_resultado_meta
-from sgr.preparacion_cierre import diagnosticar_periodo
+from sgr.preparacion_cierre import crear_snapshot_cierre, diagnosticar_periodo
 from sgr.permisos import ROLES_ESTADO_META, ROLES_METAS, indicadores_visibles, metas_visibles, puede_crear_meta
 from usuarios.mixins import RolRequiredMixin, obtener_rol
 from usuarios.sesion import get_delegacion_activa
@@ -123,6 +127,9 @@ class PeriodoEstadoView(RolRequiredMixin, View):
             activo = valor == 'true'
             if periodo.activo == activo:
                 return redirect(periodo)
+            if periodo.cerrado and activo:
+                messages.error(request, 'Use la acción de reapertura autorizada para activar un período cerrado.')
+                return redirect(periodo)
             periodo.activo = activo
             try:
                 periodo.save()
@@ -135,6 +142,82 @@ class PeriodoEstadoView(RolRequiredMixin, View):
                 f'({periodo.fecha_inicio:%d/%m/%Y} - {periodo.fecha_fin:%d/%m/%Y}).',
             )
         messages.success(request, 'Estado del período actualizado.')
+        return redirect(periodo)
+
+
+class CerrarPeriodoView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador',)
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        form = CierrePeriodoForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, 'Indique un motivo de al menos 10 caracteres para cerrar el período.')
+            return redirect('sgr:periodo_detalle', pk=pk)
+        with transaction.atomic():
+            periodo = get_object_or_404(Periodo.objects.select_for_update(), pk=pk)
+            if periodo.cerrado or not periodo.activo:
+                messages.error(request, 'Solo se puede cerrar formalmente un período activo y abierto.')
+                return redirect(periodo)
+            snapshot = crear_snapshot_cierre(periodo)
+            periodo.cerrado = True
+            periodo.activo = False
+            periodo.cerrado_en = timezone.now()
+            periodo.cerrado_por = request.user
+            periodo.cierre_snapshot = snapshot
+            periodo.save()
+            HistorialCierrePeriodo.objects.create(
+                periodo=periodo,
+                accion=HistorialCierrePeriodo.Accion.CERRAR,
+                motivo=form.cleaned_data['motivo'].strip(),
+                usuario=request.user,
+                snapshot=snapshot,
+            )
+            registrar_auditoria(
+                request, 'cerrar_periodo', periodo,
+                f'Cierre formal del período "{periodo.nombre}". '
+                f'Motivo: {form.cleaned_data["motivo"].strip()}',
+            )
+        messages.success(request, 'Período cerrado y resultados congelados.')
+        return redirect(periodo)
+
+
+class ReabrirPeriodoView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador',)
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        form = CierrePeriodoForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, 'Indique un motivo de al menos 10 caracteres para reabrir el período.')
+            return redirect('sgr:periodo_detalle', pk=pk)
+        with transaction.atomic():
+            periodo = get_object_or_404(Periodo.objects.select_for_update(), pk=pk)
+            if not periodo.cerrado:
+                messages.error(request, 'El período no está cerrado.')
+                return redirect(periodo)
+            periodo.cerrado = False
+            periodo.activo = True
+            periodo.cerrado_en = None
+            periodo.cerrado_por = None
+            try:
+                periodo.save()
+            except ValidationError as error:
+                messages.error(request, ' '.join(error.messages))
+                return redirect(periodo)
+            HistorialCierrePeriodo.objects.create(
+                periodo=periodo,
+                accion=HistorialCierrePeriodo.Accion.REABRIR,
+                motivo=form.cleaned_data['motivo'].strip(),
+                usuario=request.user,
+                snapshot=periodo.cierre_snapshot,
+            )
+            registrar_auditoria(
+                request, 'reabrir_periodo', periodo,
+                f'Reapertura autorizada del período "{periodo.nombre}". '
+                f'Motivo: {form.cleaned_data["motivo"].strip()}',
+            )
+        messages.success(request, 'Período reabierto; se registró la autorización y se habilitaron sus datos.')
         return redirect(periodo)
 
 
