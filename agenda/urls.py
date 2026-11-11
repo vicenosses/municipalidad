@@ -1,10 +1,12 @@
-from django.urls import path
+from django.urls import include, path
 
 from agenda import views
 
 app_name = 'agenda'
 
 urlpatterns = [
+    path('cartas/', include(('operaciones.urls_cartas', 'cartas'), namespace='cartas')),
+    path('hitos/', include(('operaciones.urls_hitos', 'hitos'), namespace='hitos')),
     path('', views.CompromisoListView.as_view(), name='lista'),
     path('nuevo/', views.CompromisoCreateView.as_view(), name='crear'),
     path('ampliaciones/', views.AmpliacionesListView.as_view(), name='ampliaciones'),

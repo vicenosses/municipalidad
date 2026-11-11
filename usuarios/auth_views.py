@@ -64,6 +64,33 @@ class LoginSGRView(LoginView):
         return context
 
 
+def solicitar_recuperacion(request, identificador):
+    candidatos = User.objects.filter(
+        Q(email__iexact=identificador) | Q(username__iexact=identificador)
+    ).exclude(email='').order_by('pk')
+    habilitados = [
+        usuario for usuario in candidatos
+        if _usuario_puede_recuperar(usuario) and usuario.has_usable_password()
+    ]
+    user = habilitados[0] if len(habilitados) == 1 else None
+    if _usuario_puede_recuperar(user) and user.has_usable_password():
+        enlace = request.build_absolute_uri(reverse('recuperacion_enlace', kwargs={
+            'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
+            'token': default_token_generator.make_token(user),
+        }))
+        try:
+            send_mail(
+                'Recuperación de contraseña SGR',
+                f'Ilustre Municipalidad de La Serena\nSistema de Gestión de Resultados\n\n'
+                f'Para establecer una nueva contraseña, abre este enlace:\n\n{enlace}\n\n'
+                'El enlace vence en 2 minutos. Si no solicitaste este cambio, ignora este mensaje.',
+                settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False,
+                html_message=render_to_string('recuperacion/correo.html', {'enlace': enlace}),
+            )
+        except Exception:
+            logger.exception('No se pudo enviar el correo de recuperación.')
+
+
 def _ctx(extra=None):
     data = {'usar_swal_mensajes': True}
     if extra:
@@ -89,28 +116,7 @@ class RecuperacionSolicitarView(View):
         if not form.is_valid():
             return render(request, 'recuperacion/solicitar.html', _ctx({'form': form}))
         identificador = form.cleaned_data['email'].strip()
-        candidatos = User.objects.filter(Q(email__iexact=identificador) | Q(username__iexact=identificador))\
-            .exclude(email='').order_by('pk')
-        habilitados = [usuario for usuario in candidatos
-                       if _usuario_puede_recuperar(usuario) and usuario.has_usable_password()]
-        # Una identificación ambigua nunca debe enviar un enlace a otra persona.
-        user = habilitados[0] if len(habilitados) == 1 else None
-        if _usuario_puede_recuperar(user) and user.has_usable_password():
-            enlace = request.build_absolute_uri(reverse('recuperacion_enlace', kwargs={
-                'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
-                'token': default_token_generator.make_token(user),
-            }))
-            try:
-                send_mail(
-                    'Recuperación de contraseña SGR',
-                    f'Ilustre Municipalidad de La Serena\nSistema de Gestión de Resultados\n\n'
-                    f'Para establecer una nueva contraseña, abre este enlace:\n\n{enlace}\n\n'
-                    'El enlace vence en 2 minutos. Si no solicitaste este cambio, ignora este mensaje.',
-                    settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False,
-                    html_message=render_to_string('recuperacion/correo.html', {'enlace': enlace}),
-                )
-            except Exception:
-                logger.exception('No se pudo enviar el correo de recuperación.')
+        solicitar_recuperacion(request, identificador)
         messages.info(request, MENSAJE_GENERICO)
         return redirect('recuperacion_solicitar')
 

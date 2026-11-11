@@ -1,0 +1,6 @@
+<nav class="d-flex flex-wrap gap-2 mb-4" aria-label="Secciones de actividades">
+    <a class="btn {% if activa == 'actividades' %}btn-custom-red{% else %}btn-outline-secondary{% endif %}"
+       href="{% url 'atenciones:lista' %}"{% if activa == 'actividades' %} aria-current="page"{% endif %}>Actividades</a>
+    <a class="btn {% if activa == 'gestion_social' %}btn-custom-red{% else %}btn-outline-secondary{% endif %}"
+       href="{% url 'atenciones:gestion_social:lista' %}"{% if activa == 'gestion_social' %} aria-current="page"{% endif %}>Gestión social</a>
+</nav>

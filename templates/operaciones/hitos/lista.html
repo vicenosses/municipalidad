@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Hitos | SGR{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_agenda.html' with activa='hitos' %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div><div class="small text-uppercase text-institucional fw-bold">Planificación</div><h2 class="h3 fw-bold mb-1">Hitos</h2><p class="text-muted mb-0">Consulta actividades y gestiones programadas, próximas o vencidas.</p></div>
+    {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'agenda:hitos:crear' %}">Programar hito</a>{% endif %}
+</div>
+{% include 'operaciones/_lista_filtros.html' %}
+<p class="text-muted small">{{ page_obj.paginator.count }} hito{{ page_obj.paginator.count|pluralize }}</p>
+<div class="table-responsive shadow-sm">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Fecha programada</th><th>Código</th><th>Hito</th><th>Asociado a</th><th>Responsable</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for registro in registros %}
+        <tr class="{% if registro.fecha_programada < hoy and registro.estado != 'completado' and registro.estado != 'cancelado' %}table-danger{% elif registro.fecha_programada >= hoy and registro.fecha_programada <= limite_proximo and registro.estado != 'completado' and registro.estado != 'cancelado' %}table-warning{% endif %}">
+            <td>{{ registro.fecha_programada|date:'d/m/Y' }}{% if registro.fecha_programada < hoy and registro.estado != 'completado' and registro.estado != 'cancelado' %}<div class="small text-danger fw-semibold">Vencido</div>{% elif registro.fecha_programada >= hoy and registro.fecha_programada <= limite_proximo and registro.estado != 'completado' and registro.estado != 'cancelado' %}<div class="small text-warning-emphasis fw-semibold">Próximo</div>{% endif %}</td>
+            <td>{{ registro.codigo }}</td>
+            <td><a href="{% url 'agenda:hitos:detalle' registro.pk %}">{{ registro.titulo }}</a></td>
+            <td>{% if registro.actividad %}Actividad: {{ registro.actividad.titulo }}{% elif registro.gestion_social %}Gestión social: {{ registro.gestion_social.titulo }}{% else %}Compromiso: {{ registro.compromiso.titulo }}{% endif %}</td>
+            <td>{{ registro.responsable.get_full_name|default:registro.responsable.username }}</td>
+            <td><span class="badge bg-secondary">{{ registro.get_estado_display }}</span></td>
+            <td><a class="btn btn-sm btn-outline-secondary" href="{% url 'agenda:hitos:detalle' registro.pk %}">Ver</a></td>
+        </tr>
+        {% empty %}<tr><td class="text-center text-muted py-4" colspan="7">No hay hitos para estos filtros.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+{% include 'operaciones/_paginacion.html' %}
+{% endblock %}

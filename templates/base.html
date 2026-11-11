@@ -109,6 +109,9 @@
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">{% include 'includes/icono_nav.html' with icono='delegaciones' %}Delegaciones</a></li>
                     {% endif %}
                     {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:territorio_lista' %}">{% include 'includes/icono_nav.html' with icono='ubicacion' %}Territorios</a></li>
+                    {% endif %}
+                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle text-white{% if sesion_comunidad_activa %} show{% endif %}" href="#" id="menuComunidad" role="button" data-bs-toggle="dropdown" aria-expanded="{% if sesion_comunidad_activa %}true{% else %}false{% endif %}">{% include 'includes/icono_nav.html' with icono='comunidad' %}Comunidad</a>
                         <ul class="dropdown-menu{% if sesion_comunidad_activa %} show{% endif %}" aria-labelledby="menuComunidad">

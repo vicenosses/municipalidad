@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{% if object %}Editar carta{% else %}Nueva carta{% endif %} | SGR{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_agenda.html' with activa='cartas' %}
+<div class="mb-4"><div class="small text-uppercase text-institucional fw-bold">Agenda y seguimiento</div><h2 class="h3 fw-bold">{% if object %}Editar carta{% else %}Registrar carta{% endif %}</h2><p class="text-muted">Registra la materia recibida, su contenido, responsable y fecha comprometida.</p></div>
+<form method="post" class="card shadow-sm"><div class="card-body p-4">{% csrf_token %}{% include 'operaciones/_form.html' %}<div class="d-flex gap-2 mt-4"><button class="btn btn-custom-red" type="submit">Guardar carta</button><a class="btn btn-outline-secondary" href="{% if object %}{% url 'agenda:cartas:detalle' object.pk %}{% else %}{% url 'agenda:cartas:lista' %}{% endif %}">Cancelar</a></div></div></form>
+{% endblock %}

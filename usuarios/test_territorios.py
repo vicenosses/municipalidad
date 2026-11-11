@@ -29,3 +29,12 @@ class TerritoriosTests(DatosMetasMixin, TestCase):
         self.assertContains(respuesta, propio.nombre)
         self.assertNotContains(respuesta, 'Exclusivo')
         self.assertEqual(self.client.get(reverse('usuarios:territorio_crear')).status_code, 403)
+
+    def test_acceso_a_territorios_aparece_solo_para_roles_autorizados(self):
+        url_territorios = reverse('usuarios:territorio_lista')
+        for rol in ('administrador', 'delegado', 'coordinador'):
+            with self.subTest(rol=rol):
+                self.entrar(rol)
+                self.assertContains(self.client.get(reverse('home')), url_territorios)
+        self.entrar('funcionario')
+        self.assertNotContains(self.client.get(reverse('home')), url_territorios)

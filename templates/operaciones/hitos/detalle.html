@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ registro.codigo }} | Hitos{% endblock %}
+{% block content %}
+{% include 'operaciones/_nav_agenda.html' with activa='hitos' %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div><div class="small text-uppercase text-institucional fw-bold">Planificación · {{ registro.codigo }}</div><h2 class="h3 fw-bold mb-1">{{ registro.titulo }}</h2><span class="badge bg-secondary">{{ registro.get_estado_display }}</span></div>
+    <div class="d-flex gap-2">{% if puede_editar %}<a class="btn btn-outline-primary" href="{% url 'agenda:hitos:editar' registro.pk %}">Editar</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'agenda:hitos:lista' %}">Volver a hitos</a></div>
+</div>
+<div class="row g-3">
+    <div class="col-lg-8"><section class="card shadow-sm"><div class="card-body"><h3 class="h5">Descripción y planificación</h3><p>{{ registro.descripcion|default:'Sin descripción'|linebreaksbr }}</p><dl class="row mb-0"><dt class="col-sm-4">Fecha programada</dt><dd class="col-sm-8">{{ registro.fecha_programada|date:'d/m/Y' }}</dd><dt class="col-sm-4">Fecha completada</dt><dd class="col-sm-8">{{ registro.fecha_completada|date:'d/m/Y'|default:'—' }}</dd><dt class="col-sm-4">Responsable</dt><dd class="col-sm-8">{{ registro.responsable.get_full_name|default:registro.responsable.username }}</dd><dt class="col-sm-4">Registro asociado</dt><dd class="col-sm-8">    {% if registro.actividad %}<a href="{% url 'atenciones:detalle' registro.actividad_id %}">Actividad: {{ registro.actividad.titulo }}</a>{% elif registro.gestion_social %}<a href="{% url 'atenciones:gestion_social:detalle' registro.gestion_social_id %}">Gestión social: {{ registro.gestion_social.titulo }}</a>{% else %}<a href="{% url 'agenda:detalle' registro.compromiso_id %}">Compromiso: {{ registro.compromiso.titulo }}</a>{% endif %}</dd></dl></div></section>
+        {% if registro.motivo_cambio %}<section class="card shadow-sm mt-3"><div class="card-body"><h3 class="h5">Motivo de cancelación</h3><p class="mb-0">{{ registro.motivo_cambio|linebreaksbr }}</p></div></section>{% endif %}
+    </div>
+    <div class="col-lg-4">
+        {% if transiciones %}<section class="card shadow-sm"><div class="card-body"><h3 class="h5">Actualizar estado</h3><form method="post">{% csrf_token %}{% include 'operaciones/_form.html' with form=form_estado %}<button class="btn btn-custom-red mt-3" type="submit">Guardar estado</button></form></div></section>{% endif %}
+        {% if puede_desactivar and registro.activo %}<form class="mt-3" method="post" action="{% url 'agenda:hitos:desactivar' registro.pk %}">{% csrf_token %}<button class="btn btn-outline-danger" type="submit">Desactivar hito</button></form>{% endif %}
+    </div>
+</div>
+{% endblock %}
