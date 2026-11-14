@@ -258,11 +258,14 @@ class AportePermisosTests(DatosAportesMixin, TestCase):
         aporte.refresh_from_db()
         self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
 
-    def test_una_aprobada_entre_varias_es_suficiente(self):
+    def test_rechazada_sin_corregir_bloquea_aunque_haya_una_aprobada(self):
         aporte = self.asociar()
-        for estado in Evidencia.Estado.values:
-            self.evidencia(estado)
-        self.assertEqual(self.decidir(aporte).estado, AporteIndicador.Estado.CUMPLE)
+        self.evidencia(Evidencia.Estado.APROBADA)
+        self.evidencia(Evidencia.Estado.RECHAZADA)
+        with self.assertRaises(ValidationError):
+            self.decidir(aporte)
+        aporte.refresh_from_db()
+        self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
 
     def test_actividad_abierta_con_evidencia_permite_revision_inicial(self):
         aporte = self.asociar()

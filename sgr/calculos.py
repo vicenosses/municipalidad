@@ -6,7 +6,10 @@ from enum import Enum
 from django.db.models import Exists, OuterRef, Prefetch
 
 from atenciones.models import AtencionCiudadana, HistorialEstadoActividad
-from evidencias.consultas import evidencias_aprobadas_actividad, tiene_evidencia_aprobada
+from evidencias.consultas import (
+    evidencias_aprobadas_actividad,
+    puede_cerrar_actividad_por_evidencias,
+)
 from sgr.models import AporteIndicador, Indicador
 from sgr.tiempos import calcular_duracion_actividad
 
@@ -55,7 +58,7 @@ def calcular_avance_actividad(actividad, *, evidencia_aprobada=None):
     """
     if actividad.estado == AtencionCiudadana.Estado.CERRADA:
         if evidencia_aprobada is None:
-            evidencia_aprobada = tiene_evidencia_aprobada(actividad)
+            evidencia_aprobada = puede_cerrar_actividad_por_evidencias(actividad.pk)
         return UNO if evidencia_aprobada else CERO
     return CERO
 

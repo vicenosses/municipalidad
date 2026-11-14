@@ -11,10 +11,16 @@ class InformeSGRView(LoginRequiredMixin, TemplateView):
 
     def get(self, request, *args, **kwargs):
         autorizar_informe(request)
-        form = InformeFiltroForm(request.GET)
+        form = InformeFiltroForm(request.GET, request=request)
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(form=form, informe=None), status=400)
-        informe = construir_informe(request, periodo=form.cleaned_data['periodo'])
+        informe = construir_informe(
+            request,
+            periodo=form.cleaned_data['periodo'],
+            delegacion=form.cleaned_data.get('delegacion'),
+            funcionario=form.cleaned_data.get('funcionario'),
+            meta=form.cleaned_data.get('meta'),
+        )
         if request.GET.get('export') == 'xlsx' and informe['periodo'] and not informe['mensaje']:
             return exportar_informe_excel(informe)
         parametros = request.GET.copy()

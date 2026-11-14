@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
@@ -74,8 +75,13 @@ class CompromisoForm(forms.ModelForm):
     transiciones = {
         Compromiso.Estado.INGRESADO: {Compromiso.Estado.PENDIENTE},
         Compromiso.Estado.PENDIENTE: {Compromiso.Estado.EN_PROCESO},
-        Compromiso.Estado.EN_PROCESO: {Compromiso.Estado.REALIZADO},
-        Compromiso.Estado.REALIZADO: set(),
+        Compromiso.Estado.EN_PROCESO: {
+            Compromiso.Estado.REALIZADO,
+            Compromiso.Estado.NO_APLICA,
+        },
+        Compromiso.Estado.REALIZADO: {Compromiso.Estado.CERRADO},
+        Compromiso.Estado.CERRADO: set(),
+        Compromiso.Estado.NO_APLICA: set(),
     }
 
     def __init__(
@@ -163,6 +169,25 @@ class CompromisoForm(forms.ModelForm):
             cleaned_data['actividades'] = (
                 actividades | historicas
             ).distinct()
+        if 'actividades' in cleaned_data:
+            actividades = cleaned_data['actividades']
+            from sgr.periodos import validar_periodo_abierto
+
+            for actividad in actividades:
+                try:
+                    validar_periodo_abierto(
+                        actividad.fecha,
+                        'No se puede asociar una actividad de un período cerrado.',
+                    )
+                except ValidationError as error:
+                    self.add_error('actividades', error)
+                    break
+            ids = actividades.values_list('pk', flat=True)
+            existentes = Compromiso.objects.filter(actividades__pk__in=ids)
+            if self.instance.pk:
+                existentes = existentes.exclude(pk=self.instance.pk)
+            if existentes.exists():
+                self.add_error('actividades', 'Una actividad seleccionada ya tiene un compromiso asociado.')
         if self.instance.pk and 'estado' in cleaned_data:
             anterior = self.instance.estado
             nuevo = cleaned_data['estado']

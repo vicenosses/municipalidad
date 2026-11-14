@@ -67,7 +67,12 @@ def puede_crear_compromiso_desde_actividad(request, actividad):
     if (
         obtener_rol(request.user) not in ROLES_AGENDA
         or not actividad.activo
-        or actividad.estado == AtencionCiudadana.Estado.CERRADA
+        or actividad.estado in (
+            AtencionCiudadana.Estado.CERRADA,
+            AtencionCiudadana.Estado.COMPLETADA,
+            AtencionCiudadana.Estado.NO_APLICA,
+        )
+        or actividad.compromisos.exists()
     ):
         return False
     rol = obtener_rol(request.user)
@@ -122,7 +127,11 @@ class CompromisoListView(LoginRequiredMixin, ListView):
                 qs = qs.filter(pk__in=ids)
             if datos.get('estado'):
                 if datos['estado'] == 'vencido':
-                    qs = qs.exclude(estado=Compromiso.Estado.REALIZADO).filter(fecha_hora__lt=timezone.now())
+                    qs = qs.exclude(estado__in=(
+                        Compromiso.Estado.REALIZADO,
+                        Compromiso.Estado.CERRADO,
+                        Compromiso.Estado.NO_APLICA,
+                    )).filter(fecha_hora__lt=timezone.now())
                 else:
                     qs = qs.filter(estado=datos['estado'])
             if datos.get('responsable'):
@@ -144,10 +153,18 @@ class CompromisoListView(LoginRequiredMixin, ListView):
         parametros.pop('page', None)
         context['query_params'] = parametros.urlencode()
         context['vencidos'] = visibles.exclude(
-            estado=Compromiso.Estado.REALIZADO
+            estado__in=(
+                Compromiso.Estado.REALIZADO,
+                Compromiso.Estado.CERRADO,
+                Compromiso.Estado.NO_APLICA,
+            )
         ).filter(fecha_hora__lt=ahora)[:10]
         context['proximos'] = visibles.exclude(
-            estado=Compromiso.Estado.REALIZADO
+            estado__in=(
+                Compromiso.Estado.REALIZADO,
+                Compromiso.Estado.CERRADO,
+                Compromiso.Estado.NO_APLICA,
+            )
         ).filter(fecha_hora__gte=ahora, fecha_hora__lte=ahora + timedelta(days=7))[:10]
         context['puede_crear'] = obtener_rol(self.request.user) in ROLES_AGENDA
         context['puede_revisar_ampliaciones'] = obtener_rol(self.request.user) in ('administrador', 'delegado', 'coordinador', 'verificador')
@@ -196,6 +213,17 @@ class CompromisoCreateView(RolRequiredMixin, CreateView):
         form.instance.creado_por = self.request.user
         form.instance.estado = Compromiso.Estado.INGRESADO
         with transaction.atomic():
+            actividades = list(form.cleaned_data.get('actividades', ()))
+            if self.get_actividad_origen() is not None:
+                actividades.append(self.get_actividad_origen())
+            ids = {actividad.pk for actividad in actividades}
+            list(AtencionCiudadana.objects.select_for_update().filter(pk__in=ids))
+            if ids and Compromiso.objects.filter(actividades__in=ids).exists():
+                form.add_error(
+                    'actividades',
+                    'Una actividad seleccionada ya tiene un compromiso asociado.',
+                )
+                return self.form_invalid(form)
             response = super().form_valid(form)
             self.object.actividades.filter(va_al_tubo=False).update(va_al_tubo=True)
             HistorialCompromiso.objects.create(
@@ -247,7 +275,9 @@ class CompromisoDetailView(LoginRequiredMixin, DetailView):
         if get_delegacion_activa(self.request) is not None or obtener_rol(self.request.user) != 'administrador':
             actividades = actividades.filter(delegacion=compromiso.delegacion)
         context['actividades_relacionadas'] = actividades
-        context['puede_solicitar_ampliacion'] = (compromiso.responsable_id == self.request.user.pk and compromiso.estado != Compromiso.Estado.REALIZADO)
+        context['puede_solicitar_ampliacion'] = (
+            compromiso.responsable_id == self.request.user.pk and not compromiso.es_terminal
+        )
         context['form_ampliacion'] = SolicitudAmpliacionForm(compromiso=compromiso)
         context['solicitudes_ampliacion'] = compromiso.solicitudes_ampliacion.select_related('solicitante', 'decidido_por')
         return context
@@ -257,7 +287,7 @@ class SolicitarAmpliacionView(LoginRequiredMixin, View):
     def post(self, request, pk):
         with transaction.atomic():
             compromiso = get_object_or_404(compromisos_visibles(request).select_for_update(), pk=pk)
-            if compromiso.responsable_id != request.user.pk or compromiso.estado == Compromiso.Estado.REALIZADO:
+            if compromiso.responsable_id != request.user.pk or compromiso.es_terminal:
                 raise PermissionDenied
             form = SolicitudAmpliacionForm(request.POST, compromiso=compromiso)
             if not form.is_valid():
@@ -296,7 +326,7 @@ class DecidirAmpliacionView(RolRequiredMixin, View):
             compromiso = Compromiso.objects.select_for_update().get(pk=solicitud.compromiso_id)
             if solicitud.estado != 'pendiente':
                 messages.error(request, 'Esta solicitud ya fue resuelta.')
-            elif accion == 'aprobar' and (compromiso.estado == Compromiso.Estado.REALIZADO or compromiso.fecha_hora != solicitud.plazo_anterior):
+            elif accion == 'aprobar' and (compromiso.es_terminal or compromiso.fecha_hora != solicitud.plazo_anterior):
                 messages.error(request, 'El compromiso cambió; rechace la solicitud o revise el plazo actual.')
             else:
                 if accion == 'aprobar':
@@ -389,6 +419,20 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
         }
         motivo = form.cleaned_data.get('motivo_cambio', '')
         with transaction.atomic():
+            actividades_seleccionadas = {
+                actividad.pk for actividad in form.cleaned_data.get('actividades', ())
+            }
+            list(AtencionCiudadana.objects.select_for_update().filter(
+                pk__in=actividades_seleccionadas,
+            ))
+            if Compromiso.objects.filter(
+                actividades__pk__in=actividades_seleccionadas,
+            ).exclude(pk=compromiso.pk).exists():
+                form.add_error(
+                    'actividades',
+                    'Una actividad seleccionada ya tiene otro compromiso asociado.',
+                )
+                return self.form_invalid(form)
             response = super().form_valid(form)
             compromiso.refresh_from_db()
             compromiso.actividades.filter(va_al_tubo=False).update(va_al_tubo=True)
@@ -424,6 +468,9 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
             if compromiso.estado == Compromiso.Estado.REALIZADO and not compromiso.fecha_realizacion:
                 compromiso.fecha_realizacion = timezone.now()
                 compromiso.save(update_fields=['fecha_realizacion'])
+            if compromiso.estado in (Compromiso.Estado.CERRADO, Compromiso.Estado.NO_APLICA) and not compromiso.fecha_cierre:
+                compromiso.fecha_cierre = timezone.now()
+                compromiso.save(update_fields=['fecha_cierre'])
             registrar_auditoria(
                 self.request,
                 'editar',

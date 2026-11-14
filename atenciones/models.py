@@ -9,9 +9,11 @@ from usuarios.models import Delegacion
 
 class AtencionCiudadana(models.Model):
     class Estado(models.TextChoices):
-        REGISTRADA = 'registrada', 'Registrada'
+        REGISTRADA = 'registrada', 'Pendiente'
         EN_PROCESO = 'en_proceso', 'En proceso'
+        COMPLETADA = 'completada', 'Completada'
         CERRADA = 'cerrada', 'Cerrada'
+        NO_APLICA = 'no_aplica', 'No aplica'
 
     titulo = models.CharField('Título', max_length=200)
     fecha = models.DateField('Fecha de la actividad')
@@ -22,6 +24,11 @@ class AtencionCiudadana(models.Model):
         default=Estado.REGISTRADA,
     )
     activo = models.BooleanField('Habilitada', default=True)
+    origen = models.CharField('Origen', max_length=180, blank=True)
+    avance = models.PositiveSmallIntegerField('Avance (%)', default=0)
+    apoyo_requerido = models.TextField('Apoyo requerido', blank=True)
+    resultado = models.TextField('Resultado', blank=True)
+    fecha_completada = models.DateField('Fecha de término', null=True, blank=True)
     solicitante = models.CharField('Solicitante', max_length=180)
     tipo = models.ForeignKey(
         TipoAtencion,
@@ -71,6 +78,23 @@ class AtencionCiudadana(models.Model):
         return f'{self.solicitante} — {self.tipo}'
 
     def save(self, *args, **kwargs):
+        if self.avance > 100:
+            raise ValidationError({'avance': 'El avance debe estar entre 0 y 100.'})
+        fecha_completada_anterior = self.fecha_completada
+        if self.estado in (self.Estado.COMPLETADA, self.Estado.CERRADA) and not self.fecha_completada:
+            self.fecha_completada = timezone.localdate()
+        elif self.estado not in (self.Estado.COMPLETADA, self.Estado.CERRADA):
+            self.fecha_completada = None
+        if fecha_completada_anterior != self.fecha_completada and kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'fecha_completada'}
+        from sgr.models import Periodo
+
+        if Periodo.objects.filter(
+            cerrado=True,
+            fecha_inicio__lte=self.fecha,
+            fecha_fin__gte=self.fecha,
+        ).exists():
+            raise ValidationError('No se puede crear ni modificar una Actividad de un período cerrado.')
         if not self._state.adding:
             original = type(self).objects.filter(pk=self.pk).values(
                 'delegacion_id',
@@ -82,6 +106,15 @@ class AtencionCiudadana(models.Model):
             if not Territorio.objects.filter(pk=self.territorio_id, delegacion_id=self.delegacion_id).exists():
                 raise ValidationError({'territorio': 'El territorio debe pertenecer a la delegación de la actividad.'})
         return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from sgr.periodos import validar_periodo_abierto
+
+        validar_periodo_abierto(
+            self.fecha,
+            'No se puede eliminar una actividad de un período cerrado.',
+        )
+        return super().delete(*args, **kwargs)
 
     @property
     def creador_historico_display(self):
@@ -108,9 +141,17 @@ class AtencionCiudadana(models.Model):
 
     @property
     def estado_evidencias(self):
-        evidencias = list(self.evidencias.all())
-        reemplazadas = {e.reemplaza_id for e in evidencias if e.reemplaza_id}
-        estados = {e.estado for e in evidencias if e.pk not in reemplazadas}
+        from evidencias.consultas import evidencias_vigentes_actividad
+
+        evidencias = getattr(self, '_prefetched_objects_cache', {}).get('evidencias')
+        if evidencias is None:
+            estados = set(evidencias_vigentes_actividad(self.pk).values_list('estado', flat=True))
+        else:
+            reemplazadas = {evidencia.reemplaza_id for evidencia in evidencias if evidencia.reemplaza_id}
+            estados = {
+                evidencia.estado for evidencia in evidencias
+                if evidencia.pk not in reemplazadas
+            }
         if not estados:
             return 'sin_evidencia'
         if 'rechazada' in estados:
@@ -120,11 +161,9 @@ class AtencionCiudadana(models.Model):
         return 'aprobada'
 
     def puede_cerrar_por_evidencias(self):
-        evidencias = list(self.evidencias.all())
-        reemplazadas = {e.reemplaza_id for e in evidencias if e.reemplaza_id}
-        vigentes = [e for e in evidencias if e.pk not in reemplazadas]
-        return (any(e.estado == 'aprobada' for e in vigentes)
-                and not any(e.estado == 'rechazada' or (e.reemplaza_id and e.estado == 'pendiente') for e in vigentes))
+        from evidencias.consultas import puede_cerrar_actividad_por_evidencias
+
+        return puede_cerrar_actividad_por_evidencias(self.pk)
 
     @property
     def etiqueta_estado_evidencias(self):
@@ -170,3 +209,21 @@ class HistorialEstadoActividad(models.Model):
             models.CheckConstraint(condition=~models.Q(estado_anterior=models.F('estado_nuevo')),
                 name='atenc_hist_transicion_real'),
         ]
+
+    def save(self, *args, **kwargs):
+        from sgr.periodos import validar_periodo_abierto
+
+        validar_periodo_abierto(
+            self.actividad.fecha,
+            'No se puede agregar ni modificar historial de un período cerrado.',
+        )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from sgr.periodos import validar_periodo_abierto
+
+        validar_periodo_abierto(
+            self.actividad.fecha,
+            'No se puede eliminar historial de un período cerrado.',
+        )
+        return super().delete(*args, **kwargs)

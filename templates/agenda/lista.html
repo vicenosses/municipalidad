@@ -70,7 +70,7 @@
                 <td>
                     {% if compromiso.esta_vencido %}<span class="badge bg-danger">Vencido · {{ compromiso.get_estado_display }}</span>
                     {% elif compromiso.estado == 'realizado' and compromiso.realizado_fuera_de_plazo %}<span class="badge bg-warning text-dark">Realizado fuera de plazo</span>
-                    {% elif compromiso.estado == 'realizado' %}<span class="badge bg-success">{{ compromiso.get_estado_display }}</span>
+                    {% elif compromiso.es_terminal %}<span class="badge bg-success">{{ compromiso.get_estado_display }}</span>
                     {% elif compromiso.proximo_a_vencer %}<span class="badge bg-warning text-dark">Por vencer · {{ compromiso.get_estado_display }}</span>
                     {% else %}<span class="badge bg-secondary">{{ compromiso.get_estado_display }}</span>{% endif %}
                 </td>

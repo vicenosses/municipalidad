@@ -1,3 +1,4 @@
+from calendar import monthrange
 from datetime import timedelta
 
 from django.contrib import messages
@@ -5,6 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -12,14 +14,18 @@ from django.views import View
 from django.views.generic import CreateView, ListView, UpdateView
 
 from auditoria.utils import registrar_auditoria
-from cartas.models import Carta
-from gestion_social.models import GestionSocial
-from hitos.models import Hito
+from cartas.models import Carta, DocumentoCarta, HistorialCarta
+from gestion_social.models import (
+    GestionSocial, HistorialGestionSocial, SeguimientoGestionSocial,
+)
+from hitos.models import Hito, HistorialHito
 from operaciones.forms import (
     CambioEstadoForm,
     CartaForm,
+    CartaDocumentoForm,
     GestionSocialForm,
     HitoForm,
+    SeguimientoGestionSocialForm,
     ROLES_GESTORES,
 )
 from usuarios.mixins import obtener_rol
@@ -43,7 +49,9 @@ def _puede_editar(user, objeto):
 
 def _estado_terminal(objeto):
     if isinstance(objeto, Carta):
-        return objeto.estado == Carta.Estado.CERRADA
+        return objeto.estado in (
+            Carta.Estado.CERRADA, Carta.Estado.FINALIZADA, Carta.Estado.NO_APLICA,
+        )
     if isinstance(objeto, GestionSocial):
         return objeto.estado == GestionSocial.Estado.CERRADA
     return objeto.estado in (Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO)
@@ -53,6 +61,80 @@ def _puede_editar_formulario(user, objeto):
     if not _puede_editar(user, objeto) or _estado_terminal(objeto):
         return False
     return not isinstance(objeto, Hito) or obtener_rol(user) in ROLES_GESTORES
+
+
+def _registrar_historial(objeto, accion, actor, estado_anterior='', motivo=''):
+    datos = {
+        'accion': accion,
+        'actor': actor,
+        'estado_anterior': estado_anterior,
+        'estado_nuevo': objeto.estado,
+        'motivo': motivo,
+    }
+    if isinstance(objeto, Carta):
+        HistorialCarta.objects.create(carta=objeto, **datos)
+    elif isinstance(objeto, GestionSocial):
+        HistorialGestionSocial.objects.create(gestion=objeto, **datos)
+    elif isinstance(objeto, Hito):
+        HistorialHito.objects.create(hito=objeto, **datos)
+
+
+def _sumar_mes(fecha, meses):
+    mes = fecha.month - 1 + meses
+    anio = fecha.year + mes // 12
+    mes = mes % 12 + 1
+    return fecha.replace(year=anio, month=mes, day=min(fecha.day, monthrange(anio, mes)[1]))
+
+
+def _crear_proxima_ocurrencia(hito, actor):
+    incrementos = {
+        Hito.Periodicidad.SEMANAL: timedelta(days=7),
+        Hito.Periodicidad.MENSUAL: None,
+        Hito.Periodicidad.TRIMESTRAL: None,
+        Hito.Periodicidad.ANUAL: None,
+    }
+    if hito.periodicidad not in incrementos or not hito.repetir_hasta:
+        return None
+    if hito.periodicidad == Hito.Periodicidad.SEMANAL:
+        fecha = hito.fecha_programada + incrementos[hito.periodicidad]
+    elif hito.periodicidad == Hito.Periodicidad.MENSUAL:
+        fecha = _sumar_mes(hito.fecha_programada, 1)
+    elif hito.periodicidad == Hito.Periodicidad.TRIMESTRAL:
+        fecha = _sumar_mes(hito.fecha_programada, 3)
+    else:
+        try:
+            fecha = hito.fecha_programada.replace(year=hito.fecha_programada.year + 1)
+        except ValueError:
+            fecha = hito.fecha_programada.replace(
+                year=hito.fecha_programada.year + 1, day=28,
+            )
+    if fecha > hito.repetir_hasta:
+        return None
+    raiz = hito.repeticion_padre or hito
+    ocurrencia, creada = Hito.objects.get_or_create(
+        repeticion_padre=raiz,
+        fecha_programada=fecha,
+        defaults={
+            'titulo': hito.titulo,
+            'descripcion': hito.descripcion,
+            'actividad': hito.actividad,
+            'gestion_social': hito.gestion_social,
+            'compromiso': hito.compromiso,
+            'territorio': hito.territorio,
+            'asignacion_meta': hito.asignacion_meta,
+            'responsable': hito.responsable,
+            'periodicidad': hito.periodicidad,
+            'repetir_hasta': hito.repetir_hasta,
+            'creado_por': actor,
+        },
+    )
+    if creada:
+        actividades = hito.actividades.all()
+        if hito.actividad_id:
+            actividades = list(actividades) + [hito.actividad]
+        ocurrencia.actividades.set(actividades)
+        _registrar_historial(ocurrencia, 'programado', actor)
+    return ocurrencia
 
 
 def _filtrar_propios(queryset, request):
@@ -73,6 +155,10 @@ def _excluir_estados_terminales(queryset, model):
     if model is Hito:
         return queryset.exclude(
             estado__in=(Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO),
+        )
+    if model is Carta:
+        return queryset.exclude(
+            estado__in=(Carta.Estado.CERRADA, Carta.Estado.FINALIZADA, Carta.Estado.NO_APLICA),
         )
     return queryset.exclude(estado=model.Estado.CERRADA)
 
@@ -208,6 +294,8 @@ class CrearModulo(LoginRequiredMixin, CreateView):
             if self.object.responsable_id is None:
                 self.object.responsable = self.request.user
             self.object.save()
+            form.save_m2m()
+            _registrar_historial(self.object, 'creado', self.request.user)
             registrar_auditoria(
                 self.request, f'crear_{self.audit_modelo}', self.object,
                 f'{self.audit_etiqueta} {self.object.codigo} creado.',
@@ -262,9 +350,17 @@ class EditarModulo(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         previo = self.object.responsable_id
+        estado_anterior = self.object.estado
         motivo = form.cleaned_data.get('motivo_cambio', '').strip()
         with transaction.atomic():
             objeto = form.save()
+            _registrar_historial(
+                objeto,
+                'reasignado' if previo != objeto.responsable_id else 'editado',
+                self.request.user,
+                estado_anterior=estado_anterior,
+                motivo=motivo,
+            )
             nota = f'{self.audit_etiqueta} {objeto.codigo} actualizado.'
             if previo != objeto.responsable_id:
                 nota += (
@@ -321,21 +417,30 @@ class DetalleModulo(LoginRequiredMixin, View):
         )
 
     def _render_formulario_estado(self, request, objeto, form, estado, puede_editar):
-        return render(request, self.template_name, {
+        context = {
             'registro': objeto,
             'puede_editar': puede_editar,
             'transiciones': self.transiciones.get(estado, ()),
             'form_estado': form,
             'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
-        }, status=400)
+        }
+        context.update(self.contexto_adicional(objeto))
+        return render(request, self.template_name, context, status=400)
+
+    def contexto_adicional(self, objeto):
+        return {}
 
     @staticmethod
     def _actualizar_estado_carta(objeto, estado, form):
-        if estado == Carta.Estado.RESPONDIDA:
+        if estado in (Carta.Estado.RESPONDIDA, Carta.Estado.APROBADA):
             objeto.respuesta = form.cleaned_data['respuesta'].strip()
             objeto.fecha_respuesta = timezone.localdate()
-        elif estado == Carta.Estado.EN_PROCESO:
+        elif estado in (Carta.Estado.EN_PROCESO, Carta.Estado.DERIVADA):
             objeto.fecha_respuesta = None
+        if estado in (Carta.Estado.CERRADA, Carta.Estado.FINALIZADA, Carta.Estado.NO_APLICA):
+            objeto.fecha_cierre = timezone.localdate()
+        else:
+            objeto.fecha_cierre = None
 
     @staticmethod
     def _actualizar_estado_hito(objeto, estado, form):
@@ -356,6 +461,10 @@ class DetalleModulo(LoginRequiredMixin, View):
             self._actualizar_estado_carta(objeto, estado, form)
         elif isinstance(objeto, Hito):
             self._actualizar_estado_hito(objeto, estado, form)
+        elif isinstance(objeto, GestionSocial):
+            objeto.fecha_cierre = (
+                timezone.localdate() if estado == GestionSocial.Estado.CERRADA else None
+            )
 
     def get(self, request, pk):
         if obtener_rol(request.user) not in ROLES_VALIDOS:
@@ -370,10 +479,12 @@ class DetalleModulo(LoginRequiredMixin, View):
             ),
             'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
         }
+        context.update(self.contexto_adicional(objeto))
         return render(request, self.template_name, context)
 
+    @transaction.atomic
     def post(self, request, pk):
-        objeto = get_object_or_404(self.get_queryset(), pk=pk)
+        objeto = get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
         if not _puede_editar(request.user, objeto):
             raise PermissionDenied
         form = CambioEstadoForm(
@@ -391,6 +502,13 @@ class DetalleModulo(LoginRequiredMixin, View):
             return self._render_formulario_estado(request, objeto, form, anterior, True)
         with transaction.atomic():
             objeto.save()
+            motivo = form.cleaned_data.get('motivo', '').strip()
+            _registrar_historial(
+                objeto, 'cambio_estado', request.user,
+                estado_anterior=anterior, motivo=motivo,
+            )
+            if isinstance(objeto, Hito) and estado == Hito.Estado.COMPLETADO:
+                _crear_proxima_ocurrencia(objeto, request.user)
             registrar_auditoria(
                 request, f'cambiar_estado_{self.audit_modelo}', objeto,
                 f'{self.audit_etiqueta} {objeto.codigo}: {anterior} → {estado}.',
@@ -425,6 +543,16 @@ class DetalleGestionSocial(DetalleModulo):
         ),
     }
 
+    def contexto_adicional(self, objeto):
+        return {
+            'seguimientos': objeto.seguimientos.select_related('actor'),
+            'form_seguimiento': SeguimientoGestionSocialForm(),
+            'tiempo_gestion_dias': (
+                (objeto.fecha_cierre - objeto.fecha_ingreso).days
+                if objeto.fecha_cierre else (timezone.localdate() - objeto.fecha_ingreso).days
+            ),
+        }
+
 
 class DetalleCarta(DetalleModulo):
     model = Carta
@@ -434,16 +562,153 @@ class DetalleCarta(DetalleModulo):
     audit_etiqueta = 'Carta'
     transiciones = {
         Carta.Estado.INGRESADA: (
+            (Carta.Estado.DERIVADA, 'Derivada'),
             (Carta.Estado.ASIGNADA, 'Asignada'),
             (Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
+            (Carta.Estado.NO_APLICA, 'No aplica'),
         ),
-        Carta.Estado.ASIGNADA: ((Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),),
-        Carta.Estado.EN_PROCESO: ((Carta.Estado.RESPONDIDA, 'Respondida'),),
+        Carta.Estado.DERIVADA: ((Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),),
+        Carta.Estado.ASIGNADA: (
+            (Carta.Estado.DERIVADA, 'Derivada'),
+            (Carta.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
+        ),
+        Carta.Estado.EN_PROCESO: (
+            (Carta.Estado.RESPONDIDA, 'Respondida'),
+            (Carta.Estado.APROBADA, 'Aprobada'),
+            (Carta.Estado.NO_APLICA, 'No aplica'),
+        ),
         Carta.Estado.RESPONDIDA: (
+            (Carta.Estado.APROBADA, 'Aprobada'),
+            (Carta.Estado.FINALIZADA, 'Finalizada'),
             (Carta.Estado.CERRADA, 'Cerrada'),
             (Carta.Estado.EN_PROCESO, 'Reabrir en proceso'),
         ),
+        Carta.Estado.APROBADA: (
+            (Carta.Estado.FINALIZADA, 'Finalizada'),
+            (Carta.Estado.EN_PROCESO, 'Reabrir en proceso'),
+        ),
     }
+
+    def contexto_adicional(self, objeto):
+        return {
+            'documentos': objeto.documentos.select_related('subido_por'),
+            'form_documento': CartaDocumentoForm(),
+        }
+
+
+class RegistrarSeguimientoGestionSocial(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if obtener_rol(request.user) not in ROLES_VALIDOS:
+            raise PermissionDenied
+        gestion = get_object_or_404(_queryset_accesible(GestionSocial, request), pk=pk)
+        if not _puede_editar_formulario(request.user, gestion):
+            raise PermissionDenied
+        form = SeguimientoGestionSocialForm(request.POST, request.FILES)
+        if not form.is_valid():
+            return render(request, 'operaciones/gestion_social/detalle.html', {
+                'registro': gestion,
+                'puede_editar': True,
+                'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
+                'transiciones': DetalleGestionSocial.transiciones.get(gestion.estado, ()),
+                'form_estado': CambioEstadoForm(
+                    choices=DetalleGestionSocial.transiciones.get(gestion.estado, ()),
+                ),
+                'seguimientos': gestion.seguimientos.select_related('actor'),
+                'form_seguimiento': form,
+                'tiempo_gestion_dias': (timezone.localdate() - gestion.fecha_ingreso).days,
+            }, status=400)
+        with transaction.atomic():
+            seguimiento = form.save(commit=False)
+            seguimiento.gestion = gestion
+            seguimiento.actor = request.user
+            seguimiento.save()
+            HistorialGestionSocial.objects.create(
+                gestion=gestion,
+                accion=seguimiento.get_tipo_display().lower(),
+                estado_anterior=gestion.estado,
+                estado_nuevo=gestion.estado,
+                motivo=seguimiento.observaciones or seguimiento.resultado,
+                actor=request.user,
+            )
+            registrar_auditoria(
+                request, 'seguimiento_gestion_social', gestion,
+                f'{seguimiento.get_tipo_display()} registrado para {gestion.codigo}.',
+            )
+        messages.success(request, 'Seguimiento social registrado.')
+        return redirect(URL_GESTION_SOCIAL_DETALLE, pk=gestion.pk)
+
+
+class AgregarDocumentoCarta(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if obtener_rol(request.user) not in ROLES_VALIDOS:
+            raise PermissionDenied
+        carta = get_object_or_404(_queryset_accesible(Carta, request), pk=pk)
+        if not _puede_editar_formulario(request.user, carta):
+            raise PermissionDenied
+        form = CartaDocumentoForm(request.POST, request.FILES)
+        if not form.is_valid():
+            messages.error(request, 'Seleccione un documento y corrija los campos indicados.')
+            return redirect(URL_CARTA_DETALLE, pk=carta.pk)
+        with transaction.atomic():
+            documento = form.save(commit=False)
+            documento.carta = carta
+            documento.subido_por = request.user
+            documento.save()
+            HistorialCarta.objects.create(
+                carta=carta,
+                accion='documento_agregado',
+                estado_anterior=carta.estado,
+                estado_nuevo=carta.estado,
+                motivo=documento.descripcion,
+                actor=request.user,
+            )
+            registrar_auditoria(request, 'agregar_documento_carta', carta, 'Documento adjuntado.')
+        messages.success(request, 'Documento agregado a la carta.')
+        return redirect(URL_CARTA_DETALLE, pk=carta.pk)
+
+
+class DescargarDocumentoCarta(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        if obtener_rol(request.user) not in ROLES_VALIDOS:
+            raise PermissionDenied
+        documento = get_object_or_404(
+            DocumentoCarta.objects.select_related('carta'),
+            pk=pk,
+            carta__in=_queryset_accesible(Carta, request),
+        )
+        if not documento.archivo:
+            raise Http404
+        respuesta = FileResponse(
+            documento.archivo.open('rb'),
+            as_attachment=True,
+            filename=documento.archivo.name.rsplit('/', 1)[-1],
+            content_type='application/octet-stream',
+        )
+        respuesta['X-Content-Type-Options'] = 'nosniff'
+        respuesta['Cache-Control'] = 'private, no-store'
+        return respuesta
+
+
+class DescargarEvidenciaSocial(LoginRequiredMixin, View):
+    def get(self, request, pk):
+        if obtener_rol(request.user) not in ROLES_VALIDOS:
+            raise PermissionDenied
+        seguimiento = get_object_or_404(
+            SeguimientoGestionSocial.objects.select_related('gestion'),
+            pk=pk,
+            gestion__in=_queryset_accesible(GestionSocial, request),
+        )
+        if not seguimiento.evidencia:
+            raise Http404
+        respuesta = FileResponse(
+            seguimiento.evidencia.open('rb'),
+            as_attachment=True,
+            filename=seguimiento.evidencia.name.rsplit('/', 1)[-1],
+            content_type='application/octet-stream',
+        )
+        respuesta['X-Content-Type-Options'] = 'nosniff'
+        respuesta['Cache-Control'] = 'private, no-store'
+        return respuesta
 
 
 class DetalleHito(DetalleModulo):

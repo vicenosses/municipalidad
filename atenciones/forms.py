@@ -31,20 +31,28 @@ class AtencionCiudadanaForm(forms.ModelForm):
             'titulo',
             'fecha',
             'solicitante',
+            'origen',
             'territorio',
             'tipo',
             'subatencion',
             'va_al_tubo',
+            'avance',
+            'apoyo_requerido',
+            'resultado',
             'descripcion',
         ]
         widgets = {
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
+            'origen': forms.TextInput(attrs={'class': 'form-control'}),
             'territorio': forms.Select(attrs={'class': 'form-select'}),
             'tipo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo'}),
             'subatencion': forms.Select(attrs={'class': 'form-select', 'id': 'id_subatencion'}),
             'va_al_tubo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'avance': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'apoyo_requerido': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'resultado': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
         }
 
@@ -52,6 +60,9 @@ class AtencionCiudadanaForm(forms.ModelForm):
 
     def __init__(self, *args, request=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['avance'].required = False
+        if not self.is_bound and not self.instance.pk:
+            self.fields['avance'].initial = 0
         self.delegacion_activa = get_delegacion_activa(request) if request else None
         self.fields['territorio'].queryset = Territorio.objects.filter(
             delegacion=self.delegacion_activa, activo=True) if self.delegacion_activa else Territorio.objects.none()
@@ -91,6 +102,9 @@ class AtencionCiudadanaForm(forms.ModelForm):
                         delegacion_id=tipo.delegacion_id,
                     )
         self.fields['subatencion'].queryset = subatenciones
+
+    def clean_avance(self):
+        return self.cleaned_data.get('avance') or 0
 
     def clean_rut_tubo(self):
         return validar_y_formatear_rut(self.cleaned_data['rut_tubo'])
