@@ -46,3 +46,6 @@ class EvidenciaAdmin(admin.ModelAdmin):
         'validado_por',
         'fecha_validacion',
     )
+
+    def has_delete_permission(self, request, obj=None):
+        return False

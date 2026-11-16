@@ -107,6 +107,11 @@
     <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
         <p class="text-muted small mb-2">Evidencias aprobadas / rechazadas</p><p class="h3 text-institucional mb-0">{{ evidencias_aprobadas }} / {{ evidencias_rechazadas }}</p>
     </div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Reclamos / felicitaciones del período</p>
+        <p class="h3 text-institucional mb-2">{{ reclamos }} / {{ felicitaciones }}</p>
+        <a class="small" href="{% url 'atenciones:reconocimientos:lista' %}">Ver registros</a>
+    </div></div></div>
 </div>
 {% if metas_individuales %}
 <section class="card shadow-sm inicio-metas-individuales mt-4 mb-4">

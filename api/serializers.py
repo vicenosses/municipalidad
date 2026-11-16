@@ -247,7 +247,8 @@ class GestionSocialSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'codigo', 'titulo', 'tipo', 'estado', 'delegacion', 'territorio',
             'vecino', 'vecino_resumen', 'responsable', 'responsable_id', 'fecha_ingreso',
-            'fecha_compromiso', 'ingresa_al_tubo', 'activo', 'descripcion',
+            'fecha_atencion', 'fecha_visita_programada', 'fecha_compromiso',
+            'ingresa_al_tubo', 'activo', 'descripcion',
             'creado_en', 'actualizado_en',
         )
         read_only_fields = ('id', 'codigo', 'estado', 'activo', 'creado_en', 'actualizado_en')

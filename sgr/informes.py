@@ -5,7 +5,7 @@ from django.db.models import Prefetch
 from django.utils import timezone
 
 from agenda.models import Compromiso
-from atenciones.models import AtencionCiudadana
+from atenciones.models import AtencionCiudadana, ReconocimientoCiudadano
 from cartas.models import Carta
 from evidencias.models import Evidencia
 from gestion_social.models import GestionSocial
@@ -57,13 +57,26 @@ def construir_informe(
         'metas_calculables': 0, 'metas_incompletas': 0, 'funcionario': funcionario,
         'meta_seleccionada': meta, 'asignaciones': [], 'actividades': [],
         'compromisos': [], 'evidencias': [], 'cartas': [],
-        'gestiones_sociales': [], 'hitos': [],
+        'gestiones_sociales': [], 'hitos': [], 'reclamos': 0, 'felicitaciones': 0,
     }
     if periodo is None:
         periodo, contexto['mensaje'] = obtener_periodo_vigente(hoy)
         contexto['periodo'] = periodo
     if periodo is None:
         return contexto
+    reconocimientos = ReconocimientoCiudadano.objects.filter(
+        fecha__range=(periodo.fecha_inicio, periodo.fecha_fin), activo=True,
+    )
+    if delegacion is not None:
+        reconocimientos = reconocimientos.filter(delegacion=delegacion)
+    if funcionario is not None:
+        reconocimientos = reconocimientos.filter(responsable=funcionario)
+    contexto['reclamos'] = reconocimientos.filter(
+        tipo=ReconocimientoCiudadano.Tipo.RECLAMO,
+    ).count()
+    contexto['felicitaciones'] = reconocimientos.filter(
+        tipo=ReconocimientoCiudadano.Tipo.FELICITACION,
+    ).count()
     esperado = calcular_avance_esperado(periodo, hoy)
     if esperado is None:
         contexto['mensaje'] = 'El período seleccionado tiene fechas inválidas. No se muestran resultados.'

@@ -84,6 +84,8 @@ class HomeView(LoginRequiredMixin, TemplateView):
         context['total_cartas'] = len(dashboard['cartas'])
         context['total_gestiones_sociales'] = len(dashboard['gestiones_sociales'])
         context['total_hitos'] = len(dashboard['hitos'])
+        context['reclamos'] = dashboard.get('reclamos', 0)
+        context['felicitaciones'] = dashboard.get('felicitaciones', 0)
         context['hitos_pendientes'] = sum(
             hito.estado in ('pendiente', 'en_proceso') for hito in dashboard['hitos']
         )

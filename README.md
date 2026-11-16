@@ -17,9 +17,11 @@ Facilitar el registro, la organización y el seguimiento de la información muni
 - Administración de tipos y subtipos de atención.
 - Registro y validación de evidencias.
 - Gestión de compromisos y solicitudes de ampliación de plazo.
+- Seguimiento de gestiones sociales y sus plazos entre hitos.
+- Registro de reclamos y felicitaciones ciudadanas.
 - Administración de períodos, metas e indicadores SGR.
 - Registro de acciones relevantes mediante auditoría.
-- Eliminación de registros para el administrador, con restricciones cuando existen datos relacionados.
+- Conservación del historial de actividades, evidencias, compromisos, cartas, gestiones sociales e hitos; su borrado físico está deshabilitado desde la administración.
 
 ## Roles
 

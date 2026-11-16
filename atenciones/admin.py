@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.db import transaction
 
-from atenciones.models import AtencionCiudadana, HistorialEstadoActividad
+from atenciones.models import AtencionCiudadana, HistorialEstadoActividad, ReconocimientoCiudadano
 from atenciones.estados import registrar_creacion_actividad
 from atenciones.permisos import queryset_atenciones
 
@@ -71,6 +71,17 @@ class HistorialEstadoActividadAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ReconocimientoCiudadano)
+class ReconocimientoCiudadanoAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'tipo', 'titulo', 'fecha', 'delegacion', 'responsable', 'activo')
+    list_filter = ('tipo', 'delegacion', 'activo')
+    search_fields = ('codigo', 'titulo', 'descripcion', 'vecino__nombres', 'vecino__apellidos')
+    readonly_fields = ('codigo', 'creado_por', 'creado_en', 'actualizado_en')
 
     def has_delete_permission(self, request, obj=None):
         return False

@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 from auditoria.models import RegistroAuditoria
-from gestion_social.models import GestionSocial, SeguimientoGestionSocial
+from gestion_social.models import AccionGestionSocial, GestionSocial, SeguimientoGestionSocial
 from sgr.test_metas import DatosMetasMixin
 from usuarios.models import Territorio, Vecino
 
@@ -67,4 +70,36 @@ class SeguimientoGestionTests(DatosMetasMixin, TestCase):
         cliente = Client(enforce_csrf_checks=True)
         cliente.force_login(self.usuarios['funcionario'])
         self.assertEqual(cliente.post(url, {'tipo':'avance', 'descripcion':'Prueba'}).status_code, 403)
+
+    def test_calcula_tiempos_entre_hitos_sociales_y_deja_vacios_los_incompletos(self):
+        from gestion_social.tiempos import calcular_tiempos_gestion
+
+        hoy = timezone.localdate()
+        self.gestion.fecha_ingreso = hoy
+        self.gestion.fecha_atencion = hoy + timedelta(days=1)
+        self.gestion.fecha_visita_programada = hoy + timedelta(days=2)
+        self.gestion.save()
+        acciones = []
+        for tipo, dias in (
+            (AccionGestionSocial.Tipo.ACCION, 3),
+            (AccionGestionSocial.Tipo.VISITA, 4),
+            (AccionGestionSocial.Tipo.INFORME, 6),
+            (AccionGestionSocial.Tipo.BENEFICIO, 8),
+        ):
+            acciones.append(AccionGestionSocial.objects.create(
+                gestion=self.gestion, tipo=tipo, fecha=hoy + timedelta(days=dias),
+            ))
+
+        self.assertEqual(calcular_tiempos_gestion(self.gestion, acciones), {
+            'ingreso_primera_gestion': 3,
+            'programacion_visita': 2,
+            'visita_informe': 2,
+            'atencion_beneficio': 7,
+        })
+        self.assertEqual(calcular_tiempos_gestion(self.gestion, []), {
+            'ingreso_primera_gestion': None,
+            'programacion_visita': None,
+            'visita_informe': None,
+            'atencion_beneficio': None,
+        })
 

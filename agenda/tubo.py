@@ -19,7 +19,11 @@ class FiltroTuboForm(forms.Form):
     q = forms.CharField(label='Buscar', required=False, max_length=100,
         widget=forms.TextInput(attrs={'class':'form-control', 'placeholder':'Código, nombre o RUT', 'autocomplete':'off'}))
     tipo = forms.ChoiceField(label='Tipo', required=False, choices=(('', 'Todos'), ('actividad', 'Actividad'), ('gestion_social', 'Gestión social')), widget=forms.Select(attrs={'class':'form-select'}))
-    estado = forms.ChoiceField(label='Estado', required=False, choices=(('', 'Todos'), ('pendiente', 'Pendiente'), ('en_proceso', 'En proceso'), ('cerrado', 'Cerrado'), ('vencido', 'Vencido')), widget=forms.Select(attrs={'class':'form-select'}))
+    estado = forms.ChoiceField(label='Estado', required=False, choices=(
+        ('', 'Todos'), ('pendiente', 'Pendiente'), ('en_proceso', 'En proceso'),
+        ('realizado', 'Realizado'), ('cerrado', 'Cerrado'),
+        ('no_aplica', 'No aplica'), ('vencido', 'Vencido'),
+    ), widget=forms.Select(attrs={'class':'form-select'}))
     responsable = forms.ModelChoiceField(label='Responsable', required=False, queryset=Perfil.objects.none(), widget=forms.Select(attrs={'class':'form-select'}))
     desde = forms.DateField(label='Desde', required=False, widget=forms.DateInput(attrs={'class':'form-control', 'type':'date'}))
     hasta = forms.DateField(label='Hasta', required=False, widget=forms.DateInput(attrs={'class':'form-control', 'type':'date'}))
@@ -42,14 +46,45 @@ def _normalizar_rut(valor):
 
 def _actividad_fila(actividad):
     compromisos = list(actividad.compromisos.all())
-    pendientes = [c for c in compromisos if c.estado != Compromiso.Estado.REALIZADO]
-    seleccion = min(pendientes or compromisos, key=lambda c: c.fecha_hora) if compromisos else None
+    abiertos = [compromiso for compromiso in compromisos if not compromiso.es_terminal]
+    seleccion = min(abiertos, key=lambda c: c.fecha_hora) if abiertos else (
+        max(compromisos, key=lambda c: c.fecha_hora) if compromisos else None
+    )
+    if actividad.estado == AtencionCiudadana.Estado.CERRADA:
+        estado = 'cerrado'
+    elif actividad.estado == AtencionCiudadana.Estado.NO_APLICA:
+        estado = 'no_aplica'
+    elif actividad.estado == AtencionCiudadana.Estado.COMPLETADA:
+        estado = 'realizado'
+    elif compromisos and not abiertos:
+        estados = {compromiso.estado for compromiso in compromisos}
+        if estados == {Compromiso.Estado.NO_APLICA}:
+            estado = 'no_aplica'
+        elif estados == {Compromiso.Estado.REALIZADO}:
+            estado = 'realizado'
+        else:
+            estado = 'cerrado'
+    elif abiertos and any(
+        compromiso.estado == Compromiso.Estado.EN_PROCESO for compromiso in abiertos
+    ):
+        estado = 'en_proceso'
+    elif actividad.estado == AtencionCiudadana.Estado.EN_PROCESO:
+        estado = 'en_proceso'
+    else:
+        estado = 'pendiente'
+    etiquetas = {
+        'pendiente': 'Pendiente',
+        'en_proceso': 'En proceso',
+        'realizado': 'Realizado',
+        'cerrado': 'Cerrado',
+        'no_aplica': 'No aplica',
+    }
     return {'tipo': 'actividad', 'tipo_texto': 'Actividad', 'codigo': f'ACT-{actividad.pk:06d}',
         'titulo': actividad.titulo, 'solicitante': actividad.solicitante,
         'rut': seleccion.rut_solicitante if seleccion else '', 'fecha': actividad.fecha,
         'plazo': timezone.localtime(seleccion.fecha_hora).date() if seleccion else None,
-        'estado': actividad.estado, 'estado_texto': actividad.get_estado_display(),
-        'cerrado': actividad.estado == AtencionCiudadana.Estado.CERRADA,
+        'estado': estado, 'estado_texto': etiquetas[estado],
+        'cerrado': estado in ('realizado', 'cerrado', 'no_aplica'),
         'responsable': actividad.responsable, 'delegacion': actividad.delegacion,
         'url': reverse('atenciones:detalle', args=[actividad.pk])}
 
@@ -57,12 +92,21 @@ def _actividad_fila(actividad):
 def _gestion_fila(gestion, user, rol):
     autorizada = rol in ROLES_GESTORES or user.pk in (gestion.responsable_id, gestion.creado_por_id)
     vecino = gestion.vecino if autorizada else None
+    estado = {
+        GestionSocial.Estado.REGISTRADA: 'pendiente',
+        GestionSocial.Estado.PENDIENTE_ANTECEDENTES: 'pendiente',
+        GestionSocial.Estado.EN_PROCESO: 'en_proceso',
+        GestionSocial.Estado.DERIVADA: 'en_proceso',
+        GestionSocial.Estado.CERRADA: 'cerrado',
+    }[gestion.estado]
     return {'tipo': 'gestion_social', 'tipo_texto': 'Gestión social', 'codigo': gestion.codigo,
         'titulo': gestion.titulo if autorizada else 'Gestión social',
         'solicitante': str(vecino) if vecino else '', 'rut': vecino.rut if vecino else '',
         'fecha': gestion.fecha_ingreso, 'plazo': gestion.fecha_compromiso,
-        'estado': gestion.estado, 'estado_texto': gestion.get_estado_display(),
-        'cerrado': gestion.estado == GestionSocial.Estado.CERRADA,
+        'estado': estado, 'estado_texto': {
+            'pendiente': 'Pendiente', 'en_proceso': 'En proceso', 'cerrado': 'Cerrado',
+        }[estado],
+        'cerrado': estado == 'cerrado',
         'responsable': gestion.responsable, 'delegacion': gestion.delegacion,
         'url': reverse('atenciones:gestion_social:detalle', args=[gestion.pk]) if autorizada else None}
 
@@ -74,9 +118,7 @@ def _estado_coincide(fila, estado, hoy):
         return bool(fila['plazo'] and fila['plazo'] < hoy and not fila['cerrado'])
     if estado == 'cerrado':
         return fila['cerrado']
-    if estado == 'pendiente':
-        return fila['estado'] in ('registrada', 'pendiente', 'pendiente_antecedentes')
-    return fila['estado'] in ('en_proceso', 'derivada')
+    return fila['estado'] == estado
 
 
 class TuboGestionView(RolRequiredMixin, TemplateView):

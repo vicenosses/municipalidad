@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, ListView, UpdateView
 
+from atenciones.models import ReconocimientoCiudadano
 from auditoria.utils import registrar_auditoria
 from cartas.models import Carta, DocumentoCarta, HistorialCarta
 from gestion_social.models import GestionSocial, HistorialGestionSocial, SeguimientoGestionSocial, AccionGestionSocial
@@ -23,6 +24,7 @@ from operaciones.forms import (
     CartaDocumentoForm,
     GestionSocialForm,
     HitoForm,
+    ReconocimientoCiudadanoForm,
     SeguimientoGestionSocialForm, AccionGestionSocialForm,
     ROLES_GESTORES,
 )
@@ -63,6 +65,8 @@ def _puede_editar_formulario(user, objeto):
 
 
 def _registrar_historial(objeto, accion, actor, estado_anterior='', motivo=''):
+    if isinstance(objeto, ReconocimientoCiudadano):
+        return
     datos = {
         'accion': accion,
         'actor': actor,
@@ -151,6 +155,8 @@ def _queryset_accesible(model, request):
 
 
 def _excluir_estados_terminales(queryset, model):
+    if model is ReconocimientoCiudadano:
+        return queryset
     if model is Hito:
         return queryset.exclude(
             estado__in=(Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO),
@@ -271,6 +277,49 @@ class ListaHitos(ListaModulo):
         return context
 
 
+class ListaReconocimientos(LoginRequiredMixin, ListView):
+    model = ReconocimientoCiudadano
+    template_name = 'operaciones/reconocimientos/lista.html'
+    context_object_name = 'registros'
+    paginate_by = 25
+
+    def get_queryset(self):
+        if obtener_rol(self.request.user) not in ROLES_VALIDOS:
+            raise PermissionDenied
+        queryset = filtrar_contexto_territorial(
+            ReconocimientoCiudadano.objects.select_related(
+                'vecino', 'territorio', 'delegacion', 'responsable',
+            ).filter(activo=True),
+            self.request,
+        )
+        if obtener_rol(self.request.user) not in ROLES_GESTORES:
+            queryset = queryset.filter(
+                Q(responsable=self.request.user) | Q(creado_por=self.request.user),
+            )
+        tipo = self.request.GET.get('tipo', '')
+        if tipo in ReconocimientoCiudadano.Tipo.values:
+            queryset = queryset.filter(tipo=tipo)
+        texto = self.request.GET.get('q', '').strip()
+        if texto:
+            queryset = queryset.filter(
+                Q(codigo__icontains=texto) | Q(titulo__icontains=texto)
+                | Q(vecino__nombres__icontains=texto)
+                | Q(vecino__apellidos__icontains=texto)
+            )
+        return queryset.order_by('-fecha', '-pk')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            tipos=ReconocimientoCiudadano.Tipo.choices,
+            tipo_seleccionado=self.request.GET.get('tipo', ''),
+            q=self.request.GET.get('q', ''),
+            puede_crear=obtener_rol(self.request.user) in ROLES_VALIDOS,
+            puede_editar_todos=obtener_rol(self.request.user) in ROLES_GESTORES,
+        )
+        return context
+
+
 class CrearModulo(LoginRequiredMixin, CreateView):
     success_message = 'Registro creado correctamente.'
     success_url_name = ''
@@ -312,6 +361,15 @@ class CrearGestionSocial(CrearModulo):
     audit_etiqueta = ETIQUETA_GESTION_SOCIAL
 
 
+class CrearReconocimiento(CrearModulo):
+    model = ReconocimientoCiudadano
+    form_class = ReconocimientoCiudadanoForm
+    template_name = 'operaciones/reconocimientos/form.html'
+    success_url_name = 'atenciones:reconocimientos:lista'
+    audit_modelo = 'reconocimiento_ciudadano'
+    audit_etiqueta = 'Reclamo o felicitación'
+
+
 class CrearCarta(CrearModulo):
     model = Carta
     form_class = CartaForm
@@ -349,7 +407,7 @@ class EditarModulo(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         previo = self.object.responsable_id
-        estado_anterior = self.object.estado
+        estado_anterior = getattr(self.object, 'estado', '')
         motivo = form.cleaned_data.get('motivo_cambio', '').strip()
         with transaction.atomic():
             objeto = form.save()
@@ -378,6 +436,15 @@ class EditarGestionSocial(EditarModulo):
     success_url_name = URL_GESTION_SOCIAL_DETALLE
     audit_modelo = 'gestion_social'
     audit_etiqueta = ETIQUETA_GESTION_SOCIAL
+
+
+class EditarReconocimiento(EditarModulo):
+    model = ReconocimientoCiudadano
+    form_class = ReconocimientoCiudadanoForm
+    template_name = 'operaciones/reconocimientos/form.html'
+    success_url_name = 'atenciones:reconocimientos:editar'
+    audit_modelo = 'reconocimiento_ciudadano'
+    audit_etiqueta = 'Reclamo o felicitación'
 
 
 class EditarCarta(EditarModulo):
@@ -554,10 +621,14 @@ class DetalleGestionSocial(DetalleModulo):
     }
 
     def contexto_adicional(self, objeto):
+        seguimientos = list(objeto.acciones_sociales.select_related('actor'))
+        from gestion_social.tiempos import calcular_tiempos_gestion
+
         return {
-            'seguimientos': objeto.acciones_sociales.select_related('actor'),
+            'seguimientos': seguimientos,
             'form_seguimiento': SeguimientoGestionSocialForm(),
             'form_accion': AccionGestionSocialForm(),
+            'tiempos_gestion': calcular_tiempos_gestion(objeto, seguimientos),
             'tiempo_gestion_dias': (
                 (objeto.fecha_cierre - objeto.fecha_ingreso).days
                 if objeto.fecha_cierre else (timezone.localdate() - objeto.fecha_ingreso).days

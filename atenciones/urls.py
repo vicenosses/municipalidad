@@ -7,6 +7,10 @@ app_name = 'atenciones'
 
 urlpatterns = [
     path(
+        'reconocimientos/',
+        include(('operaciones.urls_reconocimientos', 'reconocimientos'), namespace='reconocimientos'),
+    ),
+    path(
         'gestiones-sociales/',
         include(('operaciones.urls_gestion_social', 'gestion_social'), namespace='gestion_social'),
     ),

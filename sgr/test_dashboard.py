@@ -9,6 +9,7 @@ from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
+from atenciones.models import ReconocimientoCiudadano
 from sgr.dashboard import calcular_avance_esperado, calcular_semaforo, obtener_periodo_vigente
 from sgr.models import AporteIndicador, Indicador, Meta, Periodo
 from sgr.ponderaciones import calcular_resultado_meta, calcular_resultados_metas
@@ -314,6 +315,30 @@ class DashboardSGRTests(DatosPonderacionesMixin, TestCase):
         self.assertEqual(dashboard['total_metas'], 4)
         self.assertEqual(dashboard['metas_calculables'], 3)
         self.assertEqual(dashboard['metas_incompletas'], 1)
+
+    def test_dashboard_cuenta_reclamos_y_felicitaciones_segun_filtros(self):
+        self.usuarios['funcionario'].perfil.delegaciones.add(self.b)
+        ReconocimientoCiudadano.objects.create(
+            tipo=ReconocimientoCiudadano.Tipo.RECLAMO,
+            titulo='Reclamo A', fecha=date(2026, 5, 5),
+            delegacion=self.a, responsable=self.usuarios['funcionario'],
+        )
+        ReconocimientoCiudadano.objects.create(
+            tipo=ReconocimientoCiudadano.Tipo.FELICITACION,
+            titulo='Felicitación B', fecha=date(2026, 5, 6),
+            delegacion=self.b, responsable=self.usuarios['funcionario'],
+        )
+
+        respuesta = self.client.get(reverse('home'), {
+            'periodo': self.periodo.pk,
+            'delegacion': self.a.pk,
+            'funcionario': self.usuarios['funcionario'].pk,
+        })
+
+        dashboard = respuesta.context['dashboard']
+        self.assertEqual(dashboard['reclamos'], 1)
+        self.assertEqual(dashboard['felicitaciones'], 0)
+        self.assertContains(respuesta, 'Reclamos / felicitaciones del período')
 
     def test_lote_y_detalle_dan_los_mismos_resultados(self):
         self.evaluado('40', '120')
