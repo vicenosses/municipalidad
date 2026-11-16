@@ -114,3 +114,25 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
         self.assertEqual(self.client.get(reverse('agenda:hitos:crear')).status_code, 403)
         self.entrar('funcionario')
         self.assertEqual(self.client.get(reverse('agenda:hitos:crear')).status_code, 403)
+
+    def test_creador_no_modifica_carta_ni_gestion_reasignada(self):
+        creador = self.usuarios['funcionario']
+        responsable = self.usuarios['verificador']
+        carta = Carta.objects.create(asunto='Original', contenido='Original', delegacion=self.a,
+            responsable=responsable, creado_por=creador)
+        gestion = GestionSocial.objects.create(titulo='Original', descripcion='Original', delegacion=self.a,
+            responsable=responsable, creado_por=creador)
+        self.entrar('funcionario')
+        casos = (
+            ('agenda:cartas:editar', carta, {'asunto':'Alterada','contenido':'Alterada','fecha_ingreso':'2026-11-10'}),
+            ('atenciones:gestion_social:editar', gestion, {'titulo':'Alterada','tipo':'orientacion',
+                'descripcion':'Alterada','fecha_ingreso':'2026-11-10'}),
+        )
+        for nombre, objeto, datos in casos:
+            with self.subTest(nombre=nombre):
+                url = reverse(nombre, args=[objeto.pk])
+                self.assertEqual(self.client.get(url).status_code, 403)
+                self.assertEqual(self.client.post(url, datos).status_code, 403)
+                objeto.refresh_from_db()
+                self.assertEqual(objeto.responsable_id, responsable.pk)
+                self.assertEqual(getattr(objeto, 'asunto', None) or objeto.titulo, 'Original')

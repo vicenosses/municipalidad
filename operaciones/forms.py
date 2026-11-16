@@ -5,7 +5,7 @@ from django.db.models import Q
 from agenda.models import Compromiso
 from atenciones.models import AtencionCiudadana
 from cartas.models import Carta
-from gestion_social.models import GestionSocial
+from gestion_social.models import GestionSocial, SeguimientoGestionSocial
 from hitos.models import Hito
 from usuarios.mixins import obtener_rol
 from usuarios.models import Delegacion, Territorio, Vecino
@@ -53,7 +53,8 @@ class FormularioTerritorial(forms.ModelForm):
             self.fields['responsable'].queryset = _usuarios_de_delegaciones(self.delegaciones)
             if not self.gestor:
                 self.fields.pop('responsable')
-                self.instance.responsable = request.user
+                if not self.instance.pk:
+                    self.instance.responsable = request.user
         if not self.gestor:
             self.fields.pop('motivo_cambio', None)
 
@@ -142,6 +143,7 @@ class GestionSocialForm(FormularioTerritorial):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['fecha_compromiso'].help_text = 'Es obligatoria si la gestión ingresa al tubo.'
         self.fields['territorio'].queryset = Territorio.objects.filter(
             delegacion__in=self.delegaciones, activo=True,
         ).select_related('delegacion')
@@ -196,6 +198,22 @@ class HitoForm(FormularioTerritorial):
         self.fields['compromiso'].queryset = Compromiso.objects.filter(
             delegacion__in=self.delegaciones,
         ).select_related('delegacion')
+
+
+class SeguimientoGestionSocialForm(forms.ModelForm):
+    class Meta:
+        model = SeguimientoGestionSocial
+        fields = ('tipo', 'descripcion')
+        widgets = {
+            'tipo': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+    def clean_descripcion(self):
+        detalle = self.cleaned_data['descripcion'].strip()
+        if not detalle:
+            raise forms.ValidationError('Escriba el avance o la observación.')
+        return detalle
 
 
 class CambioEstadoForm(forms.Form):

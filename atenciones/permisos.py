@@ -16,6 +16,20 @@ def actividad_aprobada(atencion):
     ).exists()
 
 
+def puede_editar_actividad(request, atencion):
+    """El autor corrige datos descriptivos mientras la revisión siga abierta."""
+    from sgr.models import AporteIndicador
+    if (not request.user.is_authenticated or obtener_rol(request.user) not in
+            (*ROLES_GESTORES_ESTADO, *ROLES_OPERATIVOS_ESTADO)):
+        return False
+    if (not atencion.activo or atencion.estado == AtencionCiudadana.Estado.CERRADA
+            or atencion.creado_por_id != request.user.pk
+            or not en_contexto_delegacion(request, atencion.delegacion)):
+        return False
+    aporte = AporteIndicador.objects.filter(actividad=atencion).values_list('estado', flat=True).first()
+    return aporte in (None, AporteIndicador.Estado.PENDIENTE, AporteIndicador.Estado.REQUIERE_CORRECCION)
+
+
 def puede_cambiar_estado(request, atencion, nuevo_estado):
     if not atencion.activo:
         return False

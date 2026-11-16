@@ -177,6 +177,8 @@ def validar_aporte(request, pk, version, estado, valor_validado=None, comentario
             raise ValidationError('La Actividad reabierta debe cerrarse antes de una nueva validación.')
         if not tiene_evidencia_aprobada(aporte.actividad):
             raise ValidationError('La Actividad necesita al menos una evidencia aprobada.')
+        if not aporte.actividad.puede_cerrar_por_evidencias():
+            raise ValidationError('Debe corregir las evidencias rechazadas antes de aprobar el aporte.')
     anterior = instantanea(aporte)
     aporte.estado = estado
     aporte.comentario = comentario.strip()

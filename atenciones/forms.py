@@ -6,7 +6,7 @@ from atenciones.models import AtencionCiudadana
 from catalogos.models import SubAtencion, TipoAtencion
 from usuarios.sesion import get_delegacion_activa
 from usuarios.models import Territorio
-from sgr.models import Indicador
+from sgr.models import AporteIndicador, Indicador
 from sgr.aportes import indicadores_para_actividad
 from sgr.plazos import dentro_plazo
 
@@ -146,6 +146,31 @@ class AtencionCiudadanaForm(forms.ModelForm):
                     'La subcategoría no pertenece a la delegación activa.',
                 )
         return cleaned
+
+
+class AtencionEditarForm(forms.ModelForm):
+    """Datos descriptivos que el autor puede corregir durante la revisión."""
+    class Meta:
+        model = AtencionCiudadana
+        fields = ('titulo', 'fecha', 'solicitante', 'territorio', 'descripcion')
+        widgets = {
+            'titulo': forms.TextInput(attrs={'class': 'form-control'}),
+            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
+            'solicitante': forms.TextInput(attrs={'class': 'form-control'}),
+            'territorio': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        actividad = self.instance
+        self.fields['territorio'].queryset = Territorio.objects.filter(
+            Q(activo=True) | Q(pk=actividad.territorio_id), delegacion_id=actividad.delegacion_id,
+        ) if actividad.delegacion_id else Territorio.objects.none()
+        self.fields['territorio'].empty_label = 'Sin territorio registrado'
+        if actividad.pk and (actividad.compromisos.exists() or AporteIndicador.objects.filter(actividad=actividad).exists()):
+            self.fields['fecha'].disabled = True
+            self.fields['fecha'].help_text = 'No se puede cambiar la fecha mientras existan compromisos o aportes vinculados.'
 
 
 class AtencionVaAlTuboForm(forms.Form):

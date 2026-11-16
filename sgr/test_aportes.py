@@ -260,8 +260,19 @@ class AportePermisosTests(DatosAportesMixin, TestCase):
 
     def test_una_aprobada_entre_varias_es_suficiente(self):
         aporte = self.asociar()
-        for estado in Evidencia.Estado.values:
-            self.evidencia(estado)
+        self.evidencia(Evidencia.Estado.APROBADA)
+        self.evidencia(Evidencia.Estado.PENDIENTE)
+        self.assertEqual(self.decidir(aporte).estado, AporteIndicador.Estado.CUMPLE)
+
+    def test_rechazada_sin_corregir_bloquea_aporte_aunque_exista_aprobada(self):
+        aporte = self.asociar()
+        self.evidencia(Evidencia.Estado.APROBADA)
+        rechazada = self.evidencia(Evidencia.Estado.RECHAZADA)
+        with self.assertRaises(ValidationError):
+            self.decidir(aporte)
+        Evidencia.objects.create(atencion=self.actividad, reemplaza=rechazada,
+            estado=Evidencia.Estado.APROBADA, subido_por=self.usuarios['funcionario'],
+            archivo='reemplazo.jpg')
         self.assertEqual(self.decidir(aporte).estado, AporteIndicador.Estado.CUMPLE)
 
     def test_actividad_abierta_con_evidencia_permite_revision_inicial(self):

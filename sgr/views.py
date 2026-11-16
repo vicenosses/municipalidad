@@ -76,6 +76,18 @@ class PeriodoDetailView(PeriodoConsultaMixin, DetailView):
         return context
 
 
+class PeriodoExportarRevisionView(RolRequiredMixin, View):
+    roles_permitidos = ('administrador',)
+    http_method_names = ['get']
+
+    def get(self, request, pk):
+        if get_delegacion_activa(request) is not None:
+            raise PermissionDenied('Seleccione el contexto global para revisar el período completo.')
+        periodo = get_object_or_404(Periodo, pk=pk)
+        from sgr.exportacion_cierre import exportar_revision_cierre
+        return exportar_revision_cierre(periodo)
+
+
 class PeriodoGuardarMixin(RolRequiredMixin):
     roles_permitidos = ('administrador',)
     model = Periodo

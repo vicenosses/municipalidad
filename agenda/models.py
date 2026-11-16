@@ -23,6 +23,7 @@ class Compromiso(models.Model):
     telefono_solicitante = models.CharField('Teléfono del solicitante', max_length=30, blank=True)
     area_apoyo = models.CharField('Área de apoyo', max_length=120, blank=True)
     observaciones = models.TextField('Observaciones', blank=True)
+    resultado = models.TextField('Resultado', blank=True)
     fecha_hora = models.DateTimeField('Fecha y hora')
     fecha_realizacion = models.DateTimeField('Fecha de realización', null=True, blank=True)
     responsable = models.ForeignKey(

@@ -111,6 +111,7 @@ class APIPruebas(APITestCase):
             'delegacion': self.delegacion.pk,
             'territorio': self.territorio.pk,
             'fecha_ingreso': '2026-10-01',
+            'fecha_compromiso': '2026-10-05',
             'ingresa_al_tubo': True,
         }, format='json')
         self.assertEqual(respuesta.status_code, 201, respuesta.data)
@@ -171,12 +172,16 @@ class APIPruebas(APITestCase):
         self.assertEqual(respondida.data['estado'], 'respondida')
 
         actividad = self._actividad(self.delegacion, self.usuario)
+        delegado = self._crear_usuario('delegado', self.delegacion, 'delegado_hitos')
+        self.client.force_authenticate(delegado)
         hito = self.client.post('/api/v1/hitos/', {
             'titulo': 'Revisar avance',
             'actividad': actividad.pk,
+            'responsable_id': self.usuario.pk,
             'fecha_programada': '2026-10-02',
         }, format='json')
         self.assertEqual(hito.status_code, 201, hito.data)
+        self.client.force_authenticate(self.usuario)
         en_progreso = self.client.post(
             f"/api/v1/hitos/{hito.data['id']}/estado/",
             {'estado': 'en_proceso'},
@@ -202,3 +207,96 @@ class APIPruebas(APITestCase):
         self.assertEqual(conocido.status_code, 202)
         self.assertEqual(desconocido.status_code, 202)
         self.assertEqual(conocido.data, desconocido.data)
+
+    def test_api_protege_cartas_y_gestiones_cerradas(self):
+        from cartas.models import Carta
+        carta = Carta.objects.create(asunto='Cerrada', contenido='Original', delegacion=self.delegacion,
+            responsable=self.usuario, creado_por=self.usuario, estado=Carta.Estado.CERRADA)
+        gestion = GestionSocial.objects.create(titulo='Cerrada', descripcion='Original', delegacion=self.delegacion,
+            responsable=self.usuario, creado_por=self.usuario, estado=GestionSocial.Estado.CERRADA)
+        self.client.force_authenticate(self.usuario)
+        for ruta, objeto, campo in (('cartas', carta, 'asunto'), ('gestiones-sociales', gestion, 'titulo')):
+            with self.subTest(ruta=ruta):
+                respuesta = self.client.patch(f'/api/v1/{ruta}/{objeto.pk}/', {campo:'Alterado'}, format='json')
+                self.assertEqual(respuesta.status_code, 400)
+                objeto.refresh_from_db()
+                self.assertEqual(getattr(objeto, campo), 'Cerrada')
+
+    def test_api_solo_delegado_o_admin_crea_hitos(self):
+        actividad = self._actividad(self.delegacion, self.usuario)
+        self.client.force_authenticate(self.usuario)
+        respuesta = self.client.post('/api/v1/hitos/', {'titulo':'Hito', 'actividad':actividad.pk,
+            'fecha_programada':'2026-11-14'}, format='json')
+        self.assertEqual(respuesta.status_code, 403)
+
+    def test_api_no_modifica_hito_finalizado(self):
+        from hitos.models import Hito
+        actividad = self._actividad(self.delegacion, self.usuario)
+        delegado = self._crear_usuario('delegado', self.delegacion, 'delegado_finalizado')
+        hito = Hito.objects.create(titulo='Terminado', actividad=actividad, responsable=self.usuario,
+            creado_por=delegado, fecha_programada='2026-10-01', estado=Hito.Estado.COMPLETADO,
+            fecha_completada='2026-10-02')
+        self.client.force_authenticate(delegado)
+        respuesta = self.client.patch(f'/api/v1/hitos/{hito.pk}/', {'titulo':'Alterado'}, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+        hito.refresh_from_db()
+        self.assertEqual(hito.titulo, 'Terminado')
+
+    def test_tubo_muestra_actividad_vinculada_una_vez_con_plazo(self):
+        from agenda.models import Compromiso
+        from django.utils import timezone
+        from datetime import timedelta
+        actividad = self._actividad(self.delegacion, self.usuario, 'Seguimiento único')
+        actividad.va_al_tubo = True
+        actividad.save(update_fields=['va_al_tubo'])
+        plazo = timezone.now() + timedelta(days=3)
+        compromiso = Compromiso.objects.create(titulo='Seguimiento único', fecha_hora=plazo,
+            delegacion=self.delegacion, responsable=self.usuario)
+        compromiso.actividades.add(actividad)
+        independiente = Compromiso.objects.create(titulo='Otro compromiso', fecha_hora=plazo,
+            delegacion=self.delegacion, responsable=self.usuario)
+        self.client.force_authenticate(self.usuario)
+        registros = self.client.get('/api/v1/tubo/').data['results']
+        self.assertEqual(len([r for r in registros if r['titulo'] == 'Seguimiento único']), 1)
+        fila = next(r for r in registros if r['titulo'] == 'Seguimiento único')
+        self.assertEqual(fila['tipo'], 'actividad')
+        self.assertEqual(fila['fecha_compromiso'], timezone.localtime(plazo).date())
+        self.assertTrue(any(r['tipo'] == 'compromiso' and r['id'] == independiente.pk for r in registros))
+
+    def test_no_se_duplican_solicitudes_de_ampliacion_por_api(self):
+        from agenda.models import Compromiso, SolicitudAmpliacion
+        from django.utils import timezone
+        from datetime import timedelta
+        plazo = timezone.now() + timedelta(days=3)
+        compromiso = Compromiso.objects.create(titulo='Ampliación', fecha_hora=plazo,
+            delegacion=self.delegacion, responsable=self.usuario)
+        self.client.force_authenticate(self.usuario)
+        datos = {'plazo_propuesto': timezone.localtime(plazo + timedelta(days=4)).strftime('%Y-%m-%dT%H:%M'),
+                 'motivo': 'Se necesita más tiempo.'}
+        url = f'/api/v1/compromisos/{compromiso.pk}/solicitar-ampliacion/'
+        self.assertEqual(self.client.post(url, datos, format='json').status_code, 201)
+        self.assertEqual(self.client.post(url, datos, format='json').status_code, 400)
+        self.assertEqual(SolicitudAmpliacion.objects.filter(compromiso=compromiso, estado='pendiente').count(), 1)
+
+    def test_api_hito_con_varios_registros_devuelve_error_claro(self):
+        from agenda.models import Compromiso
+        from django.utils import timezone
+        delegado = self._crear_usuario('delegado', self.delegacion, 'delegado_varios')
+        actividad = self._actividad(self.delegacion, self.usuario)
+        compromiso = Compromiso.objects.create(titulo='Prueba', fecha_hora=timezone.now(),
+            delegacion=self.delegacion, responsable=self.usuario)
+        self.client.force_authenticate(delegado)
+        respuesta = self.client.post('/api/v1/hitos/', {'titulo':'Hito', 'actividad':actividad.pk,
+            'compromiso':compromiso.pk, 'fecha_programada':'2026-11-14'}, format='json')
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_api_fecha_compromiso_anterior_rechazada_sin_error_servidor(self):
+        self.client.force_authenticate(self.usuario)
+        for ruta, contenido in (('cartas', {'asunto':'Prueba','contenido':'Prueba'}),
+                                ('gestiones-sociales', {'titulo':'Prueba','descripcion':'Prueba'})):
+            datos = dict(contenido, delegacion=self.delegacion.pk, fecha_ingreso='2026-11-14',
+                         fecha_compromiso='2026-11-13')
+            with self.subTest(ruta=ruta):
+                respuesta = self.client.post(f'/api/v1/{ruta}/', datos, format='json')
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertIn('fecha_compromiso', respuesta.data)

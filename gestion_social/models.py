@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from gestion_social.validaciones import falta_plazo_para_tubo
 from usuarios.codigos import guardar_con_codigo_automatico
 from usuarios.models import Delegacion, Territorio, Vecino
 
@@ -74,6 +75,9 @@ class GestionSocial(models.Model):
             raise ValidationError({'vecino': 'El vecino debe pertenecer al territorio seleccionado.'})
         if self.fecha_compromiso and self.fecha_ingreso and self.fecha_compromiso < self.fecha_ingreso:
             raise ValidationError({'fecha_compromiso': 'La fecha de compromiso no puede ser anterior al ingreso.'})
+        anterior = type(self).objects.filter(pk=self.pk).values('ingresa_al_tubo', 'fecha_compromiso').first() if self.pk else None
+        if falta_plazo_para_tubo(self.ingresa_al_tubo, self.fecha_compromiso, anterior):
+            raise ValidationError({'fecha_compromiso': 'Indique un plazo para ingresar la gestión al tubo.'})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -84,3 +88,21 @@ class GestionSocial(models.Model):
                 return super(GestionSocial, self).save(*args, **opciones)
             return guardar_con_codigo_automatico(self, 'GES', guardar)
         return super().save(*args, **kwargs)
+
+
+class SeguimientoGestionSocial(models.Model):
+    class Tipo(models.TextChoices):
+        AVANCE = 'avance', 'Avance'
+        OBSERVACION = 'observacion', 'Observación'
+
+    gestion = models.ForeignKey(GestionSocial, on_delete=models.PROTECT, related_name='seguimientos')
+    tipo = models.CharField('Tipo', max_length=15, choices=Tipo.choices)
+    descripcion = models.TextField('Detalle', max_length=4000)
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                              null=True, related_name='seguimientos_gestion_social')
+    creado_en = models.DateTimeField('Fecha de registro', auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en', '-pk']
+        verbose_name = 'Seguimiento de gestión social'
+        verbose_name_plural = 'Seguimientos de gestión social'

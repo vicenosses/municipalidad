@@ -30,6 +30,7 @@ urlpatterns = [
     path('periodos/', views.PeriodoListView.as_view(), name='periodo_lista'),
     path('periodos/nuevo/', views.PeriodoCreateView.as_view(), name='periodo_crear'),
     path('periodos/<int:pk>/', views.PeriodoDetailView.as_view(), name='periodo_detalle'),
+    path('periodos/<int:pk>/revision.xlsx', views.PeriodoExportarRevisionView.as_view(), name='periodo_revision_exportar'),
     path('periodos/<int:pk>/editar/', views.PeriodoUpdateView.as_view(), name='periodo_editar'),
     path('periodos/<int:pk>/cambiar-estado/', views.PeriodoEstadoView.as_view(), name='periodo_estado'),
 ]

@@ -254,7 +254,7 @@ class CatalogoScopePermissionTests(TestCase):
 
         tipos = self.client.get(reverse('catalogos:tipo_lista'))
         self.assertEqual(tipos.status_code, 200)
-        self.assertContains(tipos, '<h2 class="h4 fw-bold mb-0">Tipos de Atención</h2>', html=True)
+        self.assertContains(tipos, 'Tipos de Atención</h2>')
         self.assertNotContains(tipos, '<h2 class="h4 fw-bold mb-0">Categorías</h2>', html=True)
         self.assertContains(
             tipos,

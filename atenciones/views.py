@@ -6,17 +6,18 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import CreateView, DetailView, ListView
+from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from atenciones.forms import (
     AtencionCiudadanaForm,
+    AtencionEditarForm,
     AtencionVaAlTuboForm,
     FiltroVaAlTuboForm,
 )
 from atenciones.models import AtencionCiudadana
 from atenciones.estados import cambiar_estado_actividad, registrar_creacion_actividad
 from atenciones.permisos import (
-    ROLES_GESTORES_ESTADO, ROLES_OPERATIVOS_ESTADO, actividad_aprobada, puede_cambiar_estado, queryset_atenciones,
+    ROLES_GESTORES_ESTADO, ROLES_OPERATIVOS_ESTADO, actividad_aprobada, puede_cambiar_estado, puede_editar_actividad, queryset_atenciones,
 )
 from agenda.views import puede_crear_compromiso_desde_actividad
 from auditoria.utils import registrar_auditoria
@@ -174,6 +175,7 @@ class AtencionDetailView(LoginRequiredMixin, DetailView):
         atencion = self.object
         aporte = AporteIndicador.objects.select_related('indicador__meta__periodo', 'validado_por').filter(actividad=atencion).first()
         context['aporte_sgr'] = aporte
+        context['puede_editar_actividad'] = puede_editar_actividad(self.request, atencion)
         context['puede_proponer_aporte'] = puede_proponer(self.request, atencion, aporte)
         context['puede_validar_aporte'] = aporte is not None and pendientes_validacion(self.request).filter(pk=aporte.pk).exists()
         context['limite_aporte'] = limite_asociacion(atencion.fecha)
@@ -223,6 +225,44 @@ class AtencionDetailView(LoginRequiredMixin, DetailView):
                 estado='aprobada'
             ).select_related('subido_por', 'validado_por')
         return context
+
+
+class AtencionEditarView(LoginRequiredMixin, UpdateView):
+    model = AtencionCiudadana
+    form_class = AtencionEditarForm
+    template_name = 'atenciones/editar.html'
+    context_object_name = 'atencion'
+
+    def get_queryset(self):
+        return queryset_atenciones(self.request)
+
+    def get_object(self, queryset=None):
+        atencion = super().get_object(queryset)
+        if not puede_editar_actividad(self.request, atencion):
+            raise Http404
+        return atencion
+
+    def form_valid(self, form):
+        with transaction.atomic():
+            actual = get_object_or_404(queryset_atenciones(self.request).select_for_update(), pk=self.object.pk)
+            if not puede_editar_actividad(self.request, actual):
+                raise Http404
+            if (form.cleaned_data['fecha'] != actual.fecha and
+                    (actual.compromisos.exists() or AporteIndicador.objects.filter(actividad=actual).exists())):
+                form.add_error('fecha', 'La actividad ahora tiene compromisos o aportes vinculados; recargue la página.')
+                return self.form_invalid(form)
+            campos = []
+            for campo in ('titulo', 'fecha', 'solicitante', 'territorio', 'descripcion'):
+                valor = form.cleaned_data[campo]
+                if getattr(actual, campo) != valor:
+                    setattr(actual, campo, valor)
+                    campos.append(campo)
+            if campos:
+                actual.save(update_fields=campos)
+                registrar_auditoria(self.request, 'editar_actividad', actual,
+                                    'Datos de la actividad modificados: ' + ', '.join(campos) + '.')
+        messages.success(self.request, 'Actividad actualizada correctamente.')
+        return redirect('atenciones:detalle', pk=actual.pk)
 
 
 class AtencionEstadoView(RolRequiredMixin, View):

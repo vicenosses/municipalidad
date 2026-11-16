@@ -24,7 +24,10 @@ def aportes_asignacion(asignacion):
 
 
 def calcular_resultado_asignacion(asignacion):
-    cantidad = aportes_asignacion(asignacion).count()
+    return calcular_resultado_con_cantidad(asignacion, aportes_asignacion(asignacion).count())
+
+
+def calcular_resultado_con_cantidad(asignacion, cantidad):
     cumplimiento = Decimal(cantidad) / asignacion.cantidad_objetivo * Decimal('100')
     aplicable = min(cumplimiento, Decimal('120'))
     return ResultadoAsignacion(asignacion, cantidad, cumplimiento, aplicable,

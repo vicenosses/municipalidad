@@ -182,9 +182,11 @@ Los listados están paginados (50 elementos como máximo por página). El tubo a
 
 - `POST /actividades/` registra una actividad usando las mismas validaciones de tipos, subtipos, territorio, indicadores y evidencias que el formulario web. Acepta los campos del formulario `AtencionCiudadanaForm`; si `va_al_tubo` es verdadero, también requiere `plazo_tubo`.
 - `POST /actividades/{id}/estado/`, `/tubo/` y `/disponibilidad/` ejecutan las transiciones autorizadas.
+- `GET /compromisos/{id}/seguimientos/` consulta avances y observaciones autorizados; `POST` en la misma ruta recibe `tipo` (`avance` u `observacion`) y `descripcion` para registrar un seguimiento en un compromiso no realizado.
 - `POST /compromisos/` registra compromisos y sus relaciones con actividades. `POST /compromisos/{id}/solicitar-ampliacion/` crea una solicitud; `POST /ampliaciones/{id}/decision/` recibe `{"accion": "aprobar"}` o `{"accion": "rechazar"}`.
 - `POST /evidencias/` carga una evidencia `multipart/form-data` vinculada a exactamente una actividad o compromiso. El archivo se entrega solo por `GET /evidencias/{id}/archivo/` después de comprobar el acceso. La validación se efectúa en `POST /evidencias/{id}/validar/`.
 - `POST /aportes/proponer/` recibe `actividad`, `indicador`, `valor_declarado` y `version`; `POST /aportes/{id}/validar/` aplica la revisión del SGR con control de concurrencia.
+- `GET /gestiones-sociales/{id}/seguimientos/` consulta los avances y observaciones autorizados; `POST` en la misma ruta recibe `tipo` (`avance` u `observacion`) y `descripcion`. Solo el responsable o los gestores autorizados pueden registrar seguimiento en gestiones activas y abiertas.
 - Gestión Social, Cartas e Hitos aceptan creación y edición sin borrado físico. Sus estados solo cambian mediante `POST /{id}/estado/`; cada transición permitida se registra en auditoría.
 
 Ejemplo mínimo de gestión social:
@@ -196,6 +198,7 @@ Ejemplo mínimo de gestión social:
   "descripcion": "Antecedentes de la gestión",
   "delegacion": 1,
   "territorio": 1,
+  "fecha_compromiso": "2026-12-01",
   "ingresa_al_tubo": true
 }
 ```

@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 from django.views import View
 
-from agenda.forms import CompromisoFiltroForm, CompromisoForm, SolicitudAmpliacionForm
+from agenda.forms import CompromisoFiltroForm, CompromisoForm, SolicitudAmpliacionForm, SeguimientoCompromisoForm
 from agenda.models import Compromiso, HistorialCompromiso, SolicitudAmpliacion
 from atenciones.models import AtencionCiudadana
 from auditoria.utils import registrar_auditoria
@@ -237,6 +237,8 @@ class CompromisoDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         compromiso = self.object
         context['puede_editar'] = puede_editar_compromiso(self.request.user, compromiso)
+        context['puede_agregar_seguimiento'] = context['puede_editar'] and compromiso.estado != Compromiso.Estado.REALIZADO
+        context['form_seguimiento'] = SeguimientoCompromisoForm()
         context['puede_subir_evidencia'] = puede_agregar_evidencia(
             self.request,
             compromiso,
@@ -251,6 +253,27 @@ class CompromisoDetailView(LoginRequiredMixin, DetailView):
         context['form_ampliacion'] = SolicitudAmpliacionForm(compromiso=compromiso)
         context['solicitudes_ampliacion'] = compromiso.solicitudes_ampliacion.select_related('solicitante', 'decidido_por')
         return context
+
+
+class AgregarSeguimientoCompromisoView(LoginRequiredMixin, View):
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        from agenda.seguimientos import registrar_seguimiento
+        compromiso = get_object_or_404(compromisos_visibles(request), pk=pk)
+        if not puede_editar_compromiso(request.user, compromiso) or compromiso.estado == Compromiso.Estado.REALIZADO:
+            raise PermissionDenied('No puede registrar seguimiento en este compromiso.')
+        form = SeguimientoCompromisoForm(request.POST)
+        if not form.is_valid():
+            detalle = CompromisoDetailView()
+            detalle.setup(request, pk=pk)
+            detalle.object = compromiso
+            context = detalle.get_context_data()
+            context['form_seguimiento'] = form
+            return render(request, 'agenda/detalle.html', context, status=400)
+        registrar_seguimiento(request, compromiso.pk, **form.cleaned_data)
+        messages.success(request, 'Seguimiento registrado correctamente.')
+        return redirect('agenda:detalle', pk=compromiso.pk)
 
 
 class SolicitarAmpliacionView(LoginRequiredMixin, View):
@@ -385,6 +408,7 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
             'solicitante': compromiso.solicitante,
             'area_apoyo': compromiso.area_apoyo,
             'observaciones': compromiso.observaciones,
+            'resultado': compromiso.resultado,
             'actividades': set(compromiso.actividades.values_list('pk', flat=True)),
         }
         motivo = form.cleaned_data.get('motivo_cambio', '')
@@ -408,6 +432,7 @@ class CompromisoUpdateView(LoginRequiredMixin, UpdateView):
                 'solicitante': compromiso.solicitante,
                 'area_apoyo': compromiso.area_apoyo,
                 'observaciones': compromiso.observaciones,
+                'resultado': compromiso.resultado,
                 'actividades': set(compromiso.actividades.values_list('pk', flat=True)),
             }
             for campo, anterior in previo.items():

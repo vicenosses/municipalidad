@@ -47,11 +47,12 @@
             <div class="col-12"><div class="actividad-detalle-dato"><dt>Descripción</dt><dd class="actividad-detalle-descripcion">{{ atencion.descripcion }}</dd></div></div>
         </dl>
     </div>
-    {% if puede_agregar_a_agenda or estados_disponibles or puede_cambiar_disponibilidad or puede_cambiar_va_al_tubo %}
+    {% if puede_editar_actividad or puede_agregar_a_agenda or estados_disponibles or puede_cambiar_disponibilidad or puede_cambiar_va_al_tubo %}
     <div class="card-body p-4 actividad-detalle-acciones">
         <h3 class="h6 fw-bold mb-1">Acciones y seguimiento</h3>
         <p class="small text-muted mb-3">Actualiza el estado o la clasificación de esta actividad.</p>
         <div class="d-flex flex-wrap align-items-end gap-2">
+            {% if puede_editar_actividad %}<a href="{% url 'atenciones:editar' atencion.pk %}" class="btn btn-outline-primary">Editar actividad</a>{% endif %}
             {% if puede_agregar_a_agenda %}<a href="{% url 'atenciones:agregar_a_agenda' atencion.pk %}" class="btn btn-custom-red">Agregar a Agenda</a>{% endif %}
             {% for estado, etiqueta in estados_disponibles %}
             <form method="post" action="{% url 'atenciones:cambiar_estado' atencion.pk %}">{% csrf_token %}<input type="hidden" name="estado" value="{{ estado }}"><button type="submit" class="btn btn-outline-primary">Pasar a {{ etiqueta }}</button></form>

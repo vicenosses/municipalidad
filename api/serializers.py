@@ -2,14 +2,14 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from agenda.models import Compromiso
+from agenda.models import Compromiso, HistorialCompromiso
 from atenciones.models import AtencionCiudadana
 from auditoria.models import RegistroAuditoria
 from cartas.models import Carta
 from catalogos.models import SubAtencion, TipoAtencion
 from evidencias.forms import validar_archivo
 from evidencias.models import Evidencia
-from gestion_social.models import GestionSocial
+from gestion_social.models import GestionSocial, SeguimientoGestionSocial
 from hitos.models import Hito
 from sgr.models import AporteIndicador, AsignacionMeta, Indicador, Meta as SGRMeta, Periodo
 from usuarios.mixins import obtener_rol
@@ -172,13 +172,14 @@ class CompromisoSerializer(serializers.ModelSerializer):
     codigo = serializers.CharField(read_only=True)
     responsable = UsuarioResumenSerializer(read_only=True)
     descripcion = serializers.SerializerMethodField()
+    resultado = serializers.SerializerMethodField()
     solicitante = serializers.SerializerMethodField()
 
     class Meta:
         model = Compromiso
         fields = (
             'id', 'codigo', 'titulo', 'estado', 'fecha_hora', 'fecha_realizacion', 'delegacion',
-            'responsable', 'actividades', 'descripcion', 'solicitante', 'esta_vencido',
+            'responsable', 'actividades', 'descripcion', 'resultado', 'solicitante', 'esta_vencido',
             'proximo_a_vencer', 'realizado_fuera_de_plazo', 'creado',
         )
         read_only_fields = fields
@@ -195,6 +196,38 @@ class CompromisoSerializer(serializers.ModelSerializer):
         if not usuario_puede_ver_detalle(self.context['request'].user, obj):
             return None
         return obj.solicitante
+
+    def get_resultado(self, obj):
+        if self.context.get('view') and self.context['view'].action == 'list':
+            return None
+        return obj.resultado if usuario_puede_ver_detalle(self.context['request'].user, obj) else None
+
+
+class SeguimientoCompromisoSerializer(serializers.ModelSerializer):
+    tipo = serializers.CharField(source='campo', read_only=True)
+    descripcion = serializers.CharField(source='valor_nuevo', read_only=True)
+    autor = serializers.SerializerMethodField()
+    creado_en = serializers.DateTimeField(source='creado', read_only=True)
+
+    class Meta:
+        model = HistorialCompromiso
+        fields = ('id', 'tipo', 'descripcion', 'autor', 'creado_en')
+        read_only_fields = fields
+
+    def get_autor(self, obj):
+        return {'id': obj.realizado_por_id, 'nombre': etiqueta_usuario(obj.realizado_por)} if obj.realizado_por else None
+
+
+class SeguimientoGestionSocialSerializer(serializers.ModelSerializer):
+    autor = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SeguimientoGestionSocial
+        fields = ('id', 'tipo', 'descripcion', 'autor', 'creado_en')
+        read_only_fields = fields
+
+    def get_autor(self, obj):
+        return {'id': obj.autor_id, 'nombre': etiqueta_usuario(obj.autor)} if obj.autor else None
 
 
 class GestionSocialSerializer(serializers.ModelSerializer):
@@ -221,7 +254,15 @@ class GestionSocialSerializer(serializers.ModelSerializer):
         extra_kwargs = {'delegacion': {'required': False}}
 
     def validate(self, attrs):
-        return _validar_alcance_registro(self, attrs)
+        from gestion_social.validaciones import falta_plazo_para_tubo
+        attrs = _validar_alcance_registro(self, attrs)
+        anterior = ({'ingresa_al_tubo': self.instance.ingresa_al_tubo,
+                     'fecha_compromiso': self.instance.fecha_compromiso} if self.instance else None)
+        ingresa = attrs.get('ingresa_al_tubo', self.instance.ingresa_al_tubo if self.instance else False)
+        plazo = attrs.get('fecha_compromiso', self.instance.fecha_compromiso if self.instance else None)
+        if falta_plazo_para_tubo(ingresa, plazo, anterior):
+            raise serializers.ValidationError({'fecha_compromiso': 'Indique un plazo para ingresar la gestión al tubo.'})
+        return attrs
 
     def create(self, validated_data):
         validated_data['creado_por'] = self.context['request'].user
@@ -316,11 +357,11 @@ class HitoSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         parent_fields = ('actividad', 'gestion_social', 'compromiso')
-        parent = next((attrs.get(field) for field in parent_fields if attrs.get(field)), None)
-        if self.instance and parent is None:
-            parent = next((getattr(self.instance, field) for field in parent_fields if getattr(self.instance, f'{field}_id')), None)
-        if parent is None:
-            raise serializers.ValidationError('Vincule el hito a una actividad, gestión social o compromiso.')
+        padres = [attrs.get(field, getattr(self.instance, field, None)) for field in parent_fields]
+        padres = [padre for padre in padres if padre is not None]
+        if len(padres) != 1:
+            raise serializers.ValidationError('Vincule el hito a una sola actividad, gestión social o compromiso.')
+        parent = padres[0]
         delegacion = parent.delegacion
         request = self.context['request']
         if not en_delegacion(request.user, delegacion):
@@ -503,6 +544,12 @@ def _validar_alcance_registro(serializer, attrs):
     neighbor = attrs.get('vecino', current.vecino if current else None)
     if neighbor and neighbor.territorio.delegacion_id != delegation.pk:
         raise serializers.ValidationError({'vecino': 'El vecino debe pertenecer a la delegación.'})
+    if neighbor and territory and neighbor.territorio_id != territory.pk:
+        raise serializers.ValidationError({'vecino': 'El vecino debe pertenecer al territorio seleccionado.'})
+    ingreso = attrs.get('fecha_ingreso', current.fecha_ingreso if current else None)
+    compromiso = attrs.get('fecha_compromiso', current.fecha_compromiso if current else None)
+    if ingreso and compromiso and compromiso < ingreso:
+        raise serializers.ValidationError({'fecha_compromiso': 'La fecha de compromiso no puede ser anterior al ingreso.'})
 
     responsable = attrs.get('responsable', current.responsable if current else user)
     _validar_responsable(user, responsable, delegation)

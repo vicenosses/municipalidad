@@ -820,7 +820,7 @@ class EvidenciaAtencionTests(TestCase):
 
         detalle = self.client.get(reverse('atenciones:detalle', args=[self.atencion.pk]))
         self.assertContains(detalle, self.atencion.titulo)
-        self.assertContains(detalle, 'Fecha de actividad:')
+        self.assertContains(detalle, 'Fecha de actividad')
         self.assertContains(detalle, self.atencion.get_estado_display())
 
         otro = User.objects.create_user(username='otro.usuario', password='clave-segura')
@@ -855,6 +855,7 @@ class EvidenciaAtencionTests(TestCase):
                         'tipo': self.tipo.pk,
                         'subatencion': self.subtipo.pk,
                         'va_al_tubo': 'on',
+                        'plazo_tubo': '2026-10-28T10:00',
                         'descripcion': 'Atención con tubo activo',
                         'creado_por': otro_usuario.pk,
                     },
@@ -1296,6 +1297,12 @@ class AtencionVaAlTuboTests(TestCase):
             creado_por=creador,
         )
 
+    def vincular_compromiso(self, actividad):
+        compromiso = Compromiso.objects.create(titulo='Seguimiento de prueba', fecha_hora='2026-11-01T10:00:00Z',
+            responsable=actividad.responsable, delegacion=actividad.delegacion)
+        compromiso.actividades.add(actividad)
+        return compromiso
+
     def login(self, user, delegacion=None):
         self.client.force_login(user)
         session = self.client.session
@@ -1326,6 +1333,7 @@ class AtencionVaAlTuboTests(TestCase):
                         'tipo': self.tipo.pk,
                         'subatencion': self.subatencion.pk,
                         'va_al_tubo': 'on',
+                        'plazo_tubo': '2026-10-28T10:00',
                         'descripcion': 'Actividad de prueba',
                     },
                 )
@@ -1348,6 +1356,8 @@ class AtencionVaAlTuboTests(TestCase):
             'Actividad ajena',
             creador=self.users['coordinador'],
         )
+        self.vincular_compromiso(propia_funcionario)
+        self.vincular_compromiso(propia_verificador)
         for rol, propia in (
             ('funcionario', propia_funcionario),
             ('verificador', propia_verificador),
@@ -1368,6 +1378,7 @@ class AtencionVaAlTuboTests(TestCase):
             delegacion=self.delegacion_b,
             creador=self.users['funcionario'],
         )
+        self.vincular_compromiso(self.actividad)
         for rol in ('coordinador', 'delegado'):
             with self.subTest(rol=rol):
                 response = self.cambiar(self.users[rol], self.actividad, True)
@@ -1385,6 +1396,7 @@ class AtencionVaAlTuboTests(TestCase):
             delegacion=self.delegacion_b,
         )
 
+        self.vincular_compromiso(en_otra)
         response = self.cambiar(
             self.admin,
             en_otra,
@@ -1429,6 +1441,7 @@ class AtencionVaAlTuboTests(TestCase):
             with self.subTest(rol=rol):
                 self.assertEqual(self.cambiar(user, deshabilitada, True).status_code, 404)
                 self.assertEqual(self.cambiar(user, cerrada, True).status_code, 404)
+        self.vincular_compromiso(cerrada)
         self.login(self.users['coordinador'])
         response = self.client.post(
             reverse('atenciones:cambiar_estado', args=[cerrada.pk]),
@@ -1446,6 +1459,7 @@ class AtencionVaAlTuboTests(TestCase):
             creador=self.users['funcionario'],
         )
 
+        self.vincular_compromiso(actividad)
         response = self.cambiar(
             self.users['funcionario'],
             actividad,
@@ -1535,7 +1549,7 @@ class AtencionVaAlTuboTests(TestCase):
         self.assertNotIn(otra.pk, si_ids | no_ids)
         self.assertContains(
             self.client.get(reverse('atenciones:detalle', args=[si_local.pk])),
-            'Va al tubo:',
+            'Va al tubo',
         )
         self.assertContains(
             self.client.get(reverse('atenciones:detalle', args=[no_local.pk])),

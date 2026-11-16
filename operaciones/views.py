@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -13,13 +13,14 @@ from django.views.generic import CreateView, ListView, UpdateView
 
 from auditoria.utils import registrar_auditoria
 from cartas.models import Carta
-from gestion_social.models import GestionSocial
+from gestion_social.models import GestionSocial, SeguimientoGestionSocial
 from hitos.models import Hito
 from operaciones.forms import (
     CambioEstadoForm,
     CartaForm,
     GestionSocialForm,
     HitoForm,
+    SeguimientoGestionSocialForm,
     ROLES_GESTORES,
 )
 from usuarios.mixins import obtener_rol
@@ -38,7 +39,8 @@ ETIQUETA_EN_PROCESO = 'En proceso'
 
 
 def _puede_editar(user, objeto):
-    return obtener_rol(user) in ROLES_GESTORES or objeto.responsable_id == user.pk
+    rol = obtener_rol(user)
+    return rol in ROLES_GESTORES or (rol in ('funcionario', 'verificador') and objeto.responsable_id == user.pk)
 
 
 def _estado_terminal(objeto):
@@ -249,11 +251,11 @@ class EditarModulo(LoginRequiredMixin, UpdateView):
         queryset = _queryset_accesible(self.model, self.request)
         return _excluir_estados_terminales(queryset, self.model)
 
-    def dispatch(self, request, *args, **kwargs):
-        response = super().dispatch(request, *args, **kwargs)
-        if not _puede_editar(request.user, self.object):
+    def get_object(self, queryset=None):
+        objeto = super().get_object(queryset)
+        if not _puede_editar(self.request.user, objeto):
             raise PermissionDenied
-        return response
+        return objeto
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -327,6 +329,7 @@ class DetalleModulo(LoginRequiredMixin, View):
             'transiciones': self.transiciones.get(estado, ()),
             'form_estado': form,
             'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
+            'form_seguimiento': SeguimientoGestionSocialForm() if isinstance(objeto, GestionSocial) else None,
         }, status=400)
 
     @staticmethod
@@ -370,6 +373,8 @@ class DetalleModulo(LoginRequiredMixin, View):
             ),
             'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
         }
+        if isinstance(objeto, GestionSocial):
+            context['form_seguimiento'] = SeguimientoGestionSocialForm()
         return render(request, self.template_name, context)
 
     def post(self, request, pk):
@@ -405,6 +410,17 @@ class DetalleGestionSocial(DetalleModulo):
     success_url_name = URL_GESTION_SOCIAL_DETALLE
     audit_modelo = 'gestion_social'
     audit_etiqueta = ETIQUETA_GESTION_SOCIAL
+
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related(
+            Prefetch('seguimientos', queryset=SeguimientoGestionSocial.objects.select_related('autor')),
+        )
+
+    @transaction.atomic
+    def post(self, request, pk):
+        get_object_or_404(self.get_queryset().select_for_update(), pk=pk)
+        return super().post(request, pk)
+
     transiciones = {
         GestionSocial.Estado.REGISTRADA: (
             (GestionSocial.Estado.EN_PROCESO, ETIQUETA_EN_PROCESO),
@@ -424,6 +440,33 @@ class DetalleGestionSocial(DetalleModulo):
             (GestionSocial.Estado.CERRADA, 'Cerrada'),
         ),
     }
+
+
+class AgregarSeguimientoGestion(LoginRequiredMixin, View):
+    http_method_names = ['post']
+
+    @transaction.atomic
+    def post(self, request, pk):
+        gestion = get_object_or_404(_queryset_accesible(GestionSocial, request).select_for_update(), pk=pk)
+        if not gestion.activo or not _puede_editar_formulario(request.user, gestion):
+            raise PermissionDenied('No puede agregar seguimiento a esta gestión.')
+        form = SeguimientoGestionSocialForm(request.POST)
+        if not form.is_valid():
+            return render(request, 'operaciones/gestion_social/detalle.html', {
+                'registro': gestion, 'puede_editar': True,
+                'transiciones': DetalleGestionSocial.transiciones.get(gestion.estado, ()),
+                'form_estado': CambioEstadoForm(choices=DetalleGestionSocial.transiciones.get(gestion.estado, ())),
+                'puede_desactivar': obtener_rol(request.user) in ROLES_GESTORES,
+                'form_seguimiento': form,
+            }, status=400)
+        seguimiento = form.save(commit=False)
+        seguimiento.gestion = gestion
+        seguimiento.autor = request.user
+        seguimiento.save()
+        registrar_auditoria(request, 'agregar_seguimiento_gestion', gestion,
+                            f'Seguimiento {seguimiento.pk} registrado para {gestion.codigo}.')
+        messages.success(request, 'Seguimiento registrado correctamente.')
+        return redirect(URL_GESTION_SOCIAL_DETALLE, pk=gestion.pk)
 
 
 class DetalleCarta(DetalleModulo):

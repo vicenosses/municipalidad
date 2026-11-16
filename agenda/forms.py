@@ -12,6 +12,13 @@ User = get_user_model()
 ROLES_GESTORES = ('administrador', 'delegado', 'coordinador')
 
 
+class SeguimientoCompromisoForm(forms.Form):
+    tipo = forms.ChoiceField(label='Tipo', choices=(('avance', 'Avance'), ('observacion', 'Observación')),
+                             widget=forms.Select(attrs={'class': 'form-select'}))
+    descripcion = forms.CharField(label='Detalle', max_length=4000,
+                                  widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}))
+
+
 class SolicitudAmpliacionForm(forms.ModelForm):
     class Meta:
         model = SolicitudAmpliacion
@@ -52,6 +59,7 @@ class CompromisoForm(forms.ModelForm):
             'responsable',
             'estado',
             'observaciones',
+            'resultado',
             'actividades',
         ]
         widgets = {
@@ -68,6 +76,7 @@ class CompromisoForm(forms.ModelForm):
             'responsable': forms.Select(attrs={'class': 'form-select'}),
             'estado': forms.Select(attrs={'class': 'form-select'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'resultado': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Describe el resultado del compromiso.'}),
             'actividades': forms.SelectMultiple(attrs={'class': 'form-select'}),
         }
 
@@ -114,7 +123,7 @@ class CompromisoForm(forms.ModelForm):
             self.fields['actividades'].queryset = AtencionCiudadana.objects.filter(
                 delegacion__in=delegaciones,
                 activo=True,
-            ).order_by('-fecha', 'titulo')
+            ).exclude(estado=AtencionCiudadana.Estado.CERRADA).order_by('-fecha', 'titulo')
             if user is not None and not manager:
                 self.fields['actividades'].queryset = self.fields['actividades'].queryset.filter(responsable=user)
                 if es_creacion:
@@ -133,14 +142,19 @@ class CompromisoForm(forms.ModelForm):
             if self.instance.pk:
                 self.fields['actividades'].queryset = (
                     self.fields['actividades'].queryset
-                    | self.instance.actividades.filter(activo=False, delegacion_id=self.instance.delegacion_id)
+                    | self.instance.actividades.filter(
+                        Q(activo=False) | Q(estado=AtencionCiudadana.Estado.CERRADA),
+                        delegacion_id=self.instance.delegacion_id,
+                    )
                 )
         if es_creacion:
             self.fields.pop('estado')
         elif not manager:
             for field in tuple(self.fields):
-                if field != 'estado':
+                if field not in ('estado', 'resultado'):
                     self.fields.pop(field)
+        if self.instance.pk and self.is_bound and self.add_prefix('resultado') not in self.data:
+            self.fields['resultado'].disabled = True
         if self.instance.pk and 'fecha_hora' in self.fields:
             self.fields['fecha_hora'].disabled = True
             self.fields['fecha_hora'].help_text = 'Para ampliar el plazo, presente una solicitud desde el detalle del compromiso.'
@@ -156,13 +170,25 @@ class CompromisoForm(forms.ModelForm):
             ).exclude(
                 estado=AtencionCiudadana.Estado.CERRADA
             )
-            cleaned_data['actividades'] = (actividades | origen).distinct()
+            if not origen.exists():
+                self.add_error('actividades', 'La actividad de origen ya no está disponible para ingresar al tubo.')
+            else:
+                cleaned_data['actividades'] = (actividades | origen).distinct()
         if self.instance.pk and 'actividades' in cleaned_data:
             actividades = cleaned_data['actividades']
-            historicas = self.instance.actividades.filter(activo=False, delegacion_id=self.instance.delegacion_id)
-            cleaned_data['actividades'] = (
-                actividades | historicas
-            ).distinct()
+            historicas = self.instance.actividades.filter(
+                Q(activo=False) | Q(estado=AtencionCiudadana.Estado.CERRADA),
+                delegacion_id=self.instance.delegacion_id,
+            )
+            cleaned_data['actividades'] = (actividades | historicas).distinct()
+        actividades = cleaned_data.get('actividades')
+        plazo = cleaned_data.get('fecha_hora')
+        if actividades is not None and plazo:
+            nuevas = actividades
+            if self.instance.pk:
+                nuevas = nuevas.exclude(pk__in=self.instance.actividades.values('pk'))
+            if nuevas.filter(fecha__gt=timezone.localtime(plazo).date()).exists():
+                self.add_error('fecha_hora', 'El plazo no puede ser anterior a la fecha de una actividad asociada.')
         if self.instance.pk and 'estado' in cleaned_data:
             anterior = self.instance.estado
             nuevo = cleaned_data['estado']

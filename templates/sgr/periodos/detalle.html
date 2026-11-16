@@ -22,11 +22,27 @@
     <div class="card-header bg-white fw-semibold">Revisión para el cierre trimestral</div>
     <div class="card-body">
         <p class="text-muted">Esta revisión es informativa. El cierre y el congelamiento de resultados aún no están habilitados.</p>
+        <a class="btn btn-outline-secondary mb-3" href="{% url 'sgr:periodo_revision_exportar' periodo.pk %}">Descargar revisión provisional en Excel</a>
         <p>Metas activas: {{ revision_cierre.metas_activas }} · Sin asignación: {{ revision_cierre.metas_sin_asignacion }} · Asignaciones activas: {{ revision_cierre.asignaciones }} · Aportes pendientes o en corrección: {{ revision_cierre.pendientes }}</p>
-        <p>La suma de ponderaciones requerida está pendiente de confirmación.</p>
+        <p>La suma de ponderaciones requerida está pendiente de confirmación. {% if not revision_cierre.periodo_terminado %}El período aún no ha terminado.{% endif %}</p>
+        {% if revision_cierre.asignaciones_invalidas %}<div class="alert alert-warning">Hay {{ revision_cierre.asignaciones_invalidas }} asignaciones con objetivo inválido que deben revisarse.</div>{% endif %}
+        {% if revision_cierre.lista_metas_sin_asignacion %}
+        <h3 class="h6 fw-bold mt-3">Metas sin asignación</h3><ul>{% for meta in revision_cierre.lista_metas_sin_asignacion %}<li><a href="{% url 'sgr:meta_detalle' meta.pk %}">{{ meta.nombre }}</a> · {{ meta.delegacion.nombre }}</li>{% endfor %}</ul>
+        {% if revision_cierre.metas_sin_asignacion > 25 %}<p class="small text-muted">Se muestran las primeras 25 metas.</p>{% endif %}
+        {% endif %}
+        {% if revision_cierre.lista_pendientes %}
+        <h3 class="h6 fw-bold mt-3">Aportes pendientes de revisión o corrección</h3><ul>{% for aporte in revision_cierre.lista_pendientes %}<li><a href="{% url 'atenciones:detalle' aporte.actividad_id %}">{{ aporte.actividad.titulo }}</a> · {{ aporte.indicador.meta.delegacion.nombre }} · {{ aporte.get_estado_display }}</li>{% endfor %}</ul>
+        {% if revision_cierre.pendientes > 25 %}<p class="small text-muted">Se muestran los primeros 25 aportes.</p>{% endif %}
+        {% endif %}
         <div class="table-responsive"><table class="table"><thead><tr><th>Funcionario</th><th>Asignaciones</th><th>Ponderación asignada</th></tr></thead><tbody>
         {% for fila in revision_cierre.funcionarios %}<tr><td>{{ fila.funcionario__first_name }} {{ fila.funcionario__last_name }} ({{ fila.funcionario__username }})</td><td>{{ fila.cantidad }}</td><td>{{ fila.ponderacion }} %</td></tr>{% empty %}<tr><td colspan="3">No hay asignaciones activas.</td></tr>{% endfor %}
         </tbody></table></div>
+        {% if revision_cierre.resultados %}
+        <h3 class="h6 fw-bold mt-4">Vista previa de resultados individuales</h3>
+        <p class="small text-muted">Son valores actuales y pueden cambiar antes del cierre.</p>
+        <div class="table-responsive"><table class="table"><thead><tr><th>Funcionario</th><th>Meta</th><th>Delegación</th><th>Actividades aprobadas</th><th>Objetivo</th><th>Cumplimiento aplicable</th><th>Resultado ponderado</th></tr></thead><tbody>
+        {% for resultado in revision_cierre.resultados %}<tr><td>{{ resultado.asignacion.funcionario.get_full_name|default:resultado.asignacion.funcionario.username }}</td><td>{{ resultado.asignacion.meta.nombre }}</td><td>{{ resultado.asignacion.meta.delegacion.nombre }}</td><td>{{ resultado.cantidad }}</td><td>{{ resultado.asignacion.cantidad_objetivo }}</td><td>{{ resultado.cumplimiento_aplicable|floatformat:2 }} %</td><td>{{ resultado.resultado_ponderado|floatformat:2 }} de {{ resultado.asignacion.ponderacion }} %</td></tr>{% endfor %}
+        </tbody></table></div>{% endif %}
     </div>
 </section>
 {% endif %}

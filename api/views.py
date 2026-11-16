@@ -5,7 +5,7 @@ import re
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.db.models import F, Prefetch, Value
+from django.db.models import F, Min, Prefetch, Value
 from django.db.models.functions import Coalesce, Replace, Upper
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView
 
-from agenda.forms import CompromisoForm, SolicitudAmpliacionForm
+from agenda.forms import CompromisoForm, SolicitudAmpliacionForm, SeguimientoCompromisoForm
 from agenda.models import Compromiso, HistorialCompromiso, SolicitudAmpliacion
 from agenda.views import compromisos_visibles
 from atenciones.estados import cambiar_estado_actividad, registrar_creacion_actividad
@@ -47,7 +47,7 @@ from usuarios.mixins import obtener_rol
 from usuarios.models import Cargo, Delegacion, Rol, Territorio, Vecino
 from usuarios.sesion import DELEGACION_SESION, delegaciones_autorizadas, get_delegacion_activa
 
-from api.access import ROLES_GESTORES, ROLES_VALIDOS, etiqueta_usuario, filtro_hito_delegacion, filtrar_delegaciones, rol_usuario
+from api.access import ROLES_GESTORES, ROLES_VALIDOS, etiqueta_usuario, filtro_hito_delegacion, filtrar_delegaciones, rol_usuario, usuario_puede_ver_detalle
 from api.permissions import RolesPermitidos
 from api.serializers import (
     AporteSerializer,
@@ -57,10 +57,12 @@ from api.serializers import (
     CartaSerializer,
     CargoSerializer,
     CompromisoSerializer,
+    SeguimientoCompromisoSerializer,
     DelegacionSerializer,
     EvidenciaCreateSerializer,
     EvidenciaSerializer,
     GestionSocialSerializer,
+    SeguimientoGestionSocialSerializer,
     HitoSerializer,
     IndicadorSerializer,
     MetaSerializer,
@@ -420,6 +422,7 @@ class CompromisoViewSet(
         'retrieve': ROLES_VALIDOS,
         'create': ROLES_VALIDOS,
         'solicitar_ampliacion': ROLES_VALIDOS,
+        'seguimientos': ROLES_VALIDOS,
     }
 
     def get_queryset(self):
@@ -459,22 +462,41 @@ class CompromisoViewSet(
             registrar_auditoria(request, 'crear', compromiso, f'Compromiso {compromiso.codigo} creado.')
         return Response(self.get_serializer(compromiso).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=('post',), url_path='solicitar-ampliacion')
-    def solicitar_ampliacion(self, request, pk=None):
+    @action(detail=True, methods=('get', 'post'), url_path='seguimientos')
+    def seguimientos(self, request, pk=None):
+        from agenda.seguimientos import registrar_seguimiento
         compromiso = self.get_object()
-        if compromiso.responsable_id != request.user.pk or compromiso.estado == Compromiso.Estado.REALIZADO:
-            raise PermissionDenied('Solo la persona responsable puede solicitar una ampliación pendiente.')
-        if compromiso.solicitudes_ampliacion.filter(estado=SolicitudAmpliacion.Estado.PENDIENTE).exists():
-            raise ValidationError('Ya existe una solicitud pendiente para este compromiso.')
-        form = SolicitudAmpliacionForm(request.data, compromiso=compromiso)
+        if not usuario_puede_ver_detalle(request.user, compromiso):
+            raise PermissionDenied('No puede consultar el seguimiento de este compromiso.')
+        if request.method == 'GET':
+            queryset = compromiso.historial.filter(campo__in=('avance', 'observacion')).select_related('realizado_por').order_by('-creado', '-pk')
+            pagina = self.paginate_queryset(queryset)
+            serializer = SeguimientoCompromisoSerializer(pagina if pagina is not None else queryset, many=True)
+            return self.get_paginated_response(serializer.data) if pagina is not None else Response(serializer.data)
+        form = SeguimientoCompromisoForm(request.data)
         if not form.is_valid():
             return Response(form.errors.get_json_data(), status=status.HTTP_400_BAD_REQUEST)
-        solicitud = form.save(commit=False)
-        solicitud.compromiso = compromiso
-        solicitud.solicitante = request.user
-        solicitud.plazo_anterior = compromiso.fecha_hora
-        solicitud.save()
-        registrar_auditoria(request, 'solicitar_ampliacion', compromiso, 'Solicitud de ampliación creada.')
+        evento = registrar_seguimiento(request, compromiso.pk, **form.cleaned_data)
+        return Response(SeguimientoCompromisoSerializer(evento).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=('post',), url_path='solicitar-ampliacion')
+    def solicitar_ampliacion(self, request, pk=None):
+        visible = self.get_object()
+        with transaction.atomic():
+            compromiso = Compromiso.objects.select_for_update().get(pk=visible.pk)
+            if compromiso.responsable_id != request.user.pk or compromiso.estado == Compromiso.Estado.REALIZADO:
+                raise PermissionDenied('Solo la persona responsable puede solicitar una ampliación pendiente.')
+            if compromiso.solicitudes_ampliacion.filter(estado=SolicitudAmpliacion.Estado.PENDIENTE).exists():
+                raise ValidationError('Ya existe una solicitud pendiente para este compromiso.')
+            form = SolicitudAmpliacionForm(request.data, compromiso=compromiso)
+            if not form.is_valid():
+                return Response(form.errors.get_json_data(), status=status.HTTP_400_BAD_REQUEST)
+            solicitud = form.save(commit=False)
+            solicitud.compromiso = compromiso
+            solicitud.solicitante = request.user
+            solicitud.plazo_anterior = compromiso.fecha_hora
+            solicitud.save()
+            registrar_auditoria(request, 'solicitar_ampliacion', compromiso, 'Solicitud de ampliación creada.')
         return Response({
             'id': solicitud.pk,
             'compromiso': compromiso.codigo,
@@ -638,6 +660,7 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
         'update': (*ROLES_GESTORES, 'funcionario', 'verificador'),
         'partial_update': (*ROLES_GESTORES, 'funcionario', 'verificador'),
         'estado': ROLES_VALIDOS,
+        'seguimientos': ROLES_VALIDOS,
         'disponibilidad': ROLES_GESTORES,
     }
     http_method_names = ('get', 'post', 'put', 'patch', 'head', 'options')
@@ -666,6 +689,8 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
         instance = self.get_object()
         if not _puede_editar(self.request.user, instance):
             raise PermissionDenied('No puede editar esta gestión social.')
+        if instance.estado == GestionSocial.Estado.CERRADA:
+            raise ValidationError('No se puede editar una gestión social cerrada.')
         instance = serializer.save()
         registrar_auditoria(
             self.request, 'actualizar_gestion_social', instance,
@@ -675,9 +700,36 @@ class GestionSocialViewSet(BaseViewSet, viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         raise PermissionDenied('Los registros no se eliminan físicamente; solicite su desactivación.')
 
+    @action(detail=True, methods=('get', 'post'), url_path='seguimientos')
+    def seguimientos(self, request, pk=None):
+        from operaciones.forms import SeguimientoGestionSocialForm
+        visible = self.get_object()
+        if request.method == 'GET':
+            queryset = visible.seguimientos.select_related('autor')
+            pagina = self.paginate_queryset(queryset)
+            serializer = SeguimientoGestionSocialSerializer(pagina if pagina is not None else queryset, many=True)
+            return self.get_paginated_response(serializer.data) if pagina is not None else Response(serializer.data)
+        with transaction.atomic():
+            gestion = GestionSocial.objects.select_for_update().get(pk=visible.pk)
+            if not _puede_editar(request.user, gestion) or not gestion.activo or gestion.estado == GestionSocial.Estado.CERRADA:
+                raise PermissionDenied('No puede agregar seguimiento a esta gestión.')
+            form = SeguimientoGestionSocialForm(request.data)
+            if not form.is_valid():
+                return Response(form.errors.get_json_data(), status=status.HTTP_400_BAD_REQUEST)
+            seguimiento = form.save(commit=False)
+            seguimiento.gestion = gestion
+            seguimiento.autor = request.user
+            seguimiento.save()
+            registrar_auditoria(request, 'agregar_seguimiento_gestion', gestion,
+                                f'Seguimiento {seguimiento.pk} registrado para {gestion.codigo}.')
+        serializer = SeguimientoGestionSocialSerializer(seguimiento)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=('post',), url_path='estado')
+    @transaction.atomic
     def estado(self, request, pk=None):
-        instance = self.get_object()
+        visible = self.get_object()
+        instance = GestionSocial.objects.select_for_update().get(pk=visible.pk)
         _validar_edicion(request.user, instance)
         nuevo = request.data.get('estado')
         transiciones = {
@@ -753,6 +805,8 @@ class CartaViewSet(BaseViewSet, viewsets.ModelViewSet):
         instance = self.get_object()
         if not _puede_editar(self.request.user, instance):
             raise PermissionDenied('No puede editar esta carta.')
+        if instance.estado == Carta.Estado.CERRADA:
+            raise ValidationError('No se puede editar una carta cerrada.')
         instance = serializer.save()
         registrar_auditoria(self.request, 'actualizar_carta', instance, f'Carta {instance.codigo} actualizada.')
 
@@ -810,7 +864,7 @@ class HitoViewSet(BaseViewSet, viewsets.ModelViewSet):
     roles_por_accion = {
         'list': ROLES_VALIDOS,
         'retrieve': ROLES_VALIDOS,
-        'create': ROLES_VALIDOS,
+        'create': ('administrador', 'delegado'),
         'update': (*ROLES_GESTORES, 'funcionario', 'verificador'),
         'partial_update': (*ROLES_GESTORES, 'funcionario', 'verificador'),
         'estado': ROLES_VALIDOS,
@@ -838,8 +892,10 @@ class HitoViewSet(BaseViewSet, viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        if not _puede_editar(self.request.user, instance):
+        if rol_usuario(self.request.user) not in ROLES_GESTORES:
             raise PermissionDenied('No puede editar este hito.')
+        if instance.estado in (Hito.Estado.COMPLETADO, Hito.Estado.CANCELADO):
+            raise ValidationError('No se puede editar un hito finalizado.')
         instance = serializer.save()
         registrar_auditoria(self.request, 'actualizar_hito', instance, f'Hito {instance.codigo} actualizado.')
 
@@ -979,19 +1035,24 @@ def _filtrar_delegacion_tubo(delegaciones, delegacion_id):
 def _agregar_actividades_tubo(registros, delegaciones, desde, hasta):
     actividades = AtencionCiudadana.objects.filter(
         va_al_tubo=True, activo=True, delegacion__in=delegaciones,
-    ).select_related('responsable').only(
+    ).select_related('responsable').annotate(
+        plazo_tubo=Min('compromisos__fecha_hora'),
+    ).only(
         'id', 'titulo', 'fecha', 'estado', 'delegacion_id',
         'responsable__id', 'responsable__first_name', 'responsable__last_name',
     )
     for item in _filtrar_fecha(actividades, 'fecha', desde, hasta):
+        plazo = timezone.localtime(item.plazo_tubo).date() if item.plazo_tubo else None
         registros.append(_registro_tubo(
             'actividad', f'ACT-{item.pk:06d}', item.pk, item.titulo, item.estado,
-            item.fecha, None, item.delegacion_id, item.responsable,
+            item.fecha, plazo, item.delegacion_id, item.responsable,
         ))
 
 
 def _agregar_compromisos_tubo(registros, delegaciones, desde, hasta):
-    compromisos = Compromiso.objects.filter(delegacion__in=delegaciones).select_related(
+    compromisos = Compromiso.objects.filter(delegacion__in=delegaciones).exclude(
+        actividades__va_al_tubo=True, actividades__activo=True,
+    ).select_related(
         'responsable',
     ).only(
         'id', 'fecha_hora', 'titulo', 'estado', 'delegacion_id',

@@ -22,6 +22,7 @@ urlpatterns = [
         views.AtencionVaAlTuboView.as_view(),
         name='cambiar_va_al_tubo',
     ),
+    path('<int:pk>/editar/', views.AtencionEditarView.as_view(), name='editar'),
     path('<int:pk>/estado/', views.AtencionEstadoView.as_view(), name='cambiar_estado'),
     path(
         '<int:actividad_pk>/agregar-a-agenda/',

@@ -67,3 +67,46 @@ class IntegridadTuboTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.actividad.refresh_from_db()
         self.assertTrue(self.actividad.va_al_tubo)
+
+    def test_actividad_cerrada_no_se_puede_asociar_a_compromiso_nuevo(self):
+        self.actividad.estado = AtencionCiudadana.Estado.CERRADA
+        self.actividad.save(update_fields=['estado'])
+        self.client.force_login(self.delegado)
+        form = self.client.get(reverse('agenda:crear')).context['form']
+        self.assertNotIn(self.actividad, form.fields['actividades'].queryset)
+        datos = self.datos_edicion()
+        datos['titulo'] = 'Nuevo seguimiento'
+        datos['actividades'] = [self.actividad.pk]
+        respuesta = self.client.post(reverse('agenda:crear'), datos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(Compromiso.objects.filter(titulo='Nuevo seguimiento').exists())
+
+    def test_conserva_relacion_historica_con_actividad_cerrada(self):
+        self.actividad.estado = AtencionCiudadana.Estado.CERRADA
+        self.actividad.save(update_fields=['estado'])
+        self.client.force_login(self.delegado)
+        response = self.client.post(reverse('agenda:editar', args=[self.compromiso.pk]), self.datos_edicion())
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self.compromiso.actividades.filter(pk=self.actividad.pk).exists())
+
+    def test_no_acepta_plazo_anterior_a_actividad_nueva(self):
+        self.client.force_login(self.delegado)
+        self.actividad.fecha = timezone.localdate() + timedelta(days=5)
+        self.actividad.save(update_fields=['fecha'])
+        datos = self.datos_edicion()
+        datos['titulo'] = 'Plazo anterior'
+        datos['actividades'] = [self.actividad.pk]
+        respuesta = self.client.post(reverse('agenda:crear'), datos)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'El plazo no puede ser anterior')
+        self.assertFalse(Compromiso.objects.filter(titulo='Plazo anterior').exists())
+
+    def test_conserva_registro_existente_con_plazo_historico_anterior(self):
+        self.actividad.fecha = timezone.localdate() + timedelta(days=10)
+        self.actividad.save(update_fields=['fecha'])
+        self.client.force_login(self.delegado)
+        datos = self.datos_edicion()
+        datos['actividades'] = [self.actividad.pk]
+        respuesta = self.client.post(reverse('agenda:editar', args=[self.compromiso.pk]), datos)
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertTrue(self.compromiso.actividades.filter(pk=self.actividad.pk).exists())
