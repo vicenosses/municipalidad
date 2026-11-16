@@ -1,13 +1,16 @@
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from agenda.models import Compromiso
+from atenciones.models import AtencionCiudadana
+from catalogos.models import SubAtencion, TipoAtencion
 from cartas.models import Carta
 from gestion_social.models import GestionSocial
 from hitos.models import Hito
+from operaciones.forms import HitoForm
 from sgr.test_metas import DatosMetasMixin
-from usuarios.models import Territorio
+from usuarios.models import Territorio, Vecino
 
 
 class PantallasOperacionesTests(DatosMetasMixin, TestCase):
@@ -16,6 +19,12 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
         super().setUpTestData()
         cls.territorio = Territorio.objects.create(
             nombre='Centro', delegacion=cls.a,
+        )
+        cls.vecino = Vecino.objects.create(
+            rut='98.765.432-1',
+            nombres='Vecino',
+            apellidos='De prueba',
+            territorio=cls.territorio,
         )
 
     def test_secciones_aparecen_dentro_de_actividades_y_agenda(self):
@@ -34,6 +43,7 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
             'descripcion': 'Atención de prueba',
             'fecha_ingreso': '2026-11-10',
             'territorio': self.territorio.pk,
+            'vecino': self.vecino.pk,
         })
         self.assertRedirects(response, reverse('atenciones:gestion_social:lista'))
         gestion = GestionSocial.objects.get()
@@ -68,6 +78,7 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
         gestion = GestionSocial.objects.create(
             titulo='Caso de prueba', descripcion='Antecedentes reservados',
             delegacion=self.a, territorio=self.territorio,
+            vecino=self.vecino,
             responsable=user, creado_por=user,
         )
         compromiso = Compromiso.objects.create(
@@ -121,7 +132,7 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
         carta = Carta.objects.create(asunto='Original', contenido='Original', delegacion=self.a,
             responsable=responsable, creado_por=creador)
         gestion = GestionSocial.objects.create(titulo='Original', descripcion='Original', delegacion=self.a,
-            responsable=responsable, creado_por=creador)
+            vecino=self.vecino, responsable=responsable, creado_por=creador)
         self.entrar('funcionario')
         casos = (
             ('agenda:cartas:editar', carta, {'asunto':'Alterada','contenido':'Alterada','fecha_ingreso':'2026-11-10'}),
@@ -136,3 +147,41 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
                 objeto.refresh_from_db()
                 self.assertEqual(objeto.responsable_id, responsable.pk)
                 self.assertEqual(getattr(objeto, 'asunto', None) or objeto.titulo, 'Original')
+    def test_hito_no_puede_relacionarse_a_nueva_actividad_de_periodo_cerrado(self):
+        tipo = TipoAtencion.objects.create(codigo='TIP-HITO', nombre='Tipo hito')
+        subatencion = SubAtencion.objects.create(
+            codigo='SUB-HITO', nombre='Subatención hito', tipo=tipo,
+        )
+        actividad_cerrada = AtencionCiudadana.objects.create(
+            titulo='Actividad cerrada', fecha='2026-04-10',
+            solicitante='Vecino', tipo=tipo, subatencion=subatencion,
+            descripcion='Actividad de período cerrado', delegacion=self.a,
+            responsable=self.usuarios['administrador'],
+        )
+        actividad_abierta = AtencionCiudadana.objects.create(
+            titulo='Actividad abierta', fecha='2027-04-10',
+            solicitante='Vecino', tipo=tipo, subatencion=subatencion,
+            descripcion='Actividad de período abierto', delegacion=self.a,
+            responsable=self.usuarios['administrador'],
+        )
+        self.periodo.cerrado = True
+        self.periodo.activo = False
+        self.periodo.save()
+        request = RequestFactory().post('/')
+        request.user = self.usuarios['administrador']
+        request.session = {'delegacion_activa_id': self.a.pk}
+
+        form = HitoForm(
+            data={
+                'titulo': 'Hito de seguimiento',
+                'actividad': actividad_abierta.pk,
+                'actividades': [actividad_cerrada.pk],
+                'responsable': self.usuarios['administrador'].pk,
+                'fecha_programada': '2027-05-01',
+                'periodicidad': Hito.Periodicidad.UNICA,
+            },
+            request=request,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('actividades', form.errors)

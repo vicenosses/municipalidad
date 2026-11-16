@@ -37,6 +37,9 @@
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Fecha de actividad</dt><dd>{{ atencion.fecha|date:"d/m/Y" }}</dd></div></div>
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Fecha de registro</dt><dd>{{ atencion.fecha_registro|date:"d/m/Y H:i" }}</dd></div></div>
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Solicitante</dt><dd>{{ atencion.solicitante }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Origen</dt><dd>{{ atencion.origen|default:"No registrado" }}</dd></div></div>
+            <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Avance</dt><dd>{{ atencion.avance }}%</dd></div></div>
+            {% if atencion.fecha_completada %}<div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Fecha de término</dt><dd>{{ atencion.fecha_completada|date:"d/m/Y" }}</dd></div></div>{% endif %}
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Va al tubo</dt><dd>{% if atencion.va_al_tubo %}<span class="badge bg-success">Sí</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</dd></div></div>
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Tipo</dt><dd>{{ atencion.tipo }}</dd></div></div>
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Subatención</dt><dd>{{ atencion.subatencion }}</dd></div></div>
@@ -44,6 +47,8 @@
             <div class="col-sm-6 col-lg-3"><div class="actividad-detalle-dato"><dt>Territorio</dt><dd>{{ atencion.territorio|default:'No registrado' }}</dd></div></div>
             <div class="col-sm-6"><div class="actividad-detalle-dato"><dt>Creada por</dt><dd>{{ atencion.creador_historico_display }}</dd></div></div>
             <div class="col-sm-6"><div class="actividad-detalle-dato"><dt>Responsable</dt><dd>{{ atencion.responsable.get_full_name|default:atencion.responsable.username }}</dd></div></div>
+            <div class="col-12"><div class="actividad-detalle-dato"><dt>Apoyo requerido</dt><dd>{{ atencion.apoyo_requerido|default:"No registrado"|linebreaksbr }}</dd></div></div>
+            {% if atencion.resultado %}<div class="col-12"><div class="actividad-detalle-dato"><dt>Resultado</dt><dd>{{ atencion.resultado|linebreaksbr }}</dd></div></div>{% endif %}
             <div class="col-12"><div class="actividad-detalle-dato"><dt>Descripción</dt><dd class="actividad-detalle-descripcion">{{ atencion.descripcion }}</dd></div></div>
         </dl>
     </div>

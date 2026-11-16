@@ -3,14 +3,19 @@ from django.urls import reverse
 from auditoria.models import RegistroAuditoria
 from gestion_social.models import GestionSocial, SeguimientoGestionSocial
 from sgr.test_metas import DatosMetasMixin
+from usuarios.models import Territorio, Vecino
 
 
 class SeguimientoGestionTests(DatosMetasMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        ta = Territorio.objects.create(nombre='Centro', delegacion=cls.a)
+        tb = Territorio.objects.create(nombre='Norte', delegacion=cls.b)
+        cls.vecino_a = Vecino.objects.create(rut='98.765.432-1', nombres='Vecino', apellidos='A', territorio=ta)
+        cls.vecino_b = Vecino.objects.create(rut='12.345.678-5', nombres='Vecino', apellidos='B', territorio=tb)
         cls.gestion = GestionSocial.objects.create(titulo='Gestión de prueba', descripcion='Datos reservados',
-            delegacion=cls.a, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
+            delegacion=cls.a, vecino=cls.vecino_a, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
 
     def test_responsable_registra_seguimiento_e_historial(self):
         self.entrar('funcionario')
@@ -38,12 +43,13 @@ class SeguimientoGestionTests(DatosMetasMixin, TestCase):
         self.assertEqual(self.client.post(url, datos).status_code, 403)
         self.gestion.activo = True
         self.gestion.estado = GestionSocial.Estado.CERRADA
-        self.gestion.save(update_fields=['activo', 'estado'])
+        self.gestion.fecha_cierre = self.gestion.fecha_ingreso
+        self.gestion.save(update_fields=['activo', 'estado', 'fecha_cierre'])
         self.assertEqual(self.client.post(url, datos).status_code, 403)
         self.assertFalse(SeguimientoGestionSocial.objects.exists())
 
     def test_delegado_puede_seguir_gestion_y_no_otras_delegaciones(self):
-        ajena = GestionSocial.objects.create(titulo='Otra', descripcion='Privado', delegacion=self.b,
+        ajena = GestionSocial.objects.create(titulo='Otra', descripcion='Privado', delegacion=self.b, vecino=self.vecino_b,
             responsable=self.usuarios['funcionario'])
         self.entrar('delegado')
         datos = {'tipo':'observacion', 'descripcion':'Seguimiento del equipo'}

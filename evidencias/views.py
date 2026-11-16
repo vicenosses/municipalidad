@@ -369,6 +369,18 @@ class EvidenciaValidarView(RolRequiredMixin, View):
     def guardar_decisiones(self, request, evidencia, form, accion, aporte, aporte_form):
         from sgr.aportes import validar_aporte
         from sgr.models import AporteIndicador
+        from sgr.periodos import validar_periodo_abierto
+
+        registro = evidencia.atencion or evidencia.compromiso
+        fecha_registro = (
+            registro.fecha
+            if isinstance(registro, AtencionCiudadana)
+            else registro.fecha_hora
+        )
+        validar_periodo_abierto(
+            fecha_registro,
+            'No se puede validar evidencia de un período cerrado.',
+        )
         if aporte_form and accion == 'rechazar' and aporte_form.cleaned_data['estado'] in (
                 AporteIndicador.Estado.CUMPLE, AporteIndicador.Estado.APROBADA_NO_PONDERA):
             raise ValidationError('No puede aprobar el aporte al rechazar esta evidencia.')

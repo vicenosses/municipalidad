@@ -1,9 +1,11 @@
 """Integración del contexto administrativo con datos controlados de dos territorios."""
 from datetime import timedelta
 from contextlib import closing
+from datetime import datetime
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import Client, RequestFactory, TestCase
 from django.test.utils import CaptureQueriesContext
@@ -309,7 +311,7 @@ class ContextoAdministradorTests(DatosPonderacionesMixin, TestCase):
     def test_crear_actividad_local_ignora_delegacion_inyectada(self):
         self.seleccionar(self.a.pk)
         respuesta = self.client.post(reverse('atenciones:crear'), self.datos_actividad(
-            titulo='Alta en contexto A', delegacion=self.b.pk))
+            titulo='Alta en contexto A', delegacion=self.b.pk, avance=0))
         self.assertEqual(respuesta.status_code, 302)
         self.assertEqual(AtencionCiudadana.objects.get(titulo='Alta en contexto A').delegacion_id, self.a.pk)
 
@@ -461,11 +463,33 @@ class ContextoAdministradorTests(DatosPonderacionesMixin, TestCase):
     def test_dashboard_y_contadores_son_coherentes_con_contexto(self):
         self.seleccionar(self.a.pk)
         respuesta = self.client.get(reverse('home'))
-        self.assertEqual(respuesta.context['total_actividades'], AtencionCiudadana.objects.filter(delegacion=self.a).count())
+        periodo = respuesta.context['dashboard']['periodo']
+        actividades_periodo = AtencionCiudadana.objects.filter(
+            delegacion=self.a, fecha__range=(periodo.fecha_inicio, periodo.fecha_fin),
+        ).count()
+        self.assertEqual(respuesta.context['total_actividades'], actividades_periodo)
         self.assertEqual(respuesta.context['compromisos_proximos'], 1)
         self.assertEqual(respuesta.context['evidencias_pendientes'], 2)
         self.assertEqual(respuesta.context['total_usuarios'], Perfil.objects.filter(activo=True, delegaciones=self.a).count())
         self.assertEqual([f.meta.pk for f in respuesta.context['dashboard']['filas']], [self.meta_a.pk])
+
+    def test_cierre_de_periodo_protege_actividad_evidencia_y_compromiso(self):
+        self.comp_a.fecha_hora = timezone.make_aware(datetime(2026, 10, 25, 12, 0))
+        self.comp_a.save()
+        self.periodo.cerrado = True
+        self.periodo.activo = False
+        self.periodo.cierre_snapshot = {'periodo': {'id': self.periodo.pk}}
+        self.periodo.save()
+
+        self.act_a.resultado = 'Cambio posterior al cierre'
+        with self.assertRaises(ValidationError):
+            self.act_a.save()
+        self.ev_a.comentario_validacion = 'Cambio posterior al cierre'
+        with self.assertRaises(ValidationError):
+            self.ev_a.save()
+        self.comp_a.observaciones = 'Cambio posterior al cierre'
+        with self.assertRaises(ValidationError):
+            self.comp_a.save()
 
     def test_informe_dashboard_y_xlsx_usan_mismo_contexto_y_resultados(self):
         self.evaluado('100', '120')

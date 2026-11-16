@@ -13,6 +13,13 @@ class Periodo(models.Model):
     fecha_inicio = models.DateField('Fecha inicio')
     fecha_fin = models.DateField('Fecha fin')
     activo = models.BooleanField('Activo', default=True)
+    cerrado = models.BooleanField('Cerrado formalmente', default=False)
+    cerrado_en = models.DateTimeField('Fecha de cierre', null=True, blank=True)
+    cerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='periodos_cerrados', verbose_name='Cerrado por',
+    )
+    cierre_snapshot = models.JSONField('Resultados congelados', default=dict, blank=True)
     creado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='periodos_creados', verbose_name='Creado por',
@@ -39,6 +46,16 @@ class Periodo(models.Model):
         super().clean()
         self.nombre = ' '.join((self.nombre or '').split())
         errores = {}
+        original = type(self).objects.filter(pk=self.pk).values(
+            'nombre', 'fecha_inicio', 'fecha_fin', 'cerrado',
+        ).first() if self.pk else None
+        if original and original['cerrado'] and any(
+            getattr(self, campo) != original[campo]
+            for campo in ('nombre', 'fecha_inicio', 'fecha_fin')
+        ):
+            errores['__all__'] = 'Un período cerrado no puede cambiar sus fechas ni su nombre.'
+        if self.cerrado and self.activo:
+            errores['activo'] = 'Un período cerrado no puede permanecer activo; use la acción de reapertura.'
         if not self.nombre:
             errores['nombre'] = 'El nombre no puede estar vacío.'
         fechas_validas = self.fecha_inicio and self.fecha_fin
@@ -59,7 +76,7 @@ class Periodo(models.Model):
                 errores['fecha_inicio'] = 'Las fechas se superponen con otro período activo.'
         if self.pk:
             aportes = AporteIndicador.objects.filter(indicador__meta__periodo_id=self.pk)
-            if not self.activo and aportes.exists():
+            if not self.activo and not self.cerrado and aportes.exists():
                 errores['__all__'] = 'No puede desactivar un período con Actividades vinculadas.'
             if fechas_validas and aportes.exclude(
                 actividad__fecha__range=(self.fecha_inicio, self.fecha_fin)
@@ -72,6 +89,29 @@ class Periodo(models.Model):
         self.nombre = ' '.join((self.nombre or '').split())
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class HistorialCierrePeriodo(models.Model):
+    class Accion(models.TextChoices):
+        CERRAR = 'cerrar', 'Cerrar'
+        REABRIR = 'reabrir', 'Reabrir'
+
+    periodo = models.ForeignKey(
+        Periodo, on_delete=models.PROTECT, related_name='historial_cierre',
+    )
+    accion = models.CharField(max_length=10, choices=Accion.choices)
+    motivo = models.TextField()
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='historial_cierres_periodo',
+    )
+    snapshot = models.JSONField(default=dict, blank=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_en', '-pk']
+        verbose_name = 'Cambio de cierre de período'
+        verbose_name_plural = 'Historial de cierres de período'
 
 
 class Meta(models.Model):

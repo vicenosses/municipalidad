@@ -413,7 +413,10 @@ class IndicadorIntegracionTests(DatosIndicadoresMixin, TestCase):
             respuesta = self.client.get(url)
             self.assertContains(respuesta, 'href="/sgr/periodos/"')
             self.assertContains(respuesta, 'Prioridades y Metas', count=1)
-            self.assertContains(respuesta, 'SGR - Municipalidad de La Serena')
+            self.assertContains(
+                respuesta,
+                'alt="SGR - Municipalidad de La Serena"',
+            )
         respuesta = self.client.get(self.url_indicador('detalle'))
         self.assertContains(respuesta, '90 %')
         self.assertContains(respuesta, 'Mayor es mejor')

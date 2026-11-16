@@ -15,6 +15,8 @@ from atenciones.models import AtencionCiudadana
 from catalogos.models import SubAtencion, TipoAtencion
 from evidencias.forms import EvidenciaForm
 from evidencias.models import Evidencia
+from evidencias.permisos import puede_validar_evidencia
+from sgr.models import Periodo
 from usuarios.models import Delegacion, Perfil, Rol
 
 User = get_user_model()
@@ -137,6 +139,45 @@ class EvidenciaFormTests(TestCase):
         respuesta = self.client.get(reverse('evidencias:validar', args=[evidencia.pk]))
 
         self.assertEqual(respuesta.status_code, 404)
+
+    def test_evidencia_de_periodo_cerrado_no_puede_validarse(self):
+        evidencia = Evidencia.objects.create(
+            atencion=self.actividad,
+            archivo='evidencias/periodo-cerrado.png',
+            subido_por=self.usuario,
+        )
+        periodo = Periodo.objects.create(
+            nombre='Período cerrado',
+            fecha_inicio='2026-01-01',
+            fecha_fin='2026-12-31',
+        )
+        periodo.cerrado = True
+        periodo.activo = False
+        periodo.save()
+        rol_verificador, _ = Rol.objects.get_or_create(
+            codigo='verificador',
+            defaults={'nombre': 'Verificador'},
+        )
+        self.perfil.rol = rol_verificador
+        self.perfil.save()
+        self.client.force_login(self.usuario)
+        session = self.client.session
+        session['delegacion_activa_id'] = self.delegacion.pk
+        session.save()
+
+        request = RequestFactory().get('/')
+        request.user = self.usuario
+        request.session = session
+        self.assertFalse(puede_validar_evidencia(request, evidencia))
+        self.assertEqual(
+            self.client.post(
+                reverse('evidencias:validar', args=[evidencia.pk]),
+                {'accion': 'aprobar'},
+            ).status_code,
+            404,
+        )
+        evidencia.refresh_from_db()
+        self.assertEqual(evidencia.estado, Evidencia.Estado.PENDIENTE)
 
     def test_evidencia_admite_atencion_o_compromiso(self):
         compromiso = Compromiso.objects.create(

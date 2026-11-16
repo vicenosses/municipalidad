@@ -231,6 +231,7 @@ class ResultadoNumericoTests(DatosMetricasMixin, TestCase):
         self.assertEqual(avance.porcentaje_avance, Decimal('62.50'))
         self.assertEqual(metrica.resultado, Decimal('70'))
         self.assertEqual(metrica.cumplimiento.porcentaje, Decimal('87.50'))
+        cambiar_estado_actividad(self.request(), en_proceso[0].actividad_id, 'completada')
         cambiar_estado_actividad(self.request(), en_proceso[0].actividad_id, 'cerrada')
         self.assertEqual(calcular_avance_indicador(self.indicador_a).porcentaje_avance, Decimal('75.00'))
         actual = self.calcular()

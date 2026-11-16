@@ -258,7 +258,7 @@ class AportePermisosTests(DatosAportesMixin, TestCase):
         aporte.refresh_from_db()
         self.assertEqual(aporte.estado, AporteIndicador.Estado.PENDIENTE)
 
-    def test_una_aprobada_entre_varias_es_suficiente(self):
+    def test_evidencia_pendiente_no_bloquea_si_hay_una_aprobada(self):
         aporte = self.asociar()
         self.evidencia(Evidencia.Estado.APROBADA)
         self.evidencia(Evidencia.Estado.PENDIENTE)

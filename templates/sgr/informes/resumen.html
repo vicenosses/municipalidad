@@ -4,12 +4,14 @@
 <div class="pagina-cabecera"><div class="pagina-cabecera-etiqueta">Gestión de resultados</div><h2 class="h4 fw-bold mb-3">{% include 'includes/icono_titulo.html' with icono='informes' %}Informe SGR de metas e indicadores</h2></div>
 <form method="get" class="card shadow-sm mb-4">
     <div class="card-body row g-3 align-items-end">
-        <div class="col-md-8">
-            <label for="{{ form.periodo.id_for_label }}" class="form-label">{{ form.periodo.label }}</label>
-            {{ form.periodo }}
-            {% if form.periodo.errors %}<div class="text-danger">{{ form.periodo.errors }}</div>{% endif %}
+        {% for field in form %}
+        <div class="col-md-3">
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
         </div>
-        <div class="col-md-4">
+        {% endfor %}
+        <div class="col-12">
             <button class="btn btn-custom-red" type="submit">Consultar</button>
             <a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Período vigente</a>
         </div>
@@ -48,6 +50,70 @@
 {% empty %}
 <div class="alert alert-info" role="status">No hay metas activas para el período y contexto territorial consultados.</div>
 {% endfor %}
+
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Resultados por funcionario y meta</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Funcionario</th><th>Delegación</th><th>Meta</th><th>Período</th><th>Objetivo</th><th>Ponderación</th><th>Aportes aprobados</th><th>Cumplimiento aplicable</th><th>Resultado ponderado</th></tr></thead>
+        <tbody>{% for resultado in informe.asignaciones %}{% with asignacion=resultado.asignacion %}
+            <tr><td>{{ asignacion.funcionario.get_full_name|default:asignacion.funcionario.username }}</td><td>{{ asignacion.meta.delegacion }}</td><td>{{ asignacion.meta.nombre }}</td><td>{{ asignacion.meta.periodo.nombre }}</td><td>{{ asignacion.cantidad_objetivo }}</td><td>{{ asignacion.ponderacion }}%</td><td>{{ resultado.cantidad }}</td><td>{{ resultado.cumplimiento_aplicable|floatformat:2 }}%</td><td>{{ resultado.resultado_ponderado|floatformat:2 }}%</td></tr>
+        {% endwith %}{% empty %}<tr><td colspan="9" class="text-muted">No hay asignaciones para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Actividades del período</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Fecha</th><th>Actividad</th><th>Funcionario</th><th>Delegación / territorio</th><th>Meta / estado de verificación</th><th>Tubo</th><th>Evidencia</th></tr></thead>
+        <tbody>{% for actividad in informe.actividades %}
+            <tr><td>{{ actividad.fecha|date:'d/m/Y' }}</td><td>{{ actividad.titulo }}</td><td>{{ actividad.responsable.get_full_name|default:actividad.responsable.username }}</td><td>{{ actividad.delegacion }}{% if actividad.territorio %} / {{ actividad.territorio }}{% endif %}</td><td>{% if actividad.aporte_indicador_id %}{{ actividad.aporte_indicador.indicador.meta.nombre }} · {{ actividad.aporte_indicador.get_estado_display }}{% else %}Sin meta asociada{% endif %}</td><td>{% if actividad.va_al_tubo %}Sí{% else %}No{% endif %}</td><td>{{ actividad.etiqueta_estado_evidencias }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">No hay actividades para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Tubo de gestión</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Fecha compromiso</th><th>Código</th><th>Compromiso</th><th>Responsable</th><th>Delegación</th><th>Estado</th><th>Actividades</th></tr></thead>
+        <tbody>{% for compromiso in informe.compromisos %}
+            <tr><td>{{ compromiso.fecha_hora|date:'d/m/Y H:i' }}</td><td>{{ compromiso.codigo }}</td><td>{{ compromiso.titulo }}</td><td>{{ compromiso.responsable.get_full_name|default:compromiso.responsable.username }}</td><td>{{ compromiso.delegacion }}</td><td>{{ compromiso.get_estado_display }}{% if compromiso.esta_vencido %} · Vencido{% endif %}</td><td>{% for actividad in compromiso.actividades.all %}{{ actividad.titulo }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">No hay compromisos en el período y contexto consultados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Evidencias</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Fecha</th><th>Identificador</th><th>Registro relacionado</th><th>Estado</th><th>Autor</th><th>Revisor</th><th>Observación</th></tr></thead>
+        <tbody>{% for evidencia in informe.evidencias %}
+            <tr><td>{{ evidencia.fecha_subida|date:'d/m/Y H:i' }}</td><td>{{ evidencia.identificador }}</td><td>{% if evidencia.atencion %}{{ evidencia.atencion.titulo }}{% else %}{{ evidencia.compromiso.titulo }}{% endif %}</td><td>{{ evidencia.get_estado_display }}</td><td>{{ evidencia.subido_por.get_full_name|default:evidencia.subido_por.username }}</td><td>{{ evidencia.validado_por|default:'—' }}</td><td>{{ evidencia.comentario_validacion|default:evidencia.descripcion|default:'—' }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">No hay evidencias en el período y contexto consultados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Cartas y seguimiento</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Ingreso</th><th>Código / asunto</th><th>Responsable</th><th>Delegación</th><th>Derivación</th><th>Estado</th><th>Compromiso / respuesta / cierre</th></tr></thead>
+        <tbody>{% for carta in informe.cartas %}
+            <tr><td>{{ carta.fecha_ingreso|date:'d/m/Y' }}</td><td>{{ carta.codigo }} · {{ carta.asunto }}</td><td>{{ carta.responsable.get_full_name|default:carta.responsable.username }}</td><td>{{ carta.delegacion }}</td><td>{{ carta.area_derivada|default:'—' }}</td><td>{{ carta.get_estado_display }}</td><td>{{ carta.fecha_compromiso|date:'d/m/Y'|default:'—' }} / {{ carta.fecha_respuesta|date:'d/m/Y'|default:'—' }} / {{ carta.fecha_cierre|date:'d/m/Y'|default:'—' }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">No hay cartas para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Gestiones sociales y tiempos de atención</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Ingreso</th><th>Código / gestión</th><th>Beneficiario</th><th>Responsable</th><th>Delegación</th><th>Derivación / resultado</th><th>Estado</th><th>Días de atención</th></tr></thead>
+        <tbody>{% for gestion in informe.gestiones_sociales %}
+            <tr><td>{{ gestion.fecha_ingreso|date:'d/m/Y' }}</td><td>{{ gestion.codigo }} · {{ gestion.titulo }}</td><td>{{ gestion.vecino }}</td><td>{{ gestion.responsable.get_full_name|default:gestion.responsable.username }}</td><td>{{ gestion.delegacion }}</td><td>{{ gestion.resultado|default:'—' }}</td><td>{{ gestion.get_estado_display }}</td><td>{{ gestion.dias_resolucion }}</td></tr>
+        {% empty %}<tr><td colspan="8" class="text-muted">No hay gestiones sociales para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card shadow-sm mb-4">
+    <div class="card-header bg-white"><h3 class="h5 mb-0">Hitos y recurrencias</h3></div>
+    <div class="table-responsive"><table class="table table-striped align-middle mb-0">
+        <thead><tr><th>Fecha programada</th><th>Código / hito</th><th>Responsable</th><th>Delegación / territorio</th><th>Periodicidad</th><th>Estado</th><th>Fecha completada</th></tr></thead>
+        <tbody>{% for hito in informe.hitos %}
+            <tr><td>{{ hito.fecha_programada|date:'d/m/Y' }}</td><td>{{ hito.codigo }} · {{ hito.titulo }}</td><td>{{ hito.responsable.get_full_name|default:hito.responsable.username }}</td><td>{% if hito.actividad %}{{ hito.actividad.delegacion }}{% elif hito.gestion_social %}{{ hito.gestion_social.delegacion }}{% else %}{{ hito.compromiso.delegacion }}{% endif %}{% if hito.territorio %} / {{ hito.territorio }}{% endif %}</td><td>{{ hito.get_periodicidad_display }}</td><td>{{ hito.get_estado_display }}</td><td>{{ hito.fecha_completada|date:'d/m/Y'|default:'—' }}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">No hay hitos para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
 {% endif %}
 <div class="small text-muted mt-4">
     <p>Este informe presenta resultados vigentes al momento de consultar, también al seleccionar períodos históricos;

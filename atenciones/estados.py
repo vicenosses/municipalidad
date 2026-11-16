@@ -29,7 +29,11 @@ def cambiar_estado_actividad(request, actividad_pk, nuevo_estado, motivo=''):
     anterior = actividad.estado
     etiqueta_anterior = actividad.get_estado_display()
     actividad.estado = nuevo_estado
-    actividad.save(update_fields=['estado'])
+    if nuevo_estado in (AtencionCiudadana.Estado.COMPLETADA, AtencionCiudadana.Estado.CERRADA):
+        actividad.fecha_completada = timezone.localdate()
+    else:
+        actividad.fecha_completada = None
+    actividad.save(update_fields=['estado', 'fecha_completada'])
     HistorialEstadoActividad.objects.create(
         actividad=actividad, estado_anterior=anterior, estado_nuevo=nuevo_estado,
         actor=request.user, fecha_hora=timezone.now(), motivo=motivo.strip(),

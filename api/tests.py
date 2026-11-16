@@ -16,6 +16,12 @@ class APIPruebas(APITestCase):
         self.territorio = Territorio.objects.create(
             nombre='Centro', delegacion=self.delegacion,
         )
+        self.vecino = Vecino.objects.create(
+            rut='98.765.432-1',
+            nombres='Vecino',
+            apellidos='De prueba',
+            territorio=self.territorio,
+        )
         self.usuario = self._crear_usuario('funcionario', self.delegacion, 'funcionario')
         self.otro_usuario = self._crear_usuario('funcionario', self.otra_delegacion, 'otro')
         self.tipo = TipoAtencion.objects.create(codigo='GEN', nombre='General')
@@ -110,6 +116,7 @@ class APIPruebas(APITestCase):
             'descripcion': 'Antecedentes privados de la atención.',
             'delegacion': self.delegacion.pk,
             'territorio': self.territorio.pk,
+            'vecino': self.vecino.pk,
             'fecha_ingreso': '2026-10-01',
             'fecha_compromiso': '2026-10-05',
             'ingresa_al_tubo': True,
@@ -131,6 +138,7 @@ class APIPruebas(APITestCase):
             descripcion='Información privada.',
             delegacion=self.delegacion,
             territorio=self.territorio,
+            vecino=self.vecino,
             responsable=self.usuario,
             creado_por=self.usuario,
         )
@@ -211,9 +219,9 @@ class APIPruebas(APITestCase):
     def test_api_protege_cartas_y_gestiones_cerradas(self):
         from cartas.models import Carta
         carta = Carta.objects.create(asunto='Cerrada', contenido='Original', delegacion=self.delegacion,
-            responsable=self.usuario, creado_por=self.usuario, estado=Carta.Estado.CERRADA)
+            responsable=self.usuario, creado_por=self.usuario, estado=Carta.Estado.CERRADA, fecha_cierre='2026-11-10')
         gestion = GestionSocial.objects.create(titulo='Cerrada', descripcion='Original', delegacion=self.delegacion,
-            responsable=self.usuario, creado_por=self.usuario, estado=GestionSocial.Estado.CERRADA)
+            responsable=self.usuario, creado_por=self.usuario, vecino=self.vecino, estado=GestionSocial.Estado.CERRADA, fecha_cierre='2026-11-10')
         self.client.force_authenticate(self.usuario)
         for ruta, objeto, campo in (('cartas', carta, 'asunto'), ('gestiones-sociales', gestion, 'titulo')):
             with self.subTest(ruta=ruta):

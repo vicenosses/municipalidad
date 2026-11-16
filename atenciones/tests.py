@@ -1,6 +1,7 @@
 import shutil
 import struct
 import tempfile
+from datetime import timedelta
 from io import BytesIO
 
 from django.contrib import admin
@@ -250,6 +251,16 @@ class AtencionEstadoPermissionsTests(TestCase):
     def afirmar_transicion(self, user, actividad, estado_nuevo):
         if estado_nuevo == AtencionCiudadana.Estado.CERRADA and not actividad.evidencias.filter(estado='aprobada').exists():
             Evidencia.objects.create(atencion=actividad, estado='aprobada', subido_por=self.users['funcionario'], archivo='aprobada.jpg')
+        if (
+            estado_nuevo == AtencionCiudadana.Estado.CERRADA
+            and actividad.estado == AtencionCiudadana.Estado.EN_PROCESO
+        ):
+            respuesta = self.cambiar(
+                user,
+                actividad,
+                AtencionCiudadana.Estado.COMPLETADA,
+            )
+            self.assertEqual(respuesta.status_code, 302)
         respuesta = self.cambiar(user, actividad, estado_nuevo)
         self.assertEqual(respuesta.status_code, 302)
         actividad.refresh_from_db()
@@ -855,7 +866,9 @@ class EvidenciaAtencionTests(TestCase):
                         'tipo': self.tipo.pk,
                         'subatencion': self.subtipo.pk,
                         'va_al_tubo': 'on',
-                        'plazo_tubo': '2026-10-28T10:00',
+                        'plazo_tubo': timezone.localtime(
+                            timezone.now() + timedelta(days=2)
+                        ).strftime('%Y-%m-%dT%H:%M'),
                         'descripcion': 'Atención con tubo activo',
                         'creado_por': otro_usuario.pk,
                     },
@@ -1333,7 +1346,9 @@ class AtencionVaAlTuboTests(TestCase):
                         'tipo': self.tipo.pk,
                         'subatencion': self.subatencion.pk,
                         'va_al_tubo': 'on',
-                        'plazo_tubo': '2026-10-28T10:00',
+                        'plazo_tubo': timezone.localtime(
+                            timezone.now() + timedelta(days=2)
+                        ).strftime('%Y-%m-%dT%H:%M'),
                         'descripcion': 'Actividad de prueba',
                     },
                 )
@@ -1356,8 +1371,6 @@ class AtencionVaAlTuboTests(TestCase):
             'Actividad ajena',
             creador=self.users['coordinador'],
         )
-        self.vincular_compromiso(propia_funcionario)
-        self.vincular_compromiso(propia_verificador)
         for rol, propia in (
             ('funcionario', propia_funcionario),
             ('verificador', propia_verificador),
@@ -1366,7 +1379,12 @@ class AtencionVaAlTuboTests(TestCase):
                 response = self.cambiar(self.users[rol], propia, True)
                 self.assertEqual(response.status_code, 302)
                 propia.refresh_from_db()
-                self.assertTrue(propia.va_al_tubo)
+                self.assertFalse(propia.va_al_tubo)
+                self.assertRedirects(
+                    response,
+                    reverse('atenciones:agregar_a_agenda', args=[propia.pk]),
+                    fetch_redirect_response=False,
+                )
                 response = self.cambiar(self.users[rol], ajena, True)
                 self.assertEqual(response.status_code, 404)
                 ajena.refresh_from_db()
@@ -1378,13 +1396,17 @@ class AtencionVaAlTuboTests(TestCase):
             delegacion=self.delegacion_b,
             creador=self.users['funcionario'],
         )
-        self.vincular_compromiso(self.actividad)
         for rol in ('coordinador', 'delegado'):
             with self.subTest(rol=rol):
                 response = self.cambiar(self.users[rol], self.actividad, True)
                 self.assertEqual(response.status_code, 302)
                 self.actividad.refresh_from_db()
-                self.assertTrue(self.actividad.va_al_tubo)
+                self.assertFalse(self.actividad.va_al_tubo)
+                self.assertRedirects(
+                    response,
+                    reverse('atenciones:agregar_a_agenda', args=[self.actividad.pk]),
+                    fetch_redirect_response=False,
+                )
                 response = self.cambiar(self.users[rol], en_otra, True)
                 self.assertEqual(response.status_code, 404)
                 en_otra.refresh_from_db()
@@ -1396,7 +1418,6 @@ class AtencionVaAlTuboTests(TestCase):
             delegacion=self.delegacion_b,
         )
 
-        self.vincular_compromiso(en_otra)
         response = self.cambiar(
             self.admin,
             en_otra,
@@ -1409,7 +1430,12 @@ class AtencionVaAlTuboTests(TestCase):
                                     {'va_al_tubo': 'true'})
         self.assertEqual(response.status_code, 302)
         en_otra.refresh_from_db()
-        self.assertTrue(en_otra.va_al_tubo)
+        self.assertFalse(en_otra.va_al_tubo)
+        self.assertRedirects(
+            response,
+            reverse('atenciones:agregar_a_agenda', args=[en_otra.pk]),
+            fetch_redirect_response=False,
+        )
 
     def test_usuario_transferido_no_cambia_actividad_historica_fuera_de_su_alcance(self):
         perfil = self.users['funcionario'].perfil
@@ -1441,7 +1467,6 @@ class AtencionVaAlTuboTests(TestCase):
             with self.subTest(rol=rol):
                 self.assertEqual(self.cambiar(user, deshabilitada, True).status_code, 404)
                 self.assertEqual(self.cambiar(user, cerrada, True).status_code, 404)
-        self.vincular_compromiso(cerrada)
         self.login(self.users['coordinador'])
         response = self.client.post(
             reverse('atenciones:cambiar_estado', args=[cerrada.pk]),
@@ -1451,15 +1476,14 @@ class AtencionVaAlTuboTests(TestCase):
         self.assertEqual(self.cambiar(self.users['coordinador'], cerrada, True).status_code, 302)
         cerrada.refresh_from_db()
         self.assertEqual(cerrada.estado, AtencionCiudadana.Estado.EN_PROCESO)
-        self.assertTrue(cerrada.va_al_tubo)
+        self.assertFalse(cerrada.va_al_tubo)
 
-    def test_post_solo_cambia_va_al_tubo_y_audita_anterior_nuevo(self):
+    def test_post_solicita_compromiso_y_no_modifica_la_actividad_directamente(self):
         actividad = self.crear_actividad(
             'Inmutable',
             creador=self.users['funcionario'],
         )
 
-        self.vincular_compromiso(actividad)
         response = self.cambiar(
             self.users['funcionario'],
             actividad,
@@ -1474,20 +1498,19 @@ class AtencionVaAlTuboTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         actividad.refresh_from_db()
-        self.assertTrue(actividad.va_al_tubo)
+        self.assertFalse(actividad.va_al_tubo)
         self.assertEqual(actividad.delegacion, self.delegacion_a)
         self.assertEqual(actividad.creado_por, self.users['funcionario'])
         self.assertEqual(actividad.estado, AtencionCiudadana.Estado.REGISTRADA)
         self.assertTrue(actividad.activo)
         self.assertEqual(actividad.tipo, self.tipo)
         self.assertEqual(actividad.subatencion, self.subatencion)
-        auditoria = RegistroAuditoria.objects.get(
-            accion='cambiar_va_al_tubo',
-            objeto_id=str(actividad.pk),
+        self.assertFalse(
+            RegistroAuditoria.objects.filter(
+                accion='cambiar_va_al_tubo',
+                objeto_id=str(actividad.pk),
+            ).exists()
         )
-        self.assertEqual(auditoria.usuario, self.users['funcionario'])
-        self.assertIn('No → Sí', auditoria.descripcion)
-        self.assertIsNotNone(auditoria.timestamp)
 
     def test_mismo_valor_no_genera_auditoria_y_get_no_modifica(self):
         actividad = self.crear_actividad(
@@ -1587,7 +1610,7 @@ class AtencionVaAlTuboTests(TestCase):
         self.assertContains(response, self.tipo.nombre)
         self.assertContains(response, self.subatencion.nombre)
         self.assertContains(response, self.delegacion_a.nombre)
-        self.assertContains(response, 'Registrada')
+        self.assertContains(response, 'Pendiente')
         self.assertContains(response, 'Sin evidencia')
         self.assertContains(response, 'dropdown-toggle')
         self.assertContains(response, 'Acciones')

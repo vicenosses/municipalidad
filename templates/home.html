@@ -42,6 +42,21 @@
     </div>
     {% if sesion_informes_sgr %}<a class="btn btn-outline-secondary" href="{% url 'sgr:informe' %}">Consultar informe SGR</a>{% endif %}
 </div>
+<form method="get" class="card shadow-sm mb-4" aria-label="Filtros del dashboard">
+    <div class="card-body row g-3 align-items-end">
+        {% for field in dashboard_form %}
+        <div class="col-md-3">
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="col-12">
+            <button type="submit" class="btn btn-custom-red">Aplicar filtros</button>
+            <a class="btn btn-outline-secondary" href="{% url 'home' %}">Limpiar</a>
+        </div>
+    </div>
+</form>
 <div class="row g-3">
     <div class="col-sm-6 col-lg-3">
         <div class="card inicio-cifra">
@@ -75,6 +90,23 @@
             </div>
         </div>
     </div>
+</div>
+<div class="row g-3 mt-1">
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Tubo abierto / vencido</p><p class="h3 text-institucional mb-0">{{ tubo_abierto }} / {{ compromisos_vencidos }}</p>
+    </div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Cartas del período</p><p class="h3 text-institucional mb-0">{{ total_cartas }}</p>
+    </div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Gestiones sociales del período</p><p class="h3 text-institucional mb-0">{{ total_gestiones_sociales }}</p>
+    </div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Hitos pendientes / vencidos</p><p class="h3 text-institucional mb-0">{{ hitos_pendientes }} / {{ hitos_vencidos }}</p>
+    </div></div></div>
+    <div class="col-sm-6 col-lg-3"><div class="card inicio-cifra"><div class="card-body">
+        <p class="text-muted small mb-2">Evidencias aprobadas / rechazadas</p><p class="h3 text-institucional mb-0">{{ evidencias_aprobadas }} / {{ evidencias_rechazadas }}</p>
+    </div></div></div>
 </div>
 {% if metas_individuales %}
 <section class="card shadow-sm inicio-metas-individuales mt-4 mb-4">

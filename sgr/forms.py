@@ -45,6 +45,20 @@ class PeriodoForm(forms.ModelForm):
         }
 
 
+class CierrePeriodoForm(forms.Form):
+    motivo = forms.CharField(
+        label='Motivo',
+        min_length=10,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+    )
+
+    def clean_motivo(self):
+        motivo = self.cleaned_data['motivo'].strip()
+        if len(motivo) < 10:
+            raise forms.ValidationError('El motivo debe contener al menos 10 caracteres.')
+        return motivo
+
+
 class PeriodoFiltroForm(forms.Form):
     estado = forms.ChoiceField(
         label='Estado', required=False,

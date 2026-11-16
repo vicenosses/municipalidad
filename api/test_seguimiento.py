@@ -3,16 +3,21 @@ from rest_framework.test import APIClient
 from auditoria.models import RegistroAuditoria
 from gestion_social.models import GestionSocial, SeguimientoGestionSocial
 from sgr.test_metas import DatosMetasMixin
+from usuarios.models import Territorio, Vecino
 
 
 class SeguimientoGestionAPITests(DatosMetasMixin, TestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        ta = Territorio.objects.create(nombre='Centro', delegacion=cls.a)
+        tb = Territorio.objects.create(nombre='Norte', delegacion=cls.b)
+        cls.vecino_a = Vecino.objects.create(rut='98.765.432-1', nombres='Vecino', apellidos='A', territorio=ta)
+        cls.vecino_b = Vecino.objects.create(rut='12.345.678-5', nombres='Vecino', apellidos='B', territorio=tb)
         cls.gestion = GestionSocial.objects.create(titulo='Seguimiento', descripcion='Privado',
-            delegacion=cls.a, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
+            delegacion=cls.a, vecino=cls.vecino_a, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
         cls.ajena = GestionSocial.objects.create(titulo='Otra', descripcion='Privado',
-            delegacion=cls.b, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
+            delegacion=cls.b, vecino=cls.vecino_b, responsable=cls.usuarios['funcionario'], creado_por=cls.usuarios['funcionario'])
 
     def setUp(self):
         self.api = APIClient()
@@ -55,7 +60,8 @@ class SeguimientoGestionAPITests(DatosMetasMixin, TestCase):
         self.assertEqual(self.api.post(self.url, self.datos, format='json').status_code, 403)
         self.gestion.activo = True
         self.gestion.estado = GestionSocial.Estado.CERRADA
-        self.gestion.save(update_fields=['activo', 'estado'])
+        self.gestion.fecha_cierre = self.gestion.fecha_ingreso
+        self.gestion.save(update_fields=['activo', 'estado', 'fecha_cierre'])
         self.assertEqual(self.api.post(self.url, self.datos, format='json').status_code, 403)
         self.assertEqual(self.api.get(self.url).status_code, 200)
         self.assertFalse(SeguimientoGestionSocial.objects.exists())

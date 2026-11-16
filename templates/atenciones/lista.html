@@ -62,6 +62,8 @@
                 <td class="text-nowrap">{{ atencion.fecha|date:"d/m/Y" }}</td>
                 <td class="actividad-nombre">
                     <div class="fw-semibold">{{ atencion.titulo }}</div>
+                    {% if atencion.origen %}<div class="small text-muted">Origen: {{ atencion.origen }}</div>{% endif %}
+                    <div class="small text-muted">Avance: {{ atencion.avance }}%</div>
                     <div class="small text-muted">
                         Creada por: {{ atencion.creador_historico_display }}
                     </div>
@@ -87,6 +89,8 @@
                     <span class="badge bg-secondary">{{ atencion.get_estado_display }}</span>
                     {% elif atencion.estado == 'en_proceso' %}
                     <span class="badge bg-warning text-dark">{{ atencion.get_estado_display }}</span>
+                    {% elif atencion.estado == 'no_aplica' %}
+                    <span class="badge bg-light text-secondary border">{{ atencion.get_estado_display }}</span>
                     {% else %}
                     <span class="badge bg-success">{{ atencion.get_estado_display }}</span>
                     {% endif %}

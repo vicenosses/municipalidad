@@ -1,11 +1,15 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import Resolver404, resolve, reverse
+from django.utils import timezone
 
 from agenda.models import Compromiso
 from atenciones.models import AtencionCiudadana
 from catalogos.models import SubAtencion, TipoAtencion
 from evidencias.models import Evidencia
+from sgr.models import Periodo
 from usuarios.models import Delegacion, Perfil, Rol
 from usuarios.mixins import obtener_permisos
 
@@ -22,6 +26,12 @@ class HomeDashboardTests(TestCase):
         )
         delegacion = Delegacion.objects.create(codigo='DEL-1', nombre='Centro')
         self.delegacion = delegacion
+        hoy = timezone.localdate()
+        self.periodo = Periodo.objects.create(
+            nombre='Período de prueba',
+            fecha_inicio=hoy - timedelta(days=30),
+            fecha_fin=hoy + timedelta(days=30),
+        )
         tipo = TipoAtencion.objects.create(codigo='TIP-1', nombre='Tipo')
         subatencion = SubAtencion.objects.create(
             codigo='SUB-1',
@@ -30,7 +40,7 @@ class HomeDashboardTests(TestCase):
         )
         AtencionCiudadana.objects.create(
             titulo='Actividad principal',
-            fecha='2026-10-24',
+            fecha=hoy,
             solicitante='Solicitante',
             tipo=tipo,
             subatencion=subatencion,
@@ -71,7 +81,7 @@ class HomeDashboardTests(TestCase):
     def _crear_actividad(self, titulo, delegacion, responsable):
         return AtencionCiudadana.objects.create(
             titulo=titulo,
-            fecha='2026-10-25',
+            fecha=timezone.localdate(),
             solicitante=titulo,
             tipo=self.tipo,
             subatencion=self.subatencion,
@@ -83,7 +93,7 @@ class HomeDashboardTests(TestCase):
     def _crear_compromiso(self, titulo, delegacion, responsable):
         return Compromiso.objects.create(
             titulo=titulo,
-            fecha_hora='2027-01-01T10:00:00Z',
+            fecha_hora=timezone.now() + timedelta(days=2),
             responsable=responsable,
             delegacion=delegacion,
             estado=Compromiso.Estado.PENDIENTE,

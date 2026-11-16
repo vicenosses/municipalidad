@@ -121,6 +121,24 @@ class DashboardSGRTests(DatosPonderacionesMixin, TestCase):
         self.client.force_login(usuario)
         self.assertEqual(self.dashboard()['total_metas'], 2)
 
+    def test_filtros_de_dashboard_aplican_periodo_meta_y_funcionario(self):
+        indicador = self.evaluado('100', '120')
+        respuesta = self.client.get(reverse('home'), {
+            'periodo': self.periodo.pk,
+            'meta': self.meta_a.pk,
+            'funcionario': self.usuarios['funcionario'].pk,
+        })
+        dashboard = respuesta.context['dashboard']
+        self.assertEqual(dashboard['periodo'], self.periodo)
+        self.assertEqual(dashboard['meta_seleccionada'], self.meta_a)
+        self.assertEqual(dashboard['funcionario'], self.usuarios['funcionario'])
+        self.assertEqual(len(dashboard['actividades']), 1)
+        self.assertEqual(dashboard['actividades'][0].aporte_indicador.indicador_id, indicador.pk)
+        self.assertTrue(all(
+            resultado.asignacion.funcionario_id == self.usuarios['funcionario'].pk
+            for resultado in dashboard['asignaciones']
+        ))
+
     def test_cuatro_roles_territoriales_solo_ven_sus_metas(self):
         self.evaluado('100', '231')
         for rol in ('delegado', 'coordinador', 'funcionario', 'verificador'):

@@ -129,6 +129,20 @@ class Evidencia(models.Model):
         super().clean()
         if bool(self.atencion_id) == bool(self.compromiso_id):
             raise ValidationError('La evidencia debe pertenecer a una actividad o a un compromiso, pero no a ambos.')
+        if self.atencion_id:
+            from sgr.periodos import validar_periodo_abierto
+
+            validar_periodo_abierto(
+                self.atencion.fecha,
+                'No se puede agregar ni modificar evidencia de un período cerrado.',
+            )
+        if self.compromiso_id:
+            from sgr.periodos import validar_periodo_abierto
+
+            validar_periodo_abierto(
+                self.compromiso.fecha_hora,
+                'No se puede agregar ni modificar evidencia de un período cerrado.',
+            )
 
     @property
     def origen(self):
@@ -145,4 +159,22 @@ class Evidencia(models.Model):
             nombre = slugify(self.subido_por.get_username())[:32] or f'usuario-{self.subido_por_id}'
             fecha = timezone.localtime(timezone.now()).strftime('%Y%m%d')
             self.identificador = f'{fecha}_{nombre}_{self.tipo_archivo}_{uuid.uuid4().hex}'
+        self.full_clean()
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.atencion_id:
+            from sgr.periodos import validar_periodo_abierto
+
+            validar_periodo_abierto(
+                self.atencion.fecha,
+                'No se puede eliminar evidencia de un período cerrado.',
+            )
+        if self.compromiso_id:
+            from sgr.periodos import validar_periodo_abierto
+
+            validar_periodo_abierto(
+                self.compromiso.fecha_hora,
+                'No se puede eliminar evidencia de un período cerrado.',
+            )
+        return super().delete(*args, **kwargs)
