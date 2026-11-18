@@ -2,6 +2,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from config.views import HomeView
 from config.eliminacion import EliminarRegistroView
@@ -16,6 +17,8 @@ from usuarios.auth_views import (
 )
 
 urlpatterns = [
+    path('api/esquema/', SpectacularAPIView.as_view(), name='api-esquema'),
+    path('api/documentacion/', SpectacularSwaggerView.as_view(url_name='api-esquema'), name='api-documentacion'),
     path('api/v1/', include('api.urls')),
     path('eliminar/<str:tipo>/<int:pk>/', EliminarRegistroView.as_view(), name='eliminar_registro'),
     path('admin/', admin.site.urls),
@@ -42,3 +45,5 @@ urlpatterns = [
 ]
 
 handler403 = 'django.views.defaults.permission_denied'
+handler404 = 'api.errores.no_encontrado'
+handler500 = 'api.errores.error_interno'

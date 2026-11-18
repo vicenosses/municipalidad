@@ -146,6 +146,11 @@ Entre las entidades principales se encuentran:
 
 ## API REST v1
 
+La documentación interactiva está disponible en `/api/documentacion/` y el esquema OpenAPI en `/api/esquema/`.
+Para probar operaciones protegidas, obtén un token en `POST /api/v1/auth/token/`, abre **Authorize** en Swagger e introduce el token de acceso. Las operaciones de escritura se validan según el rol y la delegación; la eliminación física está limitada al administrador y se rechaza si existen registros relacionados.
+
+Los mantenedores de tipos y subatenciones permiten consultas, creación, edición y eliminación mediante la API. La creación de un tipo requiere `codigo` y `nombre`; la creación de una subatención requiere `nombre` y `tipo` y genera su código automáticamente. El administrador global puede indicar la delegación o dejarla vacía para un registro general; los gestores territoriales quedan limitados a su delegación. Las actividades permiten crear, consultar, modificar sus datos descriptivos y, cuando no tengan datos relacionados, eliminarse por un administrador.
+
 La API JSON está disponible en `/api/v1/`. Al abrir esa dirección con una sesión válida se muestra el índice navegable de Django REST Framework. Las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
 
 ### Autenticación
