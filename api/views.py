@@ -19,19 +19,24 @@ from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenObtainPairView
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiExample, OpenApiTypes, OpenApiResponse
 
 from agenda.forms import CompromisoForm, SolicitudAmpliacionForm, SeguimientoCompromisoForm
 from agenda.models import Compromiso, HistorialCompromiso, SolicitudAmpliacion
 from agenda.views import compromisos_visibles
 from atenciones.estados import cambiar_estado_actividad, registrar_creacion_actividad
-from atenciones.forms import AtencionCiudadanaForm
+from atenciones.forms import AtencionCiudadanaForm, AtencionEditarForm
 from atenciones.models import AtencionCiudadana
-from atenciones.permisos import queryset_atenciones
+from atenciones.permisos import puede_editar_actividad, queryset_atenciones
 from atenciones.views import puede_cambiar_disponibilidad, puede_cambiar_va_al_tubo
 from auditoria.models import RegistroAuditoria
 from auditoria.utils import registrar_auditoria
 from cartas.models import Carta
 from catalogos.models import SubAtencion, TipoAtencion
+from catalogos.forms import SubAtencionForm, TipoAtencionForm
+from catalogos.permisos import catalogos_editables
+from config.eliminacion import relaciones_existentes
+from django.db.models.deletion import ProtectedError, RestrictedError
 from evidencias.forms import ValidacionEvidenciaForm
 from evidencias.models import Evidencia
 from evidencias.permisos import puede_validar_evidencia
@@ -49,10 +54,12 @@ from usuarios.sesion import DELEGACION_SESION, delegaciones_autorizadas, get_del
 
 from api.access import ROLES_GESTORES, ROLES_VALIDOS, etiqueta_usuario, filtro_hito_delegacion, filtrar_delegaciones, rol_usuario, usuario_puede_ver_detalle
 from api.permissions import RolesPermitidos
+from api.esquemas import TipoEntradaSerializer, SubAtencionEntradaSerializer, ActividadEntradaSerializer, ActividadEditarSerializer, RecuperacionEntradaSerializer
 from api.serializers import (
     AporteSerializer,
     AsignacionMetaSerializer,
     AtencionSerializer,
+    AtencionAdministradorSerializer,
     AuditoriaSerializer,
     CartaSerializer,
     CargoSerializer,
@@ -74,6 +81,7 @@ from api.serializers import (
     TerritorioSerializer,
     TipoAtencionSerializer,
     VecinoResumenSerializer,
+    VecinoAdministradorSerializer,
     ValidarAporteSerializer,
 )
 
@@ -81,6 +89,13 @@ THROTTLE_SCOPE_RECUPERACION = 'solicitud_recuperacion'
 MENSAJE_BOOLEANO_INVALIDO = 'Use true o false.'
 MENSAJE_TRANSICION_INVALIDA = 'La transición de estado no está permitida.'
 ETIQUETA_GESTION_SOCIAL = 'Gestión social'
+RESPUESTAS_ERROR_API = {
+    400: OpenApiResponse(description='Datos inválidos o existen registros relacionados.'),
+    401: OpenApiResponse(description='Debe autenticarse con un token válido.'),
+    403: OpenApiResponse(description='Su rol no permite realizar esta operación.'),
+    404: OpenApiResponse(description='El registro no existe o no está dentro de su ámbito.'),
+    500: OpenApiResponse(description='Error interno sin detalles sensibles.'),
+}
 
 
 class AccesoTokenSerializer(TokenObtainPairSerializer):
@@ -118,6 +133,7 @@ class RecuperacionAPIView(APIView):
     throttle_classes = (AnonRateThrottle, ScopedRateThrottle)
     throttle_scope = THROTTLE_SCOPE_RECUPERACION
 
+    @extend_schema(request=RecuperacionEntradaSerializer, responses={202: OpenApiTypes.OBJECT}, auth=[])
     def post(self, request):
         identificador = (request.data.get('identificador') or '').strip()
         if not identificador or len(identificador) > 254:
@@ -127,6 +143,7 @@ class RecuperacionAPIView(APIView):
 
 
 class MiPerfilView(APIView):
+    @extend_schema(responses=MiPerfilSerializer)
     def get(self, request):
         return Response(MiPerfilSerializer(request.user).data)
 
@@ -190,21 +207,97 @@ class RolViewSet(CatalogoGestorViewSet):
         return Rol.objects.filter(activo=True)
 
 
-class TipoAtencionViewSet(ReadOnlyViewSet):
-    serializer_class = TipoAtencionSerializer
-    queryset = TipoAtencion.objects.all()
+class CatalogoEditableMixin:
+    http_method_names = ('get', 'post', 'put', 'delete', 'head', 'options')
+    roles_por_accion = {
+        'list': ROLES_VALIDOS, 'retrieve': ROLES_VALIDOS,
+        'create': ('administrador', 'delegado', 'coordinador'),
+        'update': ('administrador', 'delegado', 'coordinador'),
+        'destroy': ('administrador',),
+    }
+
+    def _guardar(self, request, instance=None):
+        datos = request.data.copy()
+        if 'activo' not in datos:
+            datos['activo'] = instance.activo if instance is not None else True
+        if (instance is not None and 'delegacion' not in datos and
+                rol_usuario(request.user) == 'administrador' and get_delegacion_activa(request) is None):
+            datos['delegacion'] = instance.delegacion_id or ''
+        form = self.form_class(datos, instance=instance, request=request)
+        if not form.is_valid():
+            return Response(form.errors.get_json_data(), status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            try:
+                objeto = form.save()
+            except DjangoValidationError as error:
+                raise ValidationError(getattr(error, 'message_dict', error.messages)) from error
+            registrar_auditoria(request, 'editar' if instance else 'crear', objeto,
+                                f'Catálogo {objeto.pk} actualizado desde API.')
+        return Response(self.get_serializer(objeto).data,
+                        status=status.HTTP_200_OK if instance else status.HTTP_201_CREATED)
+
+    def create(self, request, *args, **kwargs):
+        return self._guardar(request)
+
+    def update(self, request, *args, **kwargs):
+        with transaction.atomic():
+            return self._guardar(request, self.get_object())
+
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            objeto = self.get_object()
+            relaciones = relaciones_existentes(objeto)
+            if relaciones:
+                raise ValidationError({'detail': 'No se puede eliminar: existen registros relacionados (' + ', '.join(relaciones) + ').'})
+            try:
+                registrar_auditoria(request, 'eliminar', objeto, f'Catálogo {objeto.pk} eliminado desde API.')
+                objeto.delete()
+            except (ProtectedError, RestrictedError) as error:
+                raise ValidationError({'detail': 'No se puede eliminar porque existen registros relacionados.'}) from error
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get_queryset(self):
+        queryset = self.catalogo_model.objects.all()
+        if self.action in ('update', 'destroy'):
+            return catalogos_editables(queryset.select_for_update(), self.request)
+        return self.queryset_visible()
+
+
+@extend_schema_view(
+    create=extend_schema(request=TipoEntradaSerializer, responses={201: TipoAtencionSerializer, **RESPUESTAS_ERROR_API}),
+    update=extend_schema(request=TipoEntradaSerializer, responses={200: TipoAtencionSerializer, **RESPUESTAS_ERROR_API}),
+    destroy=extend_schema(description='Solo administrador. Se bloquea si hay registros relacionados.', responses={204: None, **RESPUESTAS_ERROR_API}),
+)
+class TipoAtencionViewSet(CatalogoEditableMixin, ReadOnlyViewSet):
+    serializer_class = TipoAtencionSerializer
+    queryset = TipoAtencion.objects.all()
+    catalogo_model = TipoAtencion
+    form_class = TipoAtencionForm
+
+    def get_queryset(self):
+        return super().get_queryset()
+
+    def queryset_visible(self):
         return TipoAtencion.objects.filter(activo=True).filter(
             Q(es_general=True) | Q(delegacion__in=delegaciones_autorizadas(self.request.user))
         )
 
 
-class SubAtencionViewSet(ReadOnlyViewSet):
+@extend_schema_view(
+    create=extend_schema(request=SubAtencionEntradaSerializer, responses={201: SubAtencionSerializer, **RESPUESTAS_ERROR_API}),
+    update=extend_schema(request=SubAtencionEntradaSerializer, responses={200: SubAtencionSerializer, **RESPUESTAS_ERROR_API}),
+    destroy=extend_schema(description='Solo administrador. Se bloquea si hay registros relacionados.', responses={204: None, **RESPUESTAS_ERROR_API}),
+)
+class SubAtencionViewSet(CatalogoEditableMixin, ReadOnlyViewSet):
     serializer_class = SubAtencionSerializer
     queryset = SubAtencion.objects.all()
+    catalogo_model = SubAtencion
+    form_class = SubAtencionForm
 
     def get_queryset(self):
+        return super().get_queryset()
+
+    def queryset_visible(self):
         return SubAtencion.objects.filter(activo=True, tipo__activo=True).filter(
             Q(es_general=True) | Q(delegacion__in=delegaciones_autorizadas(self.request.user))
         ).select_related('tipo')
@@ -215,11 +308,17 @@ class VecinoViewSet(ReadOnlyViewSet):
     queryset = Vecino.objects.all()
     roles_por_accion = {'list': ROLES_VALIDOS, 'retrieve': ROLES_VALIDOS}
 
+    def get_serializer_class(self):
+        return VecinoAdministradorSerializer if rol_usuario(self.request.user) == 'administrador' else VecinoResumenSerializer
+
     def get_queryset(self):
         queryset = Vecino.objects.filter(
-            activo=True,
             territorio__delegacion__in=delegaciones_autorizadas(self.request.user),
-        ).only('id', 'nombres', 'apellidos', 'rut', 'territorio_id')
+        )
+        if rol_usuario(self.request.user) != 'administrador':
+            queryset = queryset.filter(activo=True).only('id', 'nombres', 'apellidos', 'rut', 'territorio_id')
+        if self.action == 'retrieve' and rol_usuario(self.request.user) == 'administrador':
+            return queryset
         busqueda = (self.request.query_params.get('q') or '').strip()
         if len(busqueda) < 2:
             return queryset.none()
@@ -289,6 +388,13 @@ class IndicadorViewSet(ReadOnlyViewSet):
         )
 
 
+@extend_schema_view(
+    create=extend_schema(request=ActividadEntradaSerializer, responses={201: AtencionSerializer, **RESPUESTAS_ERROR_API},
+        examples=[OpenApiExample('Actividad', value={'titulo': 'Atención vecinal', 'fecha': '2026-11-18', 'solicitante': 'Persona de prueba', 'tipo': 1, 'subatencion': 1, 'descripcion': 'Orientación realizada.', 'delegacion': 1}, request_only=True)]),
+    update=extend_schema(request=ActividadEditarSerializer, responses={200: AtencionSerializer, **RESPUESTAS_ERROR_API}),
+    partial_update=extend_schema(request=ActividadEditarSerializer, responses={200: AtencionSerializer, **RESPUESTAS_ERROR_API}),
+    destroy=extend_schema(description='Solo administrador. Se bloquea si hay registros relacionados.', responses={204: None, **RESPUESTAS_ERROR_API}),
+)
 class AtencionViewSet(
     BaseViewSet,
     mixins.ListModelMixin,
@@ -300,16 +406,21 @@ class AtencionViewSet(
         'list': ROLES_VALIDOS,
         'retrieve': ROLES_VALIDOS,
         'create': ROLES_VALIDOS,
+        'update': ROLES_VALIDOS,
+        'partial_update': ROLES_VALIDOS,
+        'destroy': ('administrador',),
         'estado': ROLES_VALIDOS,
         'tubo': ROLES_VALIDOS,
         'disponibilidad': ('administrador', 'delegado'),
     }
+    http_method_names = ('get', 'post', 'put', 'patch', 'delete', 'head', 'options')
 
     def get_serializer_class(self):
+        if rol_usuario(self.request.user) == 'administrador' and self.action != 'list':
+            return AtencionAdministradorSerializer
         return AtencionSerializer
 
     def get_queryset(self):
-        _seleccionar_delegacion(self.request)
         _seleccionar_delegacion(self.request)
         return queryset_atenciones(self.request).select_related(None).select_related(
             'responsable',
@@ -331,7 +442,10 @@ class AtencionViewSet(
             atencion.responsable = request.user
             atencion.creado_por = request.user
             atencion.estado = AtencionCiudadana.Estado.REGISTRADA
-            atencion.save()
+            try:
+                atencion.save()
+            except DjangoValidationError as error:
+                raise ValidationError(getattr(error, 'message_dict', error.messages)) from error
             registrar_creacion_actividad(atencion, request.user)
             if form.cleaned_data.get('va_al_tubo'):
                 compromiso = Compromiso.objects.create(
@@ -354,13 +468,66 @@ class AtencionViewSet(
                 )
             registrar_auditoria(request, 'crear', atencion, f'Actividad {atencion.pk} creada.')
             if form.cleaned_data.get('indicador'):
-                proponer_aporte(
-                    request,
-                    atencion,
-                    form.cleaned_data['indicador'],
-                    form.cleaned_data.get('valor_declarado'),
-                )
+                try:
+                    proponer_aporte(
+                        request,
+                        atencion,
+                        form.cleaned_data['indicador'],
+                        form.cleaned_data.get('valor_declarado'),
+                    )
+                except DjangoValidationError as error:
+                    raise ValidationError(getattr(error, 'message_dict', error.messages)) from error
         return Response(self.get_serializer(atencion).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        with transaction.atomic():
+            visible = self.get_object()
+            actual = get_object_or_404(queryset_atenciones(request).select_for_update(), pk=visible.pk)
+            if not puede_editar_actividad(request, actual):
+                raise PermissionDenied('No puede editar esta actividad.')
+            campos = ('titulo', 'fecha', 'solicitante', 'territorio', 'descripcion')
+            desconocidos = set(request.data) - set(campos)
+            if desconocidos:
+                raise ValidationError({'detail': 'Solo se pueden modificar los datos descriptivos autorizados.'})
+            datos = dict(request.data)
+            if kwargs.get('partial'):
+                iniciales = {'titulo': actual.titulo, 'fecha': actual.fecha.isoformat(),
+                             'solicitante': actual.solicitante, 'territorio': actual.territorio_id or '',
+                             'descripcion': actual.descripcion}
+                iniciales.update(datos)
+                datos = iniciales
+            form = AtencionEditarForm(datos, instance=actual)
+            if form.fields['fecha'].disabled and 'fecha' in request.data and str(request.data['fecha']) != actual.fecha.isoformat():
+                raise ValidationError({'fecha': 'No se puede cambiar la fecha con compromisos o aportes vinculados.'})
+            if not form.is_valid():
+                return Response(form.errors.get_json_data(), status=status.HTTP_400_BAD_REQUEST)
+            try:
+                objeto = form.save()
+            except DjangoValidationError as error:
+                raise ValidationError(getattr(error, 'message_dict', error.messages)) from error
+            registrar_auditoria(request, 'editar_actividad', objeto, 'Datos descriptivos modificados desde API.')
+            return Response(self.get_serializer(objeto).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        with transaction.atomic():
+            visible = self.get_object()
+            objeto = get_object_or_404(queryset_atenciones(request).select_for_update(), pk=visible.pk)
+            relaciones = relaciones_existentes(objeto)
+            if relaciones:
+                raise ValidationError({'detail': 'No se puede eliminar: existen registros relacionados (' + ', '.join(relaciones) + ').'})
+            try:
+                registrar_auditoria(request, 'eliminar', objeto, f'Actividad {objeto.pk} eliminada desde API.')
+                objeto.historial_estados.all().delete()
+                objeto.delete()
+            except (ProtectedError, RestrictedError) as error:
+                raise ValidationError({'detail': 'No se puede eliminar porque existen registros relacionados.'}) from error
+            except DjangoValidationError as error:
+                raise ValidationError(error.messages) from error
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=('post',), url_path='estado')
     def estado(self, request, pk=None):
@@ -1120,6 +1287,7 @@ def _filtrar_registros_tubo(registros, estado, busqueda):
 
 
 class TuboView(APIView):
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         delegaciones = delegaciones_autorizadas(request.user)
         if rol_usuario(request.user) not in ROLES_VALIDOS or not delegaciones.exists():
@@ -1162,6 +1330,7 @@ class TuboView(APIView):
 
 
 class DashboardView(APIView):
+    @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
         _seleccionar_delegacion(request)
         contexto = construir_dashboard(request)

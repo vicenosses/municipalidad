@@ -38,13 +38,13 @@ class UsuarioResumenSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'nombre', 'rol', 'cargo')
 
-    def get_nombre(self, obj):
+    def get_nombre(self, obj) -> str | None:
         return etiqueta_usuario(obj)
 
-    def get_rol(self, obj):
+    def get_rol(self, obj) -> str | None:
         return obtener_rol(obj)
 
-    def get_cargo(self, obj):
+    def get_cargo(self, obj) -> str | None:
         perfil = getattr(obj, 'perfil', None)
         return perfil.cargo if perfil else ''
 
@@ -59,17 +59,17 @@ class MiPerfilSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'username', 'nombre', 'email', 'rol', 'cargo', 'delegaciones')
 
-    def get_nombre(self, obj):
+    def get_nombre(self, obj) -> str | None:
         return obj.get_full_name() or obj.username
 
-    def get_rol(self, obj):
+    def get_rol(self, obj) -> str | None:
         return obtener_rol(obj)
 
-    def get_cargo(self, obj):
+    def get_cargo(self, obj) -> str | None:
         perfil = getattr(obj, 'perfil', None)
         return perfil.cargo if perfil else ''
 
-    def get_delegaciones(self, obj):
+    def get_delegaciones(self, obj) -> list[dict]:
         return list(delegaciones_autorizadas(obj).values('id', 'codigo', 'nombre'))
 
 
@@ -117,13 +117,20 @@ class VecinoResumenSerializer(serializers.ModelSerializer):
         model = Vecino
         fields = ('id', 'nombre', 'rut', 'territorio')
 
-    def get_nombre(self, obj):
+    def get_nombre(self, obj) -> str | None:
         nombre = (obj.nombres.split() or [''])[0]
         apellido = (obj.apellidos.split() or [''])[0]
         return f'{nombre} {apellido[0]}.' if apellido else nombre
 
-    def get_rut(self, obj):
+    def get_rut(self, obj) -> str | None:
         return rut_enmascarado(obj.rut)
+
+
+class VecinoAdministradorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vecino
+        fields = ('id', 'rut', 'nombres', 'apellidos', 'telefono', 'correo', 'direccion', 'territorio', 'activo')
+        read_only_fields = fields
 
 
 class AtencionSerializer(serializers.ModelSerializer):
@@ -141,16 +148,16 @@ class AtencionSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_codigo(self, obj):
+    def get_codigo(self, obj) -> str | None:
         return f'ACT-{obj.pk:06d}'
 
-    def get_descripcion(self, obj):
+    def get_descripcion(self, obj) -> str | None:
         if self.context.get('view') and self.context['view'].action == 'list':
             return None
         return obj.descripcion if usuario_puede_ver_detalle(self.context['request'].user, obj) else None
 
-    def get_estado_evidencias(self, obj):
-        if 'evidencias' in obj._prefetched_objects_cache:
+    def get_estado_evidencias(self, obj) -> str | None:
+        if 'evidencias' in getattr(obj, '_prefetched_objects_cache', {}):
             evidencias = [
                 (evidencia.pk, evidencia.estado, evidencia.reemplaza_id)
                 for evidencia in obj._prefetched_objects_cache['evidencias']
@@ -168,12 +175,23 @@ class AtencionSerializer(serializers.ModelSerializer):
         return 'aprobada'
 
 
+class AtencionAdministradorSerializer(AtencionSerializer):
+    class Meta(AtencionSerializer.Meta):
+        fields = AtencionSerializer.Meta.fields + (
+            'solicitante', 'origen', 'avance', 'apoyo_requerido', 'resultado', 'fecha_completada', 'creado_por',
+        )
+        read_only_fields = fields
+
+
 class CompromisoSerializer(serializers.ModelSerializer):
     codigo = serializers.CharField(read_only=True)
     responsable = UsuarioResumenSerializer(read_only=True)
     descripcion = serializers.SerializerMethodField()
     resultado = serializers.SerializerMethodField()
     solicitante = serializers.SerializerMethodField()
+    esta_vencido = serializers.BooleanField(read_only=True)
+    proximo_a_vencer = serializers.BooleanField(read_only=True)
+    realizado_fuera_de_plazo = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Compromiso
@@ -184,12 +202,12 @@ class CompromisoSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_descripcion(self, obj):
+    def get_descripcion(self, obj) -> str | None:
         if self.context.get('view') and self.context['view'].action == 'list':
             return None
         return obj.descripcion if usuario_puede_ver_detalle(self.context['request'].user, obj) else None
 
-    def get_solicitante(self, obj):
+    def get_solicitante(self, obj) -> str | None:
         view = self.context.get('view')
         if view and view.action == 'list':
             return None
@@ -197,7 +215,7 @@ class CompromisoSerializer(serializers.ModelSerializer):
             return None
         return obj.solicitante
 
-    def get_resultado(self, obj):
+    def get_resultado(self, obj) -> str | None:
         if self.context.get('view') and self.context['view'].action == 'list':
             return None
         return obj.resultado if usuario_puede_ver_detalle(self.context['request'].user, obj) else None
@@ -351,7 +369,7 @@ class HitoSerializer(serializers.ModelSerializer):
             'creado_en', 'actualizado_en',
         )
 
-    def get_delegacion(self, obj):
+    def get_delegacion(self, obj) -> int | None:
         if hasattr(obj, 'delegacion_id_api'):
             return obj.delegacion_id_api
         return obj.delegacion_id
@@ -431,10 +449,10 @@ class AporteSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_actividad_codigo(self, obj):
+    def get_actividad_codigo(self, obj) -> str | None:
         return f'ACT-{obj.actividad_id:06d}'
 
-    def get_comentario(self, obj):
+    def get_comentario(self, obj) -> str | None:
         view = self.context.get('view')
         if view and view.action == 'list':
             return None
@@ -477,13 +495,13 @@ class EvidenciaSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_archivo_url(self, obj):
+    def get_archivo_url(self, obj) -> str | None:
         request = self.context.get('request')
         if not request:
             return None
         return request.build_absolute_uri(f'/api/v1/evidencias/{obj.pk}/archivo/')
 
-    def get_comentario_validacion(self, obj):
+    def get_comentario_validacion(self, obj) -> str | None:
         view = self.context.get('view')
         if view and view.action == 'list':
             return None
