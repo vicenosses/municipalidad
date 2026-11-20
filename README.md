@@ -153,7 +153,7 @@ Para probar operaciones protegidas, obtén un token en `POST /api/v1/auth/token/
 
 Los mantenedores de tipos y subatenciones permiten consultas, creación, edición y eliminación mediante la API. La creación de un tipo requiere `codigo` y `nombre`; la creación de una subatención requiere `nombre` y `tipo` y genera su código automáticamente. El administrador global puede indicar la delegación o dejarla vacía para un registro general; los gestores territoriales quedan limitados a su delegación. Las actividades permiten crear, consultar, modificar sus datos descriptivos y, cuando no tengan datos relacionados, eliminarse por un administrador.
 
-La API JSON está disponible en `/api/v1/`. Al abrir esa dirección con una sesión válida se muestra el índice navegable de Django REST Framework. Las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
+La API JSON está disponible en `/api/v1/` y sus endpoints responden siempre en JSON. Para explorar y probar las operaciones interactivamente, utiliza Swagger en `/api/documentacion/`; las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
 
 ### Autenticación
 
