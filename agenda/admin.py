@@ -16,6 +16,9 @@ class CompromisoAdmin(admin.ModelAdmin):
             obj.creado_por = request.user
         super().save_model(request, obj, form, change)
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(HistorialCompromiso)
 class HistorialCompromisoAdmin(admin.ModelAdmin):

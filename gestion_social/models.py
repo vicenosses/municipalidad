@@ -56,6 +56,8 @@ class GestionSocial(models.Model):
         related_name='gestiones_sociales',
     )
     fecha_ingreso = models.DateField('Fecha de ingreso', default=timezone.localdate)
+    fecha_atencion = models.DateField('Fecha de atención', null=True, blank=True)
+    fecha_visita_programada = models.DateField('Fecha de visita programada', null=True, blank=True)
     fecha_compromiso = models.DateField('Fecha de compromiso', null=True, blank=True)
     fecha_cierre = models.DateField('Fecha de cierre', null=True, blank=True)
     estado = models.CharField('Estado', max_length=30, choices=Estado.choices, default=Estado.REGISTRADA)
@@ -96,6 +98,12 @@ class GestionSocial(models.Model):
             raise ValidationError({'vecino': 'El vecino debe pertenecer al territorio seleccionado.'})
         if self.fecha_compromiso and self.fecha_ingreso and self.fecha_compromiso < self.fecha_ingreso:
             raise ValidationError({'fecha_compromiso': 'La fecha de compromiso no puede ser anterior al ingreso.'})
+        if self.fecha_atencion and self.fecha_atencion < self.fecha_ingreso:
+            raise ValidationError({'fecha_atencion': 'La fecha de atención no puede ser anterior al ingreso.'})
+        if self.fecha_visita_programada and self.fecha_visita_programada < self.fecha_ingreso:
+            raise ValidationError({
+                'fecha_visita_programada': 'La fecha programada no puede ser anterior al ingreso.',
+            })
         anterior = type(self).objects.filter(pk=self.pk).values('ingresa_al_tubo', 'fecha_compromiso').first() if self.pk else None
         if falta_plazo_para_tubo(self.ingresa_al_tubo, self.fecha_compromiso, anterior):
             raise ValidationError({'fecha_compromiso': 'Indique un plazo para ingresar la gestión al tubo.'})
@@ -209,6 +217,8 @@ class AccionGestionSocial(models.Model):
     def save(self, *args, **kwargs):
         from sgr.periodos import validar_periodo_abierto
 
+        if self.fecha < self.gestion.fecha_ingreso:
+            raise ValidationError({'fecha': 'La fecha de la acción no puede ser anterior al ingreso.'})
         validar_periodo_abierto(
             self.fecha,
             'No se puede agregar ni modificar seguimiento de un período cerrado.',

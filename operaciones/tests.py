@@ -1,14 +1,25 @@
+from django.contrib import admin
+from decimal import Decimal
+
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from agenda.admin import CompromisoAdmin
 from agenda.models import Compromiso
-from atenciones.models import AtencionCiudadana
+from atenciones.admin import AtencionCiudadanaAdmin, ReconocimientoCiudadanoAdmin
+from atenciones.models import AtencionCiudadana, ReconocimientoCiudadano
 from catalogos.models import SubAtencion, TipoAtencion
+from cartas.admin import CartaAdmin
 from cartas.models import Carta
+from evidencias.admin import EvidenciaAdmin
+from evidencias.models import Evidencia
+from gestion_social.admin import GestionSocialAdmin
 from gestion_social.models import GestionSocial
+from hitos.admin import HitoAdmin
 from hitos.models import Hito
 from operaciones.forms import HitoForm
+from sgr.models import AsignacionMeta
 from sgr.test_metas import DatosMetasMixin
 from usuarios.models import Territorio, Vecino
 
@@ -115,6 +126,73 @@ class PantallasOperacionesTests(DatosMetasMixin, TestCase):
             self.client.get(reverse('agenda:cartas:lista')),
             'Texto reservado',
         )
+
+    def test_formulario_social_muestra_datos_del_vecino_y_meta_asignada(self):
+        AsignacionMeta.objects.create(
+            meta=self.meta_a,
+            funcionario=self.usuarios['funcionario'],
+            cantidad_objetivo=Decimal('2'),
+            ponderacion=Decimal('25'),
+        )
+        self.entrar('funcionario')
+
+        respuesta = self.client.get(reverse('atenciones:gestion_social:crear'))
+
+        self.assertContains(respuesta, 'data-autofill="vecino"')
+        self.assertContains(respuesta, f'data-territorio-id="{self.territorio.pk}"')
+        self.assertContains(respuesta, f'data-summary="RUT: {self.vecino.rut}')
+        self.assertContains(
+            respuesta,
+            'data-summary="Meta: Áreas verdes A · Objetivo: 2.00 · '
+            'Ponderación: 25.00% · Trimestre: Período 2026"',
+        )
+
+    def test_formulario_hito_muestra_detalles_del_padre_responsable_y_meta(self):
+        tipo = TipoAtencion.objects.create(codigo='TIP-AUTOFILL', nombre='Tipo autofill')
+        subatencion = SubAtencion.objects.create(
+            codigo='SUB-AUTOFILL', nombre='Subatención autofill', tipo=tipo,
+        )
+        actividad = AtencionCiudadana.objects.create(
+            titulo='Actividad relacionada', fecha='2026-11-12',
+            solicitante='Vecino ficticio', tipo=tipo, subatencion=subatencion,
+            descripcion='Actividad de ejemplo', delegacion=self.a,
+            territorio=self.territorio, responsable=self.usuarios['funcionario'],
+        )
+        AsignacionMeta.objects.create(
+            meta=self.meta_a, funcionario=self.usuarios['funcionario'],
+            cantidad_objetivo=Decimal('2'), ponderacion=Decimal('25'),
+        )
+        perfil = self.usuarios['funcionario'].perfil
+        perfil.cargo = 'Encargado territorial'
+        perfil.save(update_fields=['cargo'])
+        self.entrar('administrador')
+
+        respuesta = self.client.get(reverse('agenda:hitos:crear'))
+
+        self.assertContains(respuesta, 'data-autofill="actividad"')
+        self.assertContains(respuesta, 'data-summary="Actividad: Actividad relacionada')
+        self.assertContains(respuesta, f'data-summary="Cargo: Encargado territorial')
+        self.assertContains(respuesta, 'data-autofill="asignacion_meta"')
+        self.assertContains(respuesta, f'data-funcionario-id="{self.usuarios["funcionario"].pk}"')
+        self.assertContains(respuesta, 'Objetivo: 2.00 · Ponderación: 25.00%')
+        self.assertContains(respuesta, f'data-summary="Actividad: {actividad.titulo}')
+
+    def test_administrador_no_puede_borrar_registros_operacionales_desde_admin(self):
+        request = RequestFactory().get('/')
+        request.user = self.usuarios['administrador']
+        administradores = (
+            (AtencionCiudadanaAdmin, AtencionCiudadana),
+            (CompromisoAdmin, Compromiso),
+            (CartaAdmin, Carta),
+            (EvidenciaAdmin, Evidencia),
+            (GestionSocialAdmin, GestionSocial),
+            (HitoAdmin, Hito),
+            (ReconocimientoCiudadanoAdmin, ReconocimientoCiudadano),
+        )
+
+        for clase, modelo in administradores:
+            with self.subTest(modelo=modelo.__name__):
+                self.assertFalse(clase(modelo, admin.site).has_delete_permission(request))
 
     def test_solo_administrador_y_delegado_pueden_programar_hito(self):
         self.entrar('administrador')

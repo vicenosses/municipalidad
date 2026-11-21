@@ -1,10 +1,12 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from catalogos.models import SubAtencion, TipoAtencion
-from usuarios.models import Delegacion
+from usuarios.codigos import guardar_con_codigo_automatico
+from usuarios.models import Delegacion, Territorio
 
 
 class AtencionCiudadana(models.Model):
@@ -182,6 +184,100 @@ class AtencionCiudadana(models.Model):
             'rechazada': 'bg-danger text-white',
             'sin_evidencia': 'bg-light text-secondary border',
         }[self.estado_evidencias]
+
+
+class ReconocimientoCiudadano(models.Model):
+    class Tipo(models.TextChoices):
+        RECLAMO = 'reclamo', 'Reclamo'
+        FELICITACION = 'felicitacion', 'Felicitación'
+
+    codigo = models.CharField(max_length=30, unique=True, editable=False, blank=True)
+    tipo = models.CharField(max_length=15, choices=Tipo.choices)
+    titulo = models.CharField('Asunto', max_length=200)
+    descripcion = models.TextField('Detalle', blank=True)
+    fecha = models.DateField('Fecha del registro', default=timezone.localdate)
+    vecino = models.ForeignKey(
+        'usuarios.Vecino', on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reconocimientos_ciudadanos',
+    )
+    delegacion = models.ForeignKey(
+        Delegacion, on_delete=models.PROTECT, related_name='reconocimientos_ciudadanos',
+    )
+    territorio = models.ForeignKey(
+        Territorio, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='reconocimientos_ciudadanos',
+    )
+    responsable = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name='reconocimientos_ciudadanos_responsable',
+    )
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reconocimientos_ciudadanos_creados',
+    )
+    activo = models.BooleanField(default=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-fecha', '-pk']
+        verbose_name = 'Reclamo o felicitación'
+        verbose_name_plural = 'Reclamos y felicitaciones'
+        indexes = [
+            models.Index(fields=['delegacion', 'tipo', 'fecha']),
+            models.Index(fields=['responsable', 'fecha']),
+        ]
+
+    def __str__(self):
+        return f'{self.codigo} — {self.get_tipo_display()}: {self.titulo}'
+
+    def clean(self):
+        super().clean()
+        from sgr.periodos import validar_periodo_abierto
+
+        validar_periodo_abierto(
+            self.fecha,
+            'No se puede crear ni modificar un registro de un período cerrado.',
+        )
+        if self.territorio_id and self.territorio.delegacion_id != self.delegacion_id:
+            raise ValidationError({'territorio': 'El territorio debe pertenecer a la delegación.'})
+        if self.vecino_id:
+            if self.vecino.territorio.delegacion_id != self.delegacion_id:
+                raise ValidationError({'vecino': 'El vecino debe pertenecer a la delegación seleccionada.'})
+            if self.territorio_id and self.vecino.territorio_id != self.territorio_id:
+                raise ValidationError({'vecino': 'El vecino debe pertenecer al territorio seleccionado.'})
+        if self.responsable_id and self.delegacion_id:
+            from usuarios.models import Perfil
+
+            if not Perfil.objects.filter(
+                usuario_id=self.responsable_id,
+                activo=True,
+            ).filter(
+                Q(delegaciones__pk=self.delegacion_id)
+                | Q(delegacion_id=self.delegacion_id),
+            ).exists():
+                raise ValidationError({
+                    'responsable': 'El responsable debe estar activo y autorizado en la delegación.',
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        if self._state.adding:
+            def guardar(**sobrescrituras):
+                opciones = kwargs.copy()
+                opciones.update(sobrescrituras)
+                return super(ReconocimientoCiudadano, self).save(*args, **opciones)
+            return guardar_con_codigo_automatico(self, 'RCF', guardar)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from sgr.periodos import validar_periodo_abierto
+
+        validar_periodo_abierto(
+            self.fecha,
+            'No se puede eliminar un registro de un período cerrado.',
+        )
+        return super().delete(*args, **kwargs)
 
 
 class HistorialEstadoActividad(models.Model):

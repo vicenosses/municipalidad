@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from agenda.models import Compromiso
-from atenciones.models import AtencionCiudadana
+from atenciones.models import AtencionCiudadana, ReconocimientoCiudadano
 from cartas.models import Carta, DocumentoCarta
 from gestion_social.models import GestionSocial, SeguimientoGestionSocial, AccionGestionSocial
 from hitos.models import Hito
@@ -23,7 +23,97 @@ def _usuarios_de_delegaciones(delegaciones):
         | Q(perfil__delegaciones__in=delegaciones),
         is_active=True,
         perfil__activo=True,
+    ).select_related('perfil', 'perfil__delegacion').prefetch_related(
+        'perfil__delegaciones',
     ).distinct().order_by('first_name', 'last_name', 'username')
+
+
+class DatosRelacionadosSelect(forms.Select):
+    def __init__(self, tipo, attrs=None):
+        self.tipo = tipo
+        super().__init__(attrs)
+        self.attrs['data-autofill'] = tipo
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        objeto = getattr(value, 'instance', None)
+        if objeto is None:
+            return option
+        if self.tipo == 'vecino':
+            territorio = objeto.territorio
+            option['attrs'].update({
+                'data-territorio-id': objeto.territorio_id,
+                'data-delegacion-id': territorio.delegacion_id,
+                'data-summary': ' · '.join(filter(None, (
+                    f'RUT: {objeto.rut}',
+                    f'Territorio: {territorio.nombre}',
+                    f'Delegación: {territorio.delegacion.nombre}',
+                    f'Teléfono: {objeto.telefono}' if objeto.telefono else '',
+                    f'Correo: {objeto.correo}' if objeto.correo else '',
+                    f'Dirección: {objeto.direccion}' if objeto.direccion else '',
+                ))),
+            })
+        elif self.tipo == 'territorio':
+            option['attrs'].update({
+                'data-delegacion-id': objeto.delegacion_id,
+                'data-summary': ' · '.join(filter(None, (
+                    f'Delegación: {objeto.delegacion.nombre}',
+                    objeto.descripcion,
+                ))),
+            })
+        elif self.tipo == 'responsable':
+            perfil = getattr(objeto, 'perfil', None)
+            delegaciones = list(perfil.delegaciones.all()) if perfil else []
+            if perfil and perfil.delegacion_id and all(
+                delegacion.pk != perfil.delegacion_id for delegacion in delegaciones
+            ):
+                delegaciones.append(perfil.delegacion)
+            option['attrs']['data-summary'] = ' · '.join(filter(None, (
+                f'Cargo: {perfil.cargo}' if perfil and perfil.cargo else '',
+                f'Delegaciones: {", ".join(delegacion.nombre for delegacion in delegaciones)}'
+                if delegaciones else '',
+            )))
+        elif self.tipo == 'asignacion_meta':
+            option['attrs'].update({
+                'data-funcionario-id': objeto.funcionario_id,
+                'data-delegacion-id': objeto.meta.delegacion_id,
+            })
+            option['attrs']['data-summary'] = (
+                f'Meta: {objeto.meta.nombre} · Objetivo: {objeto.cantidad_objetivo} · '
+                f'Ponderación: {objeto.ponderacion}% · Trimestre: {objeto.meta.periodo.nombre}'
+            )
+        elif self.tipo == 'actividad':
+            option['attrs']['data-summary'] = ' · '.join(filter(None, (
+                f'Actividad: {objeto.titulo}',
+                f'Solicitante: {objeto.solicitante}',
+                f'Fecha: {objeto.fecha:%d/%m/%Y}',
+                f'Delegación: {objeto.delegacion.nombre}',
+                f'Territorio: {objeto.territorio.nombre}' if objeto.territorio else '',
+                f'Estado: {objeto.get_estado_display()}',
+            )))
+        elif self.tipo == 'gestion_social':
+            option['attrs']['data-summary'] = ' · '.join(filter(None, (
+                f'Código: {objeto.codigo}',
+                f'Ingreso: {objeto.fecha_ingreso:%d/%m/%Y}',
+                f'Delegación: {objeto.delegacion.nombre}',
+                f'Territorio: {objeto.territorio.nombre}' if objeto.territorio else '',
+                f'Estado: {objeto.get_estado_display()}',
+            )))
+        elif self.tipo == 'compromiso':
+            option['attrs']['data-summary'] = ' · '.join(filter(None, (
+                f'Fecha: {objeto.fecha_hora:%d/%m/%Y %H:%M}',
+                f'Delegación: {objeto.delegacion.nombre}',
+                f'Responsable: {objeto.responsable.get_full_name() or objeto.responsable.username}',
+                f'Estado: {objeto.get_estado_display()}',
+            )))
+        return option
+
+
+def _usar_datos_relacionados(form, campo, tipo):
+    field = form.fields[campo]
+    widget = DatosRelacionadosSelect(tipo, attrs=field.widget.attrs)
+    widget.choices = field.choices
+    field.widget = widget
 
 
 class FormularioTerritorial(forms.ModelForm):
@@ -107,7 +197,11 @@ class CartaForm(FormularioTerritorial):
         ).select_related('delegacion')
         self.fields['vecino'].queryset = Vecino.objects.filter(
             territorio__delegacion__in=self.delegaciones, activo=True,
-        ).select_related('territorio')
+        ).select_related('territorio', 'territorio__delegacion')
+        _usar_datos_relacionados(self, 'territorio', 'territorio')
+        _usar_datos_relacionados(self, 'vecino', 'vecino')
+        if 'responsable' in self.fields:
+            _usar_datos_relacionados(self, 'responsable', 'responsable')
         delegacion_id = self.data.get('delegacion') or self.instance.delegacion_id
         if delegacion_id:
             self.fields['territorio'].queryset = self.fields['territorio'].queryset.filter(
@@ -147,12 +241,15 @@ class GestionSocialForm(FormularioTerritorial):
         fields = (
             'titulo', 'tipo', 'subtipo', 'descripcion', 'resultado',
             'vecino', 'asignacion_meta', 'delegacion', 'territorio',
-            'responsable', 'fecha_ingreso', 'fecha_compromiso',
+            'responsable', 'fecha_ingreso', 'fecha_atencion',
+            'fecha_visita_programada', 'fecha_compromiso',
             'ingresa_al_tubo',
         )
         widgets = {
             'descripcion': forms.Textarea(attrs={'rows': 5}),
             'fecha_ingreso': forms.DateInput(attrs={'type': 'date'}),
+            'fecha_atencion': forms.DateInput(attrs={'type': 'date'}),
+            'fecha_visita_programada': forms.DateInput(attrs={'type': 'date'}),
             'fecha_compromiso': forms.DateInput(attrs={'type': 'date'}),
         }
 
@@ -165,11 +262,16 @@ class GestionSocialForm(FormularioTerritorial):
         ).select_related('delegacion')
         self.fields['vecino'].queryset = Vecino.objects.filter(
             territorio__delegacion__in=self.delegaciones, activo=True,
-        ).select_related('territorio')
+        ).select_related('territorio', 'territorio__delegacion')
         self.fields['asignacion_meta'].queryset = AsignacionMeta.objects.filter(
             activa=True, meta__activo=True, meta__periodo__activo=True,
             meta__delegacion__in=self.delegaciones,
         ).select_related('meta', 'funcionario', 'meta__periodo')
+        _usar_datos_relacionados(self, 'territorio', 'territorio')
+        _usar_datos_relacionados(self, 'vecino', 'vecino')
+        _usar_datos_relacionados(self, 'asignacion_meta', 'asignacion_meta')
+        if 'responsable' in self.fields:
+            _usar_datos_relacionados(self, 'responsable', 'responsable')
         delegacion_id = self.data.get('delegacion') or self.instance.delegacion_id
         if delegacion_id:
             self.fields['territorio'].queryset = self.fields['territorio'].queryset.filter(
@@ -187,6 +289,53 @@ class GestionSocialForm(FormularioTerritorial):
         if responsable_id:
             self.fields['asignacion_meta'].queryset = self.fields['asignacion_meta'].queryset.filter(
                 funcionario_id=responsable_id,
+            )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        delegacion = cleaned_data.get('delegacion') or getattr(self.instance, 'delegacion', None)
+        if delegacion and 'territorio' in cleaned_data:
+            self.fields['territorio'].queryset = Territorio.objects.filter(
+                delegacion=delegacion, activo=True,
+            )
+        if delegacion and 'vecino' in cleaned_data:
+            self.fields['vecino'].queryset = Vecino.objects.filter(
+                territorio__delegacion=delegacion, activo=True,
+            )
+        return cleaned_data
+
+
+class ReconocimientoCiudadanoForm(FormularioTerritorial):
+    class Meta:
+        model = ReconocimientoCiudadano
+        fields = (
+            'tipo', 'titulo', 'descripcion', 'fecha', 'vecino',
+            'delegacion', 'territorio', 'responsable',
+        )
+        widgets = {
+            'descripcion': forms.Textarea(attrs={'rows': 4}),
+            'fecha': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['territorio'].queryset = Territorio.objects.filter(
+            delegacion__in=self.delegaciones, activo=True,
+        ).select_related('delegacion')
+        self.fields['vecino'].queryset = Vecino.objects.filter(
+            territorio__delegacion__in=self.delegaciones, activo=True,
+        ).select_related('territorio', 'territorio__delegacion')
+        _usar_datos_relacionados(self, 'territorio', 'territorio')
+        _usar_datos_relacionados(self, 'vecino', 'vecino')
+        if 'responsable' in self.fields:
+            _usar_datos_relacionados(self, 'responsable', 'responsable')
+        delegacion_id = self.data.get('delegacion') or self.instance.delegacion_id
+        if delegacion_id:
+            self.fields['territorio'].queryset = self.fields['territorio'].queryset.filter(
+                delegacion_id=delegacion_id,
+            )
+            self.fields['vecino'].queryset = self.fields['vecino'].queryset.filter(
+                territorio__delegacion_id=delegacion_id,
             )
 
     def clean(self):
@@ -228,10 +377,10 @@ class HitoForm(FormularioTerritorial):
         super().__init__(*args, **kwargs)
         self.fields['actividad'].queryset = AtencionCiudadana.objects.filter(
             delegacion__in=self.delegaciones, activo=True,
-        ).select_related('delegacion')
+        ).select_related('delegacion', 'territorio')
         self.fields['gestion_social'].queryset = GestionSocial.objects.filter(
             delegacion__in=self.delegaciones, activo=True,
-        ).select_related('delegacion')
+        ).select_related('delegacion', 'territorio')
         self.fields['compromiso'].queryset = Compromiso.objects.filter(
             delegacion__in=self.delegaciones,
         ).select_related('delegacion')
@@ -246,6 +395,13 @@ class HitoForm(FormularioTerritorial):
             activa=True, meta__activo=True, meta__periodo__activo=True,
             meta__delegacion__in=self.delegaciones,
         ).select_related('meta', 'funcionario', 'meta__periodo')
+        _usar_datos_relacionados(self, 'actividad', 'actividad')
+        _usar_datos_relacionados(self, 'gestion_social', 'gestion_social')
+        _usar_datos_relacionados(self, 'compromiso', 'compromiso')
+        _usar_datos_relacionados(self, 'territorio', 'territorio')
+        _usar_datos_relacionados(self, 'asignacion_meta', 'asignacion_meta')
+        if 'responsable' in self.fields:
+            _usar_datos_relacionados(self, 'responsable', 'responsable')
         if responsable_id:
             self.fields['asignacion_meta'].queryset = self.fields['asignacion_meta'].queryset.filter(
                 funcionario_id=responsable_id,

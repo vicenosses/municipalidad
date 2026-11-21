@@ -88,3 +88,54 @@ class TuboGestionTests(DatosMetasMixin, TestCase):
         self.entrar('administrador')
         respuesta = self.client.get(reverse('agenda:tubo'))
         self.assertContains(respuesta, 'Registro de otra delegación')
+
+    def test_compromisos_terminales_no_mantienen_actividad_vencida(self):
+        from agenda.tubo import _actividad_fila, _estado_coincide
+
+        for estados, esperado in (
+            ([Compromiso.Estado.CERRADO], 'cerrado'),
+            ([Compromiso.Estado.NO_APLICA], 'no_aplica'),
+            ([Compromiso.Estado.REALIZADO], 'realizado'),
+            ([Compromiso.Estado.CERRADO, Compromiso.Estado.NO_APLICA], 'cerrado'),
+        ):
+            with self.subTest(estados=estados):
+                actividad = AtencionCiudadana.objects.create(
+                    titulo='Actividad con compromisos terminados', fecha=timezone.localdate(),
+                    solicitante='Vecino', tipo=self.actividad.tipo,
+                    subatencion=self.actividad.subatencion, descripcion='Prueba',
+                    delegacion=self.a, responsable=self.usuarios['funcionario'], va_al_tubo=True,
+                )
+                for estado in estados:
+                    compromiso = Compromiso.objects.create(
+                        titulo='Compromiso terminado', fecha_hora=timezone.now() - timedelta(days=2),
+                        estado=estado, delegacion=self.a,
+                        responsable=self.usuarios['funcionario'],
+                    )
+                    compromiso.actividades.add(actividad)
+
+                fila = _actividad_fila(actividad)
+                self.assertEqual(fila['estado'], esperado)
+                self.assertTrue(fila['cerrado'])
+                self.assertFalse(_estado_coincide(fila, 'vencido', timezone.localdate()))
+
+    def test_compromiso_activo_sigue_determinando_vencimiento_con_otros_terminales(self):
+        from agenda.tubo import _actividad_fila, _estado_coincide
+
+        for estado in (Compromiso.Estado.CERRADO, Compromiso.Estado.NO_APLICA):
+            compromiso = Compromiso.objects.create(
+                titulo=f'Compromiso {estado}', fecha_hora=timezone.now() - timedelta(days=2),
+                estado=estado, delegacion=self.a,
+                responsable=self.usuarios['funcionario'],
+            )
+            compromiso.actividades.add(self.actividad)
+        compromiso_activo = Compromiso.objects.create(
+            titulo='Compromiso pendiente', fecha_hora=timezone.now() - timedelta(days=1),
+            estado=Compromiso.Estado.PENDIENTE, delegacion=self.a,
+            responsable=self.usuarios['funcionario'],
+        )
+        compromiso_activo.actividades.add(self.actividad)
+
+        fila = _actividad_fila(self.actividad)
+        self.assertEqual(fila['estado'], 'pendiente')
+        self.assertFalse(fila['cerrado'])
+        self.assertTrue(_estado_coincide(fila, 'vencido', timezone.localdate()))

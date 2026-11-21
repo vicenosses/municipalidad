@@ -9,9 +9,114 @@
         {% else %}
         <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
         {{ field }}
+        {% if field.field.widget.input_type == 'select' %}<div class="form-text d-none" data-related-summary aria-live="polite"></div>{% endif %}
         {% endif %}
         {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
         {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
     </div>
     {% endfor %}
 </div>
+<script>
+(() => {
+    document.querySelectorAll('select[data-autofill]').forEach((select) => {
+        if (select.dataset.autofillBound) return;
+        select.dataset.autofillBound = 'true';
+        const summary = select.parentElement.querySelector('[data-related-summary]');
+        const actualizar = () => {
+            const opcion = select.options[select.selectedIndex];
+            const detalle = opcion ? opcion.dataset.summary || '' : '';
+            if (summary) {
+                summary.textContent = detalle;
+                summary.classList.toggle('d-none', !detalle);
+            }
+            if (!opcion) return;
+            const formulario = select.form;
+            const delegacion = formulario.querySelector('[name="delegacion"]');
+            const territorio = formulario.querySelector('[name="territorio"]');
+            const responsable = formulario.querySelector('[name="responsable"]');
+            const asignacionMeta = formulario.querySelector('[data-autofill="asignacion_meta"]');
+            if (select.dataset.autofill === 'vecino' && territorio && opcion.dataset.territorioId) {
+                if (territorio.value !== opcion.dataset.territorioId) {
+                    territorio.value = opcion.dataset.territorioId;
+                    territorio.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            }
+            if (select.dataset.autofill === 'responsable' && asignacionMeta) {
+                Array.from(asignacionMeta.options).forEach((meta) => {
+                    const ocultar = Boolean(
+                        select.value && meta.dataset.funcionarioId
+                        && meta.dataset.funcionarioId !== select.value
+                    );
+                    meta.disabled = ocultar;
+                    meta.hidden = ocultar;
+                });
+                if (asignacionMeta.selectedOptions[0] && asignacionMeta.selectedOptions[0].disabled) {
+                    asignacionMeta.value = '';
+                    asignacionMeta.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            }
+            if (select.dataset.autofill === 'asignacion_meta') {
+                if (responsable && opcion.dataset.funcionarioId
+                    && responsable.value !== opcion.dataset.funcionarioId) {
+                    responsable.value = opcion.dataset.funcionarioId;
+                    responsable.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+                if (delegacion && opcion.dataset.delegacionId
+                    && delegacion.value !== opcion.dataset.delegacionId) {
+                    delegacion.value = opcion.dataset.delegacionId;
+                    delegacion.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            }
+            if ((select.dataset.autofill === 'vecino' || select.dataset.autofill === 'territorio')
+                && delegacion && opcion.dataset.delegacionId
+                && delegacion.value !== opcion.dataset.delegacionId) {
+                delegacion.value = opcion.dataset.delegacionId;
+                delegacion.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        };
+        select.addEventListener('change', actualizar);
+        if (select.dataset.autofill === 'territorio' || select.dataset.autofill === 'vecino'
+            || select.dataset.autofill === 'asignacion_meta') {
+            const delegacion = select.form.querySelector('[name="delegacion"]');
+            if (delegacion) {
+                const territorio = select.form.querySelector('[name="territorio"]');
+                const vecino = select.form.querySelector('[name="vecino"]');
+                const filtrar = () => {
+                    const asignacionMeta = select.form.querySelector('[data-autofill="asignacion_meta"]');
+                    [territorio, vecino, asignacionMeta].filter(Boolean).forEach((campo) => {
+                        Array.from(campo.options).forEach((opcion) => {
+                            const otraDelegacion = Boolean(
+                                delegacion.value
+                                && opcion.dataset.delegacionId
+                                && opcion.dataset.delegacionId !== delegacion.value
+                            );
+                            const otroTerritorio = Boolean(
+                                campo === vecino && territorio && territorio.value
+                                && opcion.dataset.territorioId
+                                && opcion.dataset.territorioId !== territorio.value
+                            );
+                            const ocultar = otraDelegacion || otroTerritorio;
+                            opcion.disabled = ocultar;
+                            opcion.hidden = ocultar;
+                        });
+                        if (campo.selectedOptions[0] && campo.selectedOptions[0].disabled) {
+                            campo.value = '';
+                            campo.dispatchEvent(new Event('change', {bubbles: true}));
+                        }
+                    });
+                };
+                if (!delegacion.dataset.autofillFilterBound) {
+                    delegacion.dataset.autofillFilterBound = 'true';
+                    delegacion.addEventListener('change', filtrar);
+                }
+                if (territorio && !territorio.dataset.autofillFilterBound) {
+                    territorio.dataset.autofillFilterBound = 'true';
+                    territorio.addEventListener('change', filtrar);
+                }
+                filtrar();
+            }
+        }
+        actualizar();
+    });
+})();
+</script>

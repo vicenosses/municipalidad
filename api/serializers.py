@@ -54,6 +54,7 @@ class MiPerfilSerializer(serializers.ModelSerializer):
     rol = serializers.SerializerMethodField()
     cargo = serializers.SerializerMethodField()
     delegaciones = serializers.SerializerMethodField()
+    email = serializers.EmailField(read_only=True, help_text='Disponible solo para administradores.')
 
     class Meta:
         model = User
@@ -71,6 +72,12 @@ class MiPerfilSerializer(serializers.ModelSerializer):
 
     def get_delegaciones(self, obj) -> list[dict]:
         return list(delegaciones_autorizadas(obj).values('id', 'codigo', 'nombre'))
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if rol_usuario(instance) != 'administrador':
+            data.pop('email', None)
+        return data
 
 
 class DelegacionSerializer(serializers.ModelSerializer):
@@ -265,7 +272,8 @@ class GestionSocialSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'codigo', 'titulo', 'tipo', 'estado', 'delegacion', 'territorio',
             'vecino', 'vecino_resumen', 'responsable', 'responsable_id', 'fecha_ingreso',
-            'fecha_compromiso', 'ingresa_al_tubo', 'activo', 'descripcion',
+            'fecha_atencion', 'fecha_visita_programada', 'fecha_compromiso',
+            'ingresa_al_tubo', 'activo', 'descripcion',
             'creado_en', 'actualizado_en',
         )
         read_only_fields = ('id', 'codigo', 'estado', 'activo', 'creado_en', 'actualizado_en')

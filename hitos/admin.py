@@ -11,3 +11,6 @@ class HitoAdmin(admin.ModelAdmin):
     list_display = ('codigo', 'titulo', 'estado', 'fecha_programada', 'responsable', 'activo')
     list_filter = ('estado', 'activo')
     search_fields = ('codigo', 'titulo')
+
+    def has_delete_permission(self, request, obj=None):
+        return False

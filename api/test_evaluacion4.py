@@ -109,6 +109,25 @@ class ApiEvaluacionTests(DatosMetasMixin, TestCase):
         self.assertEqual(respuesta.data['correo'], 'prueba@example.test')
         self.assertEqual(self.api.get(f'/api/v1/actividades/{self.actividad.pk}/').data['solicitante'], 'Vecino ficticio')
 
+    def test_perfil_oculta_correo_privado_y_api_siempre_responde_json(self):
+        funcionario = self.usuarios['funcionario']
+        funcionario.email = 'funcionario@example.test'
+        funcionario.save(update_fields=['email'])
+        self.api.force_authenticate(funcionario)
+        respuesta = self.api.get('/api/v1/yo/')
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertNotIn('email', respuesta.data)
+        html = self.api.get('/api/v1/yo/', HTTP_ACCEPT='text/html')
+        self.assertEqual(html.status_code, 406)
+        self.assertEqual(html['Content-Type'], 'application/json')
+
+        administrador = self.usuarios['administrador']
+        administrador.email = 'administrador@example.test'
+        administrador.save(update_fields=['email'])
+        self.api.force_authenticate(administrador)
+        respuesta = self.api.get('/api/v1/yo/')
+        self.assertEqual(respuesta.data['email'], 'administrador@example.test')
+
     def test_documentacion_y_esquema_incluyen_jwt_y_operaciones(self):
         respuesta = self.client.get('/api/documentacion/')
         self.assertEqual(respuesta.status_code, 200)

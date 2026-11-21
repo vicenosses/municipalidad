@@ -17,9 +17,11 @@ Facilitar el registro, la organización y el seguimiento de la información muni
 - Administración de tipos y subtipos de atención.
 - Registro y validación de evidencias.
 - Gestión de compromisos y solicitudes de ampliación de plazo.
+- Seguimiento de gestiones sociales y sus plazos entre hitos.
+- Registro de reclamos y felicitaciones ciudadanas.
 - Administración de períodos, metas e indicadores SGR.
 - Registro de acciones relevantes mediante auditoría.
-- Eliminación de registros para el administrador, con restricciones cuando existen datos relacionados.
+- Conservación del historial de actividades, evidencias, compromisos, cartas, gestiones sociales e hitos; su borrado físico está deshabilitado desde la administración.
 
 ## Roles
 
@@ -151,7 +153,7 @@ Para probar operaciones protegidas, obtén un token en `POST /api/v1/auth/token/
 
 Los mantenedores de tipos y subatenciones permiten consultas, creación, edición y eliminación mediante la API. La creación de un tipo requiere `codigo` y `nombre`; la creación de una subatención requiere `nombre` y `tipo` y genera su código automáticamente. El administrador global puede indicar la delegación o dejarla vacía para un registro general; los gestores territoriales quedan limitados a su delegación. Las actividades permiten crear, consultar, modificar sus datos descriptivos y, cuando no tengan datos relacionados, eliminarse por un administrador.
 
-La API JSON está disponible en `/api/v1/`. Al abrir esa dirección con una sesión válida se muestra el índice navegable de Django REST Framework. Las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
+La API JSON está disponible en `/api/v1/` y sus endpoints responden siempre en JSON. Para explorar y probar las operaciones interactivamente, utiliza Swagger en `/api/documentacion/`; las operaciones de negocio reutilizan las reglas y cálculos actuales del sistema.
 
 ### Autenticación
 

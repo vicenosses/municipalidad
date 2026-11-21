@@ -11,3 +11,6 @@ class GestionSocialAdmin(admin.ModelAdmin):
     list_display = ('codigo', 'titulo', 'tipo', 'estado', 'delegacion', 'responsable', 'activo')
     list_filter = ('estado', 'tipo', 'delegacion', 'activo')
     search_fields = ('codigo', 'titulo', 'vecino__rut', 'vecino__nombres', 'vecino__apellidos')
+
+    def has_delete_permission(self, request, obj=None):
+        return False
