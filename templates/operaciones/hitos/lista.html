@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Hitos | SGR{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_agenda.html' with activa='hitos' %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Planificación</div><h2 class="h3 fw-bold mb-1">Hitos</h2><p class="text-muted mb-0">Consulta actividades y gestiones programadas, próximas o vencidas.</p></div>
     {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'agenda:hitos:crear' %}">Programar hito</a>{% endif %}

@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ registro.codigo }} | Tubo de cartas{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_agenda.html' with activa='cartas' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Tubo de cartas · {{ registro.codigo }}</div><h2 class="h3 fw-bold mb-1">{{ registro.asunto }}</h2><span class="badge bg-secondary">{{ registro.get_estado_display }}</span></div>
     <div class="d-flex gap-2">{% if puede_editar %}<a class="btn btn-outline-primary" href="{% url 'agenda:cartas:editar' registro.pk %}">Editar</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'agenda:cartas:lista' %}">Volver a cartas</a></div>

@@ -94,50 +94,69 @@
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
                     <li class="nav-item"><a class="nav-link text-white" href="{% url 'home' %}">{% include 'includes/icono_nav.html' with icono='inicio' %}Inicio</a></li>
-                    {% if sesion_permisos.atenciones %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'atenciones:lista' %}">{% include 'includes/icono_nav.html' with icono='actividades' %}Actividades</a></li>
-                    {% endif %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'agenda:lista' %}">{% include 'includes/icono_nav.html' with icono='agenda' %}Agenda</a></li>
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'evidencias:lista' %}">{% include 'includes/icono_nav.html' with icono='evidencias' %}Evidencias</a></li>
-                    {% if sesion_permisos.usuarios or sesion_rol_codigo == 'delegado' %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:lista' %}">{% include 'includes/icono_nav.html' with icono='usuarios' %}Usuarios</a></li>
-                    {% endif %}
-                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:transferencias' %}">{% include 'includes/icono_nav.html' with icono='transferencias' %}Transferencias</a></li>
-                    {% endif %}
-                    {% if sesion_permisos.delegaciones %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:delegacion_lista' %}">{% include 'includes/icono_nav.html' with icono='delegaciones' %}Delegaciones</a></li>
-                    {% endif %}
-                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:territorio_lista' %}">{% include 'includes/icono_nav.html' with icono='ubicacion' %}Territorios</a></li>
-                    {% endif %}
-                    {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle text-white{% if sesion_comunidad_activa %} show{% endif %}" href="#" id="menuComunidad" role="button" data-bs-toggle="dropdown" aria-expanded="{% if sesion_comunidad_activa %}true{% else %}false{% endif %}">{% include 'includes/icono_nav.html' with icono='comunidad' %}Comunidad</a>
-                        <ul class="dropdown-menu{% if sesion_comunidad_activa %} show{% endif %}" aria-labelledby="menuComunidad">
-                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'vecinos' %}">Vecinos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'juntas' %}">Juntas de vecinos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'participaciones' %}">Participaciones</a></li>
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="menuAtencion" role="button" data-bs-toggle="dropdown" aria-expanded="false">{% include 'includes/icono_nav.html' with icono='actividades' %}Atención</a>
+                        <ul class="dropdown-menu" aria-labelledby="menuAtencion">
+                            {% if sesion_permisos.atenciones %}<li><a class="dropdown-item" href="{% url 'atenciones:lista' %}">Actividades</a></li>{% endif %}
+                            <li><a class="dropdown-item" href="{% url 'atenciones:gestion_social:lista' %}">Gestión social</a></li>
+                            <li><a class="dropdown-item" href="{% url 'atenciones:reconocimientos:lista' %}">Reclamos y felicitaciones</a></li>
+                            <li><a class="dropdown-item" href="{% url 'evidencias:lista' %}">Evidencias</a></li>
+                        </ul>
+                    </li>
+
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="menuTubo" role="button" data-bs-toggle="dropdown" aria-expanded="false">{% include 'includes/icono_nav.html' with icono='agenda' %}Tubo</a>
+                        <ul class="dropdown-menu" aria-labelledby="menuTubo">
+                            <li><a class="dropdown-item" href="{% url 'agenda:lista' %}">Compromisos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'agenda:tubo' %}">Tubo de gestión</a></li>
+                            {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' or sesion_rol_codigo == 'verificador' %}
+                            <li><a class="dropdown-item" href="{% url 'agenda:ampliaciones' %}">Ampliaciones de plazo</a></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'agenda:cartas:lista' %}">Tubo de cartas</a></li>
+                            <li><a class="dropdown-item" href="{% url 'agenda:hitos:lista' %}">Hitos</a></li>
+                        </ul>
+                    </li>
+
+                    {% if sesion_permisos.usuarios or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' or sesion_permisos.roles or sesion_auditoria %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="menuAdministracion" role="button" data-bs-toggle="dropdown" aria-expanded="false">{% include 'includes/icono_nav.html' with icono='usuarios' %}Administración</a>
+                        <ul class="dropdown-menu" aria-labelledby="menuAdministracion">
+                            {% if sesion_permisos.usuarios or sesion_rol_codigo == 'delegado' %}<li><a class="dropdown-item" href="{% url 'usuarios:lista' %}">Usuarios</a></li>{% endif %}
+                            {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}<li><a class="dropdown-item" href="{% url 'usuarios:transferencias' %}">Transferencias</a></li>{% endif %}
+                            {% if sesion_permisos.roles %}
+                            <li><a class="dropdown-item" href="{% url 'usuarios:rol_lista' %}">Roles</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:cargo_lista' %}">Cargos</a></li>
+                            {% endif %}
+                            {% if sesion_auditoria %}<li><a class="dropdown-item" href="{% url 'auditoria:lista' %}">Auditoría</a></li>{% endif %}
                         </ul>
                     </li>
                     {% endif %}
-                    {% if sesion_permisos.roles %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'usuarios:rol_lista' %}">{% include 'includes/icono_nav.html' with icono='roles' %}Roles</a></li>
+
+                    {% if sesion_permisos.delegaciones or sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' or sesion_catalogos %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-white{% if sesion_comunidad_activa %} show{% endif %}" href="#" id="menuComunidad" role="button" data-bs-toggle="dropdown" aria-expanded="{% if sesion_comunidad_activa %}true{% else %}false{% endif %}">{% include 'includes/icono_nav.html' with icono='comunidad' %}Territorio y comunidad</a>
+                        <ul class="dropdown-menu{% if sesion_comunidad_activa %} show{% endif %}" aria-labelledby="menuComunidad">
+                            {% if sesion_permisos.delegaciones %}<li><a class="dropdown-item" href="{% url 'usuarios:delegacion_lista' %}">Delegaciones</a></li>{% endif %}
+                            {% if sesion_rol_codigo == 'administrador' or sesion_rol_codigo == 'delegado' or sesion_rol_codigo == 'coordinador' %}
+                            <li><a class="dropdown-item" href="{% url 'usuarios:territorio_lista' %}">Territorios</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'vecinos' %}">Vecinos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'juntas' %}">Juntas de vecinos</a></li>
+                            <li><a class="dropdown-item" href="{% url 'usuarios:comunidad_lista' 'participaciones' %}">Participaciones</a></li>
+                            {% endif %}
+                            {% if sesion_catalogos %}<li><a class="dropdown-item" href="{% url 'catalogos:inicio' %}">Tipos de Atención</a></li>{% endif %}
+                        </ul>
+                    </li>
                     {% endif %}
-                    {% if sesion_catalogos %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'catalogos:inicio' %}">{% include 'includes/icono_nav.html' with icono='tipos' %}Tipos de Atención</a></li>
-                    {% endif %}
-                    {% if sesion_auditoria %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'auditoria:lista' %}">{% include 'includes/icono_nav.html' with icono='auditoria' %}Auditoría</a></li>
-                    {% endif %}
-                    {% if sesion_sgr_periodos %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:periodo_lista' %}">{% include 'includes/icono_nav.html' with icono='metas' %}Prioridades y Metas</a></li>
-                    {% endif %}
-                    {% if sesion_informes_sgr %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:informe' %}">{% include 'includes/icono_nav.html' with icono='informes' %}Informes SGR</a></li>
-                    {% endif %}
-                    {% if sesion_validar_aportes %}
-                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'sgr:aportes_pendientes' %}">{% include 'includes/icono_nav.html' with icono='validar' %}Validar aportes</a></li>
+
+                    {% if sesion_sgr_periodos or sesion_informes_sgr or sesion_validar_aportes %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-white" href="#" id="menuSGR" role="button" data-bs-toggle="dropdown" aria-expanded="false">{% include 'includes/icono_nav.html' with icono='metas' %}Resultados SGR</a>
+                        <ul class="dropdown-menu" aria-labelledby="menuSGR">
+                            {% if sesion_sgr_periodos %}<li><a class="dropdown-item" href="{% url 'sgr:periodo_lista' %}">Prioridades y Metas</a></li>{% endif %}
+                            {% if sesion_informes_sgr %}<li><a class="dropdown-item" href="{% url 'sgr:informe' %}">Informes SGR</a></li>{% endif %}
+                            {% if sesion_validar_aportes %}<li><a class="dropdown-item" href="{% url 'sgr:aportes_pendientes' %}">Validar aportes</a></li>{% endif %}
+                        </ul>
+                    </li>
                     {% endif %}
                     {% endif %}
                 </ul>
@@ -223,6 +242,15 @@
             if (mejor) {
                 mejor.classList.add('actual');
                 mejor.setAttribute('aria-current', 'page');
+                var menu = mejor.closest('.dropdown-menu');
+                if (menu) {
+                    menu.classList.add('show');
+                    var desplegable = menu.parentElement.querySelector('.dropdown-toggle');
+                    if (desplegable) {
+                        desplegable.classList.add('show');
+                        desplegable.setAttribute('aria-expanded', 'true');
+                    }
+                }
             }
         })();
     </script>{% endif %}

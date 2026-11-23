@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Tubo de cartas | SGR{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_agenda.html' with activa='cartas' %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Agenda y seguimiento</div><h2 class="h3 fw-bold mb-1">Tubo de cartas</h2><p class="text-muted mb-0">Controla asignación, respuesta y cierre de las cartas recibidas.</p></div>
     {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'agenda:cartas:crear' %}">Registrar carta</a>{% endif %}

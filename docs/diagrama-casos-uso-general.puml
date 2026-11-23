@@ -1,0 +1,92 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+
+title Sistema de Gestión de Resultados Municipal (SGR)\nDiagrama general de casos de uso
+
+actor "Usuario municipal\n(según rol y delegación)" as Usuario
+actor "Administrador" as Admin
+actor "Cliente externo\n(API)" as ClienteAPI
+actor "Servicio de correo\n(configurable)" as Correo
+
+rectangle "Sistema de Gestión de Resultados Municipal (SGR)" {
+  package "Acceso y administración" {
+    usecase "Iniciar / cerrar sesión" as UC_Acceso
+    usecase "Recuperar o activar cuenta" as UC_Cuenta
+    usecase "Gestionar usuarios,\nroles y cargos" as UC_Usuarios
+    usecase "Gestionar delegaciones,\nterritorios y comunidad" as UC_Territorio
+    usecase "Gestionar catálogos\nde atención" as UC_Catalogos
+  }
+
+  package "Gestión operativa municipal" {
+    usecase "Registrar y gestionar\nactividades de atención" as UC_Atenciones
+    usecase "Registrar reclamos\ny felicitaciones" as UC_Reconocimientos
+    usecase "Cargar, consultar\ny validar evidencias" as UC_Evidencias
+    usecase "Gestionar compromisos,\nseguimientos y ampliaciones" as UC_Compromisos
+    usecase "Consultar Tubo\nde gestión" as UC_Tubo
+    usecase "Gestionar casos\nde atención social" as UC_Social
+    usecase "Gestionar cartas\ny documentos" as UC_Cartas
+    usecase "Programar y seguir\nhitos" as UC_Hitos
+  }
+
+  package "Resultados y control" {
+    usecase "Gestionar períodos,\nmetas e indicadores" as UC_SGR
+    usecase "Proponer y validar\naportes a indicadores" as UC_Aportes
+    usecase "Consultar dashboard,\ninformes y exportaciones" as UC_Reportes
+    usecase "Consultar auditoría" as UC_Auditoria
+  }
+
+  package "Integración" {
+    usecase "Autenticarse ante la API" as UC_ApiAuth
+    usecase "Consultar y operar\nrecursos de la API" as UC_Api
+  }
+}
+
+Usuario --> UC_Acceso
+Usuario --> UC_Cuenta
+Usuario --> UC_Territorio
+Usuario --> UC_Catalogos
+Usuario --> UC_Atenciones
+Usuario --> UC_Reconocimientos
+Usuario --> UC_Evidencias
+Usuario --> UC_Compromisos
+Usuario --> UC_Tubo
+Usuario --> UC_Social
+Usuario --> UC_Cartas
+Usuario --> UC_Hitos
+Usuario --> UC_SGR
+Usuario --> UC_Aportes
+Usuario --> UC_Reportes
+
+Admin --> UC_Usuarios
+Admin --> UC_Auditoria
+
+ClienteAPI --> UC_ApiAuth
+ClienteAPI --> UC_Api
+Correo --> UC_Cuenta
+
+note right of Usuario
+  Los casos de uso representan
+  capacidades generales, no permisos
+  universales. Cada operación depende
+  del rol, la delegación autorizada,
+  la responsabilidad sobre el registro
+  y las reglas del servidor.
+end note
+
+note bottom of UC_Territorio
+  El vecino es un registro de la persona
+  atendida; no se modela como usuario
+  autenticado del sistema.
+end note
+
+note bottom of UC_Api
+  La API expone capacidades del mismo
+  sistema Django; no es un microservicio
+  independiente ni duplica los casos
+  de negocio de la interfaz web.
+end note
+
+@enduml

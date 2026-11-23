@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{% if object.pk %}Editar{% else %}Registrar{% endif %} reclamo o felicitación | SGR{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_actividades.html' with activa='reconocimientos' %}
 <div class="mb-4"><div class="small text-uppercase text-institucional fw-bold">Atención ciudadana</div><h2 class="h3 fw-bold mb-1">{% if object.pk %}Editar{% else %}Registrar{% endif %} reclamo o felicitación</h2></div>
 <form method="post" class="card shadow-sm">
     <div class="card-body">

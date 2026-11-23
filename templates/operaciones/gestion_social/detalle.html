@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ registro.codigo }} | Gestión social{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_actividades.html' with activa='gestion_social' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Gestión social · {{ registro.codigo }}</div><h2 class="h3 fw-bold mb-1">{{ registro.titulo }}</h2><span class="badge bg-secondary">{{ registro.get_estado_display }}</span>{% if registro.ingresa_al_tubo %} <span class="badge bg-info text-dark">En Tubo</span>{% endif %}</div>
     <div class="d-flex gap-2">{% if puede_editar %}<a class="btn btn-outline-primary" href="{% url 'atenciones:gestion_social:editar' registro.pk %}">Editar</a>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'atenciones:gestion_social:lista' %}">Volver a gestiones</a></div>
