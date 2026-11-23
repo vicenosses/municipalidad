@@ -48,10 +48,15 @@
             <p class="small text-muted">Si requiere seguimiento, indica la fecha y hora límite.</p>
             {% for field in form %}{% if field.name == 'va_al_tubo' or field.name == 'plazo_tubo' or field.name == 'rut_tubo' or field.name == 'telefono_tubo' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
         </section>
-        <section class="actividad-form-seccion" aria-labelledby="actividad-sgr">
-            <h3 id="actividad-sgr" class="h5 fw-bold mb-1">Vinculación con SGR</h3>
-            <p class="small text-muted">Puedes asociar la actividad a un indicador si corresponde.</p>
-            {% for field in form %}{% if field.name == 'indicador' or field.name == 'valor_declarado' %}{% include 'atenciones/_campo_actividad.html' with field=field %}{% endif %}{% endfor %}
+        <section class="actividad-form-seccion" aria-labelledby="actividad-meta">
+            <h3 id="actividad-meta" class="h5 fw-bold mb-1">Vinculación a una meta</h3>
+            <p class="small text-muted">Si la actividad aporta al cumplimiento de una meta, puedes asociarla y registrar su indicador.</p>
+            {% include 'atenciones/_campo_actividad.html' with field=form.vincular_meta %}
+            <div id="campos-vinculacion-meta" hidden>
+                {% include 'atenciones/_campo_actividad.html' with field=form.meta %}
+                {% include 'atenciones/_campo_actividad.html' with field=form.indicador %}
+                {% include 'atenciones/_campo_actividad.html' with field=form.valor_declarado %}
+            </div>
         </section>
         <div class="actividad-form-acciones d-flex flex-wrap gap-2">
             <button type="submit" class="btn btn-custom-red">Registrar</button>
@@ -78,21 +83,70 @@
         actualizarPlazo();
     }
     const fechaActividad = document.getElementById('id_fecha');
+    const vincularMeta = document.getElementById('id_vincular_meta');
+    const camposVinculacionMeta = document.getElementById('campos-vinculacion-meta');
+    const metaActividad = document.getElementById('id_meta');
     const indicadorActividad = document.getElementById('id_indicador');
+    const valorDeclarado = document.getElementById('id_valor_declarado');
+    function actualizarVinculacionMeta() {
+        if (!vincularMeta || !camposVinculacionMeta) return;
+        camposVinculacionMeta.hidden = !vincularMeta.checked;
+        if (metaActividad) {
+            const campoIndicador = indicadorActividad.closest('.mb-3');
+            campoIndicador.hidden = !metaActividad.value;
+            if (valorDeclarado) valorDeclarado.closest('.mb-3').hidden = !indicadorActividad.value;
+        }
+    }
+    if (vincularMeta) vincularMeta.addEventListener('change', function () {
+        if (!vincularMeta.checked) {
+            if (metaActividad) metaActividad.value = '';
+            if (indicadorActividad) indicadorActividad.value = '';
+            if (valorDeclarado) valorDeclarado.value = '';
+        }
+        actualizarVinculacionMeta();
+    });
+    if (metaActividad) metaActividad.addEventListener('change', function () {
+        Array.from(indicadorActividad.options).forEach(function (opcion) {
+            if (!opcion.value) return;
+            opcion.hidden = opcion.dataset.metaId !== metaActividad.value;
+        });
+        if (indicadorActividad.value && indicadorActividad.options[indicadorActividad.selectedIndex].hidden) {
+            indicadorActividad.value = '';
+        }
+        actualizarVinculacionMeta();
+    });
+    if (indicadorActividad) indicadorActividad.addEventListener('change', actualizarVinculacionMeta);
+    if (metaActividad && indicadorActividad) metaActividad.dispatchEvent(new Event('change'));
+    actualizarVinculacionMeta();
     let consultaIndicadores = 0;
-    if (fechaActividad && indicadorActividad) {
+    if (fechaActividad && metaActividad && indicadorActividad) {
         fechaActividad.addEventListener('change', async function () {
             const consulta = ++consultaIndicadores;
-            const seleccionado = indicadorActividad.value;
+            const metaSeleccionada = metaActividad.value;
+            const indicadorSeleccionado = indicadorActividad.value;
             const respuesta = await fetch('{% url "sgr:indicadores_actividad" %}?fecha=' + encodeURIComponent(fechaActividad.value));
-            if (!respuesta.ok || consulta !== consultaIndicadores) return;
+            if (consulta !== consultaIndicadores) return;
+            if (!respuesta.ok) {
+                metaActividad.replaceChildren(new Option('Selecciona una meta', ''));
+                indicadorActividad.replaceChildren(new Option('Selecciona un indicador', ''));
+                actualizarVinculacionMeta();
+                return;
+            }
             const datos = await respuesta.json();
             if (consulta !== consultaIndicadores) return;
-            indicadorActividad.replaceChildren(new Option('Sin Indicador asociado', ''));
+            const metas = new Map();
+            datos.indicadores.forEach(function (item) { metas.set(String(item.meta_id), item.meta_nombre); });
+            metaActividad.replaceChildren(new Option('Selecciona una meta', ''));
+            metas.forEach(function (nombre, id) { metaActividad.add(new Option(nombre, id)); });
+            indicadorActividad.replaceChildren(new Option('Selecciona un indicador', ''));
             datos.indicadores.forEach(function (item) {
-                indicadorActividad.add(new Option(item.nombre, item.id));
+                const opcion = new Option(item.nombre, item.id);
+                opcion.dataset.metaId = item.meta_id;
+                indicadorActividad.add(opcion);
             });
-            if (Array.from(indicadorActividad.options).some(op => op.value === seleccionado)) indicadorActividad.value = seleccionado;
+            if (metas.has(metaSeleccionada)) metaActividad.value = metaSeleccionada;
+            if (Array.from(indicadorActividad.options).some(op => op.value === indicadorSeleccionado && op.dataset.metaId === metaActividad.value)) indicadorActividad.value = indicadorSeleccionado;
+            metaActividad.dispatchEvent(new Event('change'));
         });
     }
     const mapa = {};

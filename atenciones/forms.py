@@ -6,9 +6,18 @@ from atenciones.models import AtencionCiudadana
 from catalogos.models import SubAtencion, TipoAtencion
 from usuarios.sesion import get_delegacion_activa
 from usuarios.models import Territorio
-from sgr.models import AporteIndicador, Indicador
+from sgr.models import AporteIndicador, Indicador, Meta
 from sgr.aportes import indicadores_para_actividad
 from sgr.plazos import dentro_plazo
+
+
+class IndicadorMetaSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex=subindex, attrs=attrs)
+        instancia = getattr(value, 'instance', None)
+        if instancia is not None:
+            option['attrs']['data-meta-id'] = instancia.meta_id
+        return option
 
 
 class AtencionCiudadanaForm(forms.ModelForm):
@@ -19,9 +28,13 @@ class AtencionCiudadanaForm(forms.ModelForm):
         widget=forms.TextInput(attrs={'class': 'form-control'}))
     telefono_tubo = forms.CharField(label='Teléfono del solicitante', max_length=30, required=False,
         widget=forms.TextInput(attrs={'class': 'form-control'}))
-    indicador = forms.ModelChoiceField(label='Indicador SGR (opcional)', queryset=Indicador.objects.none(),
-                                       required=False, widget=forms.Select(attrs={'class': 'form-select'}),
-                                       help_text='Puede registrar la Actividad sin Indicador. Las opciones dependen de la fecha y Delegación.')
+    vincular_meta = forms.BooleanField(label='¿Vincular esta actividad a una meta?', required=False,
+                                       widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}))
+    meta = forms.ModelChoiceField(label='Meta', queryset=Meta.objects.none(), required=False,
+                                  widget=forms.Select(attrs={'class': 'form-select'}))
+    indicador = forms.ModelChoiceField(label='Indicador de la meta', queryset=Indicador.objects.none(),
+                                       required=False, widget=IndicadorMetaSelect(attrs={'class': 'form-select'}),
+                                       help_text='Selecciona el indicador que permitirá registrar el aporte de esta actividad.')
     valor_declarado = forms.DecimalField(label='Aporte declarado (si corresponde)', max_digits=12,
                                          decimal_places=2, min_value=0, required=False,
                                          widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}))
@@ -72,8 +85,12 @@ class AtencionCiudadanaForm(forms.ModelForm):
             fecha = forms.DateField().clean(fecha_texto)
         except forms.ValidationError:
             fecha = None
-        self.fields['indicador'].queryset = indicadores_para_actividad(fecha, self.delegacion_activa, request.user) if request else Indicador.objects.none()
-        self.fields['indicador'].error_messages['invalid_choice'] = 'Seleccione un indicador de una meta asignada para la fecha y delegación de la actividad.'
+        indicadores = indicadores_para_actividad(fecha, self.delegacion_activa, request.user) if request else Indicador.objects.none()
+        self.fields['meta'].queryset = Meta.objects.filter(pk__in=indicadores.values('meta_id')).distinct()
+        self.fields['meta'].empty_label = 'Selecciona una meta'
+        self.fields['indicador'].queryset = indicadores
+        self.fields['indicador'].empty_label = 'Selecciona un indicador'
+        self.fields['indicador'].error_messages['invalid_choice'] = 'Seleccione un indicador de una meta disponible para la fecha y delegación de la actividad.'
         tipos = TipoAtencion.objects.filter(activo=True)
         subatenciones = SubAtencion.objects.filter(
             activo=True,
@@ -119,6 +136,15 @@ class AtencionCiudadanaForm(forms.ModelForm):
             if timezone.localtime(plazo).date() < cleaned['fecha']:
                 self.add_error('plazo_tubo', 'El plazo no puede ser anterior a la fecha de la actividad.')
         indicador = cleaned.get('indicador')
+        meta = cleaned.get('meta')
+        if cleaned.get('vincular_meta') and not meta:
+            self.add_error('meta', 'Selecciona la meta que corresponde a la actividad.')
+        if cleaned.get('vincular_meta') and not indicador:
+            self.add_error('indicador', 'Selecciona un indicador de la meta para registrar su aporte.')
+        if meta and not cleaned.get('vincular_meta'):
+            self.add_error('vincular_meta', 'Confirma que deseas vincular esta actividad a una meta.')
+        if meta and indicador and indicador.meta_id != meta.pk:
+            self.add_error('indicador', 'El indicador debe pertenecer a la meta seleccionada.')
         if indicador:
             fecha = cleaned.get('fecha')
             if fecha and not dentro_plazo(fecha):

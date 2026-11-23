@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Reclamos y felicitaciones | SGR{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_actividades.html' with activa='reconocimientos' %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Atención ciudadana</div><h2 class="h3 fw-bold mb-1">Reclamos y felicitaciones</h2><p class="text-muted mb-0">Registro y seguimiento de reconocimientos ciudadanos por período, delegación y responsable.</p></div>
     {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'atenciones:reconocimientos:crear' %}">Registrar</a>{% endif %}

@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Gestión social | SGR{% endblock %}
 {% block content %}
-{% include 'operaciones/_nav_actividades.html' with activa='gestion_social' %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div><div class="small text-uppercase text-institucional fw-bold">Atención ciudadana</div><h2 class="h3 fw-bold mb-1">Gestiones sociales</h2><p class="text-muted mb-0">Atención, seguimiento y derivación de casos sociales.</p></div>
     {% if puede_crear %}<a class="btn btn-custom-red" href="{% url 'atenciones:gestion_social:crear' %}">Registrar gestión social</a>{% endif %}
