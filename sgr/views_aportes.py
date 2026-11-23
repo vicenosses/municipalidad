@@ -25,7 +25,10 @@ class IndicadoresActividadView(RolRequiredMixin, View):
         except ValidationError:
             return JsonResponse({'indicadores': []}, status=400)
         qs = indicadores_para_actividad(fecha, get_delegacion_activa(request), request.user)
-        return JsonResponse({'indicadores': [{'id': i.pk, 'nombre': f'{i.nombre} · {i.meta}'} for i in qs]})
+        return JsonResponse({'indicadores': [
+            {'id': i.pk, 'nombre': i.nombre, 'meta_id': i.meta_id, 'meta_nombre': i.meta.nombre}
+            for i in qs
+        ]})
 
 
 class PropuestaAporteView(RolRequiredMixin, FormView):
